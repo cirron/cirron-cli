@@ -1,0 +1,144 @@
+# name: Release
+
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Use Node.js 18
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: 18
+#         cache: 'npm'
+    
+#     - name: Install dependencies
+#       run: npm ci
+    
+#     - name: Run tests
+#       run: npm test
+    
+#     - name: Build
+#       run: npm run build
+
+#   build-binaries:
+#     needs: test
+#     runs-on: ${{ matrix.os }}
+    
+#     strategy:
+#       matrix:
+#         include:
+#           - os: ubuntu-latest
+#             target: linux
+#           - os: macos-latest
+#             target: macos
+#           - os: windows-latest
+#             target: win
+    
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Use Node.js 18
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: 18
+#         cache: 'npm'
+    
+#     - name: Install dependencies
+#       run: npm ci
+    
+#     - name: Build TypeScript
+#       run: npm run build
+    
+#     - name: Build binaries
+#       run: npm run build:all
+    
+#     - name: Upload binaries
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: binaries-${{ matrix.target }}
+#         path: binaries/
+
+#   publish-npm:
+#     needs: test
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Use Node.js 18
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: 18
+#         cache: 'npm'
+#         registry-url: 'https://registry.npmjs.org'
+    
+#     - name: Install dependencies
+#       run: npm ci
+    
+#     - name: Build
+#       run: npm run build
+    
+#     - name: Publish to NPM
+#       run: npm publish
+#       env:
+#         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+#   create-release:
+#     needs: [test, build-binaries, publish-npm]
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Download all binaries
+#       uses: actions/download-artifact@v4
+#       with:
+#         path: ./binaries
+    
+#     - name: Organize binaries
+#       run: |
+#         mkdir -p release-binaries
+#         find binaries -name "cirron-*" -type f -exec cp {} release-binaries/ \;
+#         ls -la release-binaries/
+    
+#     - name: Create Release
+#       uses: softprops/action-gh-release@v1
+#       with:
+#         files: release-binaries/*
+#         body: |
+#           ## Installation
+          
+#           ### NPM (Recommended)
+#           ```bash
+#           npm install -g cirron-cli
+#           ```
+          
+#           ### Binary Download
+#           Download the appropriate binary for your system from the assets below.
+          
+#           #### Linux/macOS
+#           ```bash
+#           curl -L https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cirron-linux -o cirron
+#           chmod +x cirron
+#           sudo mv cirron /usr/local/bin/
+#           ```
+          
+#           #### Quick Install Script
+#           ```bash
+#           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash
+#           ```
+          
+#           ## Changelog
+          
+#           See [CHANGELOG.md](CHANGELOG.md) for details.
+#         draft: false
+#         prerelease: false
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

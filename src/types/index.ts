@@ -1,0 +1,129 @@
+export interface CirronConfig {
+  apiUrl: string;
+  token?: string;
+  defaultEnv: string;
+  timeout: number;
+  retries: number;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface ProjectConfig {
+  name: string;
+  version: string;
+  template: string;
+  environments: Record<string, EnvironmentConfig>;
+  build?: BuildConfig;
+  deploy?: DeployConfig;
+}
+
+export interface EnvironmentConfig {
+  name: string;
+  url?: string;
+  variables?: Record<string, string>;
+  deploymentSettings?: DeploymentSettings;
+}
+
+export interface BuildConfig {
+  outputDir: string;
+  command: string;
+  beforeBuild?: string[];
+  afterBuild?: string[];
+  include?: string[];
+  exclude?: string[];
+}
+
+export interface DeployConfig {
+  provider: 'aws' | 'vercel' | 'netlify' | 'custom';
+  settings: Record<string, any>;
+  beforeDeploy?: string[];
+  afterDeploy?: string[];
+}
+
+export interface DeploymentSettings {
+  autoScale?: boolean;
+  minInstances?: number;
+  maxInstances?: number;
+  healthCheck?: string;
+  timeout?: number;
+}
+
+export interface BuildOptions {
+  env: string;
+  watch?: boolean;
+  output?: string;
+  clean?: boolean;
+  analyze?: boolean;
+}
+
+export interface DeployOptions {
+  env: string;
+  force?: boolean;
+  noBuild?: boolean;
+  rollback?: boolean;
+  message?: string;
+}
+
+export interface InitOptions {
+  template: string;
+  force?: boolean;
+  install?: boolean;
+  git?: boolean;
+}
+
+export interface AuthInfo {
+  authenticated: boolean;
+  user?: {
+    id: string;
+    email: string;
+    name?: string;
+  };
+  token?: string;
+  expiresAt?: string;
+}
+
+export interface DeploymentInfo {
+  id: string;
+  environment: string;
+  status: 'pending' | 'building' | 'deploying' | 'success' | 'failed';
+  createdAt: string;
+  completedAt?: string;
+  message?: string;
+  url?: string;
+  logs?: string[];
+}
+
+export interface ProjectStatus {
+  name: string;
+  lastDeployment?: DeploymentInfo;
+  environments: string[];
+  buildStatus?: 'success' | 'failed' | 'pending';
+  isGitClean?: boolean;
+  currentBranch?: string;
+}
+
+export interface LogEntry {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  source?: string;
+}
+
+export interface Template {
+  name: string;
+  description: string;
+  repository?: string;
+  files: TemplateFile[];
+  postInstall?: string[];
+}
+
+export interface TemplateFile {
+  path: string;
+  content: string;
+  executable?: boolean;
+}

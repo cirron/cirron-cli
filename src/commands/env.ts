@@ -1,0 +1,120 @@
+/ src/commands/env.ts
+import chalk from 'chalk';
+import inquirer from 'inquirer';
+import ora from 'ora';
+import fs from 'fs-extra';
+import path from 'path';
+import { logger } from '../utils/logger';
+import { CirronApi } from '../utils/api';
+import { ConfigManager } from '../utils/config';
+import type { ProjectConfig } from '../types';
+
+interface EnvOptions {
+  env?: string;
+}
+
+export async function envListCommand(options: EnvOptions): Promise<void> {
+  const spinner = ora('Fetching environment variables...').start();
+
+  try {
+    const { api, projectConfig } = await setupCommand();
+    const environment = options.env || 'production';
+
+    const envVars = await api.getEnvironmentVariables(projectConfig.name, environment);
+    spinner.stop();
+
+    if (Object.keys(envVars).length === 0) {
+      logger.info(chalk.yellow(`No environment variables found for ${environment}`));
+      return;
+    }
+
+    console.log();
+    logger.info(chalk.bold(`🔧 Environment Variables (${environment})`));
+    console.log();
+
+    Object.entries(envVars).forEach(([key, value]) => {
+      // Mask sensitive values
+      const displayValue = key.toLowerCase().includes('password') || 
+                          key.toLowerCase().includes('secret') || 
+                          key.toLowerCase().includes('key') ?
+                          '*'.repeat(8) : value;
+      
+      logger.info(`${chalk.cyan(key)}: ${chalk.gray(displayValue)}`);
+    });
+
+  } catch (error) {
+    spinner.fail(chalk.red('Failed to fetch environment variables'));
+    logger.error('Error:', error);
+  }
+}
+
+export async function envSetCommand(key: string, value: string, options: EnvOptions): Promise<void> {
+  const spinner = ora('Setting environment variable...').start();
+
+  try {
+    const { api, projectConfig } = await setupCommand();
+    const environment = options.env || 'production';
+
+    await api.setEnvironmentVariable(projectConfig.name, environment, key, value);
+    spinner.succeed(`Set ${chalk.cyan(key)} in ${chalk.yellow(environment)} environment`);
+
+  } catch (error) {
+    spinner.fail(chalk.red('Failed to set environment variable'));
+    logger.error('Error:', error);
+  }
+}
+
+export async function envDeleteCommand(key: string, options: EnvOptions): Promise<void> {
+  const spinner = ora('Deleting environment variable...').start();
+
+  try {
+    const { api, projectConfig } = await setupCommand();
+    const environment = options.env || 'production';
+
+    // Confirm deletion
+    spinner.stop();
+    const answers = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: `Delete ${chalk.cyan(key)} from ${chalk.yellow(environment)} environment?`,
+        default: false
+      }
+    ]);
+
+    if (!answers.confirm) {
+      logger.info('Deletion cancelled');
+      return;
+    }
+
+    spinner.start('Deleting environment variable...');
+    await api.deleteEnvironmentVariable(projectConfig.name, environment, key);
+    spinner.succeed(`Deleted ${chalk.cyan(key)} from ${chalk.yellow(environment)} environment`);
+
+  } catch (error) {
+    spinner.fail(chalk.red('Failed to delete environment variable'));
+    logger.error('Error:', error);
+  }
+}
+
+async function setupCommand(): Promise<{ api: CirronApi; projectConfig: ProjectConfig }> {
+  // Load project configuration
+  const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+  
+  if (!fs.existsSync(projectConfigPath)) {
+    throw new Error('No cirron.config.json found. Run cirron init to initialize a project');
+  }
+
+  const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+  
+  // Check authentication
+  const config = new ConfigManager();
+  const currentConfig = config.load();
+  
+  if (!currentConfig.token) {
+    throw new Error('Not authenticated. Run cirron auth login to authenticate');
+  }
+
+  const api = new CirronApi(currentConfig);
+  return { api, projectConfig };
+}

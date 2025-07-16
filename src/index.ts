@@ -1,0 +1,192 @@
+#!/usr/bin/env node
+
+import { Command } from 'commander';
+import chalk from 'chalk';
+import { authCommand, loginCommand, logoutCommand } from './commands/auth';
+import { buildCommand } from './commands/build';
+import { deployCommand } from './commands/deploy';
+import { initCommand } from './commands/init';
+import { configCommand } from './commands/config';
+import { logger } from './utils/logger';
+
+const program = new Command();
+
+// Global error handling
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception:', error.message);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (error) => {
+  logger.error('Unhandled rejection:', error);
+  process.exit(1);
+});
+
+program
+  .name('cirron')
+  .description('Cirron CLI - Build, deploy, and manage your projects with ease')
+  .version('1.0.0')
+  .option('-v, --verbose', 'Enable verbose logging')
+  .option('--config <path>', 'Path to config file')
+  .hook('preAction', (thisCommand) => {
+    const options = thisCommand.opts();
+    if (options.verbose) {
+      process.env.CIRRON_VERBOSE = 'true';
+    }
+  });
+
+// Auth commands
+const authCmd = program
+  .command('auth')
+  .description('Authentication commands');
+
+authCmd
+  .command('login')
+  .description('Login to Cirron')
+  .option('-t, --token <token>', 'API token')
+  .option('-u, --url <url>', 'API URL (default: https://api.cirron.com)')
+  .action(loginCommand);
+
+authCmd
+  .command('logout')
+  .description('Logout from Cirron')
+  .action(logoutCommand);
+
+authCmd
+  .command('status')
+  .description('Show authentication status')
+  .action(authCommand);
+
+// Init command
+program
+  .command('init')
+  .description('Initialize a new Cirron project')
+  .argument('[name]', 'Project name')
+  .option('-t, --template <template>', 'Project template (nextjs, react, vue, express)', 'nextjs')
+  .option('-f, --force', 'Force initialization in non-empty directory')
+  .option('--no-install', 'Skip package installation')
+  .option('--git', 'Initialize git repository')
+  .action(initCommand);
+
+// Build command
+program
+  .command('build')
+  .description('Build your Cirron project')
+  .option('-e, --env <environment>', 'Environment to build for', 'production')
+  .option('-w, --watch', 'Watch for changes and rebuild')
+  .option('-o, --output <path>', 'Output directory')
+  .option('--clean', 'Clean output directory before build')
+  .option('--analyze', 'Analyze bundle size')
+  .action(buildCommand);
+
+// Deploy command
+program
+  .command('deploy')
+  .description('Deploy your Cirron project')
+  .option('-e, --env <environment>', 'Environment to deploy to', 'production')
+  .option('-f, --force', 'Force deployment without confirmation')
+  .option('--no-build', 'Skip build step')
+  .option('--rollback', 'Rollback to previous deployment')
+  .option('-m, --message <message>', 'Deployment message')
+  .action(deployCommand);
+
+// Config command
+program
+  .command('config')
+  .description('Manage configuration')
+  .option('-l, --list', 'List all configuration')
+  .option('-g, --get <key>', 'Get configuration value')
+  .option('-s, --set <key=value>', 'Set configuration value')
+  .option('-d, --delete <key>', 'Delete configuration key')
+  .option('--reset', 'Reset configuration to defaults')
+  .action(configCommand);
+
+// Status command
+program
+  .command('status')
+  .description('Show project status')
+  .option('-r, --remote', 'Include remote status')
+  .action(async (options) => {
+    try {
+      const { statusCommand } = await import('./commands/status');
+      await statusCommand(options);
+    } catch (error) {
+      logger.error('Failed to load status command:', error);
+      process.exit(1);
+    }
+  });
+
+// Logs command
+program
+  .command('logs')
+  .description('View deployment logs')
+  .option('-f, --follow', 'Follow log output')
+  .option('-n, --lines <number>', 'Number of lines to show', '100')
+  .option('--env <environment>', 'Environment to get logs from', 'production')
+  .action(async (options) => {
+    try {
+      const { logsCommand } = await import('./commands/logs');
+      await logsCommand(options);
+    } catch (error) {
+      logger.error('Failed to load logs command:', error);
+      process.exit(1);
+    }
+  });
+
+// Env command
+const envCmd = program
+  .command('env')
+  .description('Manage environment variables');
+
+envCmd
+  .command('list')
+  .description('List environment variables')
+  .option('--env <environment>', 'Environment', 'production')
+  .action(async (options) => {
+    try {
+      const { envListCommand } = await import('./commands/env');
+      await envListCommand(options);
+    } catch (error) {
+      logger.error('Failed to load env list command:', error);
+      process.exit(1);
+    }
+  });
+
+envCmd
+  .command('set')
+  .description('Set environment variable')
+  .argument('<key>', 'Variable name')
+  .argument('<value>', 'Variable value')
+  .option('--env <environment>', 'Environment', 'production')
+  .action(async (key, value, options) => {
+    try {
+      const { envSetCommand } = await import('./commands/env');
+      await envSetCommand(key, value, options);
+    } catch (error) {
+      logger.error('Failed to load env set command:', error);
+      process.exit(1);
+    }
+  });
+
+envCmd
+  .command('delete')
+  .description('Delete environment variable')
+  .argument('<key>', 'Variable name')
+  .option('--env <environment>', 'Environment', 'production')
+  .action(async (key, options) => {
+    try {
+      const { envDeleteCommand } = await import('./commands/env');
+      await envDeleteCommand(key, options);
+    } catch (error) {
+      logger.error('Failed to load env delete command:', error);
+      process.exit(1);
+    }
+  });
+
+// Parse command line arguments
+program.parse();
+
+// Show help if no command provided
+if (!process.argv.slice(2).length) {
+  program.outputHelp();
+}

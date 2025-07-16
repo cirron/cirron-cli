@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+const path = require('path');
+const fs = require('fs');
+
+// Check if we're in development (source) or production (dist)
+const isDev = fs.existsSync(path.join(__dirname, '..', 'src'));
+const entryPoint = isDev 
+  ? path.join(__dirname, '..', 'src', 'index.ts')
+  : path.join(__dirname, '..', 'dist', 'index.js');
+
+if (isDev) {
+  // Use ts-node for development
+  try {
+    require('ts-node/register');
+    require(entryPoint);
+  } catch (error) {
+    console.error('Development mode requires ts-node. Run: npm install -g ts-node');
+    process.exit(1);
+  }
+} else {
+  // Use compiled JS for production
+  try {
+    require(entryPoint);
+  } catch (error) {
+    console.error('Error loading Cirron CLI:', error.message);
+    process.exit(1);
+  }
+}
