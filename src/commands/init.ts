@@ -7,12 +7,21 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
-import type { InitOptions, ProjectConfig, Template } from '../types';
-import { createTensorFlowFiles, createTensorFlowTrainingFiles } from './files/tensorflow';
-import createCommonMLFiles from './files/common';
-import { createPyTorchFiles, createPyTorchTrainingFiles } from './files/pytorch';
-import { createSklearnFiles, createSklearnPipelineFiles } from './files/sklearn';
-import { createCustomFiles } from './files/custom';
+import type { 
+  InitOptions, 
+  ProjectConfig, 
+  Template 
+} from '../types';
+import { 
+  createTensorFlowFiles, 
+  createTensorFlowTrainingFiles,
+  createCommonMLFiles,
+  createPyTorchFiles, 
+  createPyTorchTrainingFiles,
+  createSklearnFiles, 
+  createSklearnPipelineFiles,
+  createCustomFiles 
+} from './files';
 
 const TEMPLATES: Record<string, Template> = {
   pytorch: {

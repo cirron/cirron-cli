@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 
-export default async function createCommonMLFiles(projectPath: string, projectName: string, options: any): Promise<void> {
+export async function createCommonMLFiles(projectPath: string, projectName: string, options: any): Promise<void> {
     // Create directory structure
     await fs.ensureDir(path.join(projectPath, 'tests'));
     await fs.ensureDir(path.join(projectPath, 'models'));
