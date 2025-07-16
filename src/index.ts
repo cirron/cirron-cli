@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-
+// @ts-expect-error - Unused import kept for future use
+import chalk from 'chalk';
 import { authCommand, loginCommand, logoutCommand } from './commands/auth';
 import { buildCommand } from './commands/build';
 import { deployCommand } from './commands/deploy';
@@ -87,12 +88,13 @@ program
 // Build command
 program
   .command('build')
-  .description('Build your Cirron project')
-  .option('-e, --env <environment>', 'Environment to build for', 'production')
-  .option('-w, --watch', 'Watch for changes and rebuild')
-  .option('-o, --output <path>', 'Output directory')
-  .option('--clean', 'Clean output directory before build')
-  .option('--analyze', 'Analyze bundle size')
+  .description('Build your ML project container')
+  .option('-e, --env <environment>', 'Environment to build for', 'development')
+  .option('-w, --watch', 'Watch for changes and rebuild (traditional projects only)')
+  .option('-t, --tag <tag>', 'Container image tag')
+  .option('--clean', 'Clean build (no cache)')
+  .option('--push', 'Push image to registry after build')
+  .option('--analyze', 'Analyze build output')
   .action(buildCommand);
 
 // Deploy command

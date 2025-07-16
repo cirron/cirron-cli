@@ -154,13 +154,250 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
   }
 }
 
+// @ts-expect-error - Unused function kept for future use
+async function buildTraditionalProject(
+  projectConfig: ProjectConfig, 
+  options: BuildOptions, 
+  spinner: ora.Ora
+): Promise<void> {
+  const buildConfig = projectConfig.build;
+
+  if (!buildConfig) {
+    spinner.fail(chalk.red('No build configuration found'));
+    logger.error('Add build configuration to cirron.json');
+    process.exit(1);
+  }
+
+  spinner.text = `Building for ${options.env} environment...`;
+
+  // Clean output directory if requested
+  if (options.clean && buildConfig.outputDir) {
+    const outputPath = path.resolve(process.cwd(), buildConfig.outputDir);
+    if (fs.existsSync(outputPath)) {
+      await fs.remove(outputPath);
+      logger.info(`Cleaned output directory: ${buildConfig.outputDir}`);
+    }
+  }
+
+  // Set environment variables
+  const env = {
+    ...process.env,
+    NODE_ENV: options.env === 'production' ? 'production' : 'development',
+    CIRRON_ENV: options.env
+  };
+
+  // Load environment-specific variables
+  const envConfig = projectConfig.environments[options.env];
+  if (envConfig?.variables) {
+    Object.assign(env, envConfig.variables);
+  }
+
+  // Run main build command
+  spinner.text = 'Building project...';
+  
+  if (options.watch) {
+    spinner.stop();
+    logger.info(chalk.blue('Starting build in watch mode...'));
+    logger.info('Press Ctrl+C to stop watching');
+    
+    await runBuildWatch(buildConfig.command, env);
+  } else {
+    await runBuild(buildConfig.command, env, spinner);
+    
+    // Analyze bundle if requested
+    if (options.analyze) {
+      await analyzeBuild(projectConfig, options);
+    }
+
+    // Report build to Cirron API
+    await reportBuildStatus(projectConfig, options, 'success');
+
+    spinner.succeed(chalk.green('Build completed successfully!'));
+    
+    // Show build output info
+    if (buildConfig.outputDir) {
+      const outputPath = path.resolve(process.cwd(), buildConfig.outputDir);
+      if (fs.existsSync(outputPath)) {
+        const stats = await getBuildStats(outputPath);
+        logger.info(`Output directory: ${chalk.cyan(buildConfig.outputDir)}`);
+        logger.info(`Build size: ${chalk.cyan(formatBytes(stats.totalSize))}`);
+        logger.info(`Files: ${chalk.cyan(stats.fileCount.toString())}`);
+      }
+    }
+
+    logger.info(`Environment: ${chalk.cyan(options.env)}`);
+    
+    if (options.env !== 'production') {
+      logger.info('Run ' + chalk.cyan('cirron deploy') + ' to deploy this build');
+    }
+  }
+}
+
+// @ts-expect-error - Unused function kept for future use
+function generateImageName(projectConfig: ProjectConfig, _options: BuildOptions): string {
+  // Get registry/organization from config or environment
+  const registry = process.env['CIRRON_REGISTRY'] || 'localhost:5000';
+  const organization = process.env['CIRRON_ORG'] || process.env['USER'] || 'cirron';
+  
+  // Generate tag
+  let tag = 'latest';
+  if (_options.tag) {
+    tag = _options.tag;
+  } else if (_options.env !== 'development') {
+    tag = `${_options.env}-${projectConfig.version}`;
+  }
+  
+  // Format: registry/organization/project:tag
+  const imageName = `${registry}/${organization}/${projectConfig.name}:${tag}`;
+  
+  return imageName;
+}
+
+// @ts-expect-error - Unused function kept for future use
+async function buildDockerImage(
+  imageName: string, 
+  options: BuildOptions, 
+  spinner: ora.Ora
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const buildArgs = [
+      'build',
+      '-t', imageName,
+      '.'
+    ];
+
+    // Add build args if specified
+    if (options.env) {
+      buildArgs.push('--build-arg', `CIRRON_ENV=${options.env}`);
+    }
+
+    // Add no-cache flag if clean build requested
+    if (options.clean) {
+      buildArgs.push('--no-cache');
+    }
+
+    const child = spawn('docker', buildArgs, {
+      stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
+      cwd: process.cwd()
+    });
+
+    let output = '';
+    let errorOutput = '';
+
+    if (child.stdout) {
+      child.stdout.on('data', (data) => {
+        const text = data.toString();
+        output += text;
+        
+        // Update spinner with build progress
+        const lines = text.split('\n');
+        for (const line of lines) {
+          if (line.includes('Step ') || line.includes('COPY') || line.includes('RUN')) {
+            spinner.text = `Building container: ${line.trim()}`;
+          }
+        }
+        
+        if (process.env['CIRRON_VERBOSE']) {
+          process.stdout.write(data);
+        }
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        if (process.env['CIRRON_VERBOSE']) {
+          process.stderr.write(data);
+        }
+      });
+    }
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const error = new Error(`Docker build failed with exit code ${code}`);
+        if (errorOutput) {
+          logger.error('Docker build error:', errorOutput);
+        }
+        reject(error);
+      }
+    });
+
+    child.on('error', (error) => {
+      spinner.fail(chalk.red('Failed to start Docker build'));
+      reject(error);
+    });
+  });
+}
+
+// @ts-expect-error - Unused function kept for future use
+async function pushImage(imageName: string, spinner: ora.Ora): Promise<void> {
+  spinner.text = `Pushing image to registry: ${imageName}...`;
+  
+  return new Promise((resolve, reject) => {
+    const child = spawn('docker', ['push', imageName], {
+      stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
+      cwd: process.cwd()
+    });
+
+    let errorOutput = '';
+
+    if (child.stdout) {
+      child.stdout.on('data', (data) => {
+        const text = data.toString();
+        
+        // Update spinner with push progress
+        if (text.includes('Pushing') || text.includes('Pushed')) {
+          const lines = text.split('\n').filter((line: string) => line.trim());
+          if (lines.length > 0) {
+            spinner.text = `Pushing: ${lines[lines.length - 1].trim()}`;
+          }
+        }
+        
+        if (process.env['CIRRON_VERBOSE']) {
+          process.stdout.write(data);
+        }
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+        if (process.env['CIRRON_VERBOSE']) {
+          process.stderr.write(data);
+        }
+      });
+    }
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const error = new Error(`Docker push failed with exit code ${code}`);
+        if (errorOutput) {
+          logger.error('Docker push error:', errorOutput);
+        }
+        reject(error);
+      }
+    });
+
+    child.on('error', (error) => {
+      spinner.fail(chalk.red('Failed to start Docker push'));
+      reject(error);
+    });
+  });
+}
+
 async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Ora): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
+    
     if (!cmd) {
-      reject(new Error('Build command is undefined'));
+      reject(new Error('Invalid command: empty command string'));
       return;
     }
+    
     const child = spawn(cmd, args, {
       stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
       env,
@@ -171,8 +408,8 @@ async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Or
     let output = '';
     let errorOutput = '';
 
-    if (child.stdout && typeof child.stdout.on === 'function') {
-      child.stdout.on('data', (data: Buffer) => {
+    if (child.stdout) {
+      child.stdout.on('data', (data) => {
         output += data.toString();
         if (process.env['CIRRON_VERBOSE']) {
           process.stdout.write(data);
@@ -180,8 +417,8 @@ async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Or
       });
     }
 
-    if (child.stderr && typeof child.stderr.on === 'function') {
-      child.stderr.on('data', (data: Buffer) => {
+    if (child.stderr) {
+      child.stderr.on('data', (data) => {
         errorOutput += data.toString();
         if (process.env['CIRRON_VERBOSE']) {
           process.stderr.write(data);
@@ -189,38 +426,39 @@ async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Or
       });
     }
 
-    if (typeof child.on === 'function') {
-      child.on('close', (code: number) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          const error = new Error(`Build command failed with exit code ${code}`);
-          if (errorOutput) {
-            logger.error('Build output:', errorOutput);
-          }
-          reject(error);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        const error = new Error(`Build command failed with exit code ${code}`);
+        if (errorOutput) {
+          logger.error('Build output:', errorOutput);
         }
-      });
-
-      child.on('error', (error: Error) => {
-        spinner.fail(chalk.red('Failed to start build process'));
         reject(error);
-      });
-    }
+      }
+    });
+
+    child.on('error', (error) => {
+      spinner.fail(chalk.red('Failed to start build process'));
+      reject(error);
+    });
   });
 }
 
 async function runBuildWatch(command: string, env: NodeJS.ProcessEnv): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
+    
+    if (!cmd) {
+      reject(new Error('Invalid command: empty command string'));
+      return;
+    }
+    
     // Add watch flag if not present
     if (!args.includes('--watch') && !args.includes('-w')) {
       args.push('--watch');
     }
-    if (!cmd) {
-      reject(new Error('Build command is undefined'));
-      return;
-    }
+    
     const child = spawn(cmd, args, {
       stdio: 'inherit',
       env,
@@ -231,31 +469,26 @@ async function runBuildWatch(command: string, env: NodeJS.ProcessEnv): Promise<v
     // Handle graceful shutdown
     process.on('SIGINT', () => {
       logger.info('\nStopping build watch...');
-      if (typeof child.kill === 'function') {
-        child.kill('SIGTERM');
-        setTimeout(() => {
-          child.kill('SIGKILL');
-        }, 5000);
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        child.kill('SIGKILL');
+      }, 5000);
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Watch process exited with code ${code}`));
       }
     });
 
-    if (typeof child.on === 'function') {
-      child.on('close', (code: number) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Watch process exited with code ${code}`));
-        }
-      });
-
-      child.on('error', (error: Error) => {
-        reject(error);
-      });
-    }
+    child.on('error', (error) => {
+      reject(error);
+    });
   });
 }
 
-// Prefixing with _ to avoid unused-vars error. Will remove this once we have a proper build analysis.
 async function analyzeBuild(projectConfig: ProjectConfig, _options: BuildOptions): Promise<void> {
   const spinner = ora('Analyzing build...').start();
   
