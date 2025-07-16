@@ -281,7 +281,7 @@ async function createProjectFiles(
                template.includes('tensorflow') ? 'tensorflow' :
                template.includes('sklearn') ? 'sklearn' : 'custom',
     modelType: options.modelType,
-    pythonVersion: '3.9',
+    pythonVersion: '3.9', // TODO: get python version from user
     gpuRequired: false,
     environments: {
       development: {
