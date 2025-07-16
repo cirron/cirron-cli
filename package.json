@@ -29,15 +29,15 @@
     "devops",
     "automation"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Cirron Engineering <engineering@cirron.com>",
   "license": "MIT",
-  "homepage": "https://github.com/yourusername/cirron-cli#readme",
+  "homepage": "https://github.com/cirron/cirron-cli#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/cirron-cli.git"
+    "url": "git+https://github.com/cirron/cirron-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/cirron-cli/issues"
+    "url": "https://github.com/cirron/cirron-cli/issues"
   },
   "files": [
     "dist/**/*",
@@ -47,29 +47,31 @@
     "LICENSE"
   ],
   "dependencies": {
-    "commander": "^11.1.0",
+    "@types/form-data": "^2.2.1",
     "chalk": "^4.1.2",
-    "ora": "^5.4.1",
+    "commander": "^11.1.0",
+    "form-data": "^4.0.3",
+    "fs-extra": "^11.1.1",
     "inquirer": "^9.2.12",
     "node-fetch": "^3.3.2",
-    "fs-extra": "^11.1.1",
+    "ora": "^5.4.1",
     "semver": "^7.5.4"
   },
   "devDependencies": {
-    "@types/node": "^20.8.0",
-    "@types/inquirer": "^9.0.4",
     "@types/fs-extra": "^11.0.2",
+    "@types/inquirer": "^9.0.4",
+    "@types/jest": "^29.5.5",
+    "@types/node": "^20.8.0",
     "@types/semver": "^7.5.4",
     "@typescript-eslint/eslint-plugin": "^6.7.5",
     "@typescript-eslint/parser": "^6.7.5",
     "eslint": "^8.51.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.5",
+    "pkg": "^5.8.1",
+    "prettier": "^3.0.3",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.1",
-    "typescript": "^5.2.2",
-    "prettier": "^3.0.3",
-    "pkg": "^5.8.1"
+    "typescript": "^5.2.2"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -84,7 +86,7 @@
     ],
     "targets": [
       "node18-linux-x64",
-      "node18-macos-x64", 
+      "node18-macos-x64",
       "node18-macos-arm64",
       "node18-win-x64"
     ]

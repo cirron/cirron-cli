@@ -1,4 +1,4 @@
-/ src/commands/env.ts
+// src/commands/env.ts
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';

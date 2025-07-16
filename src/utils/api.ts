@@ -223,15 +223,14 @@ export class CirronApi {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.message || 
-            errorData.error || 
-            `HTTP ${response.status}: ${response.statusText}`
-          );
+          const errorMessage = (errorData as any)?.message || 
+                              (errorData as any)?.error || 
+                              `HTTP ${response.status}: ${response.statusText}`;
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();
-        return data;
+        return data as ApiResponse;
 
       } catch (error) {
         lastError = error as Error;

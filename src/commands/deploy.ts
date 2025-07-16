@@ -15,10 +15,10 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
     
     if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.config.json found'));
+      spinner.fail(chalk.red('No cirron.json found'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
@@ -112,7 +112,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
         logger.info(`Running: ${command}`);
         try {
           execSync(command, { 
-            stdio: process.env.CIRRON_VERBOSE ? 'inherit' : 'pipe',
+            stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
             cwd: process.cwd()
           });
         } catch (error) {
@@ -158,7 +158,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
         logger.info(`Running: ${command}`);
         try {
           execSync(command, { 
-            stdio: process.env.CIRRON_VERBOSE ? 'inherit' : 'pipe',
+            stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
             cwd: process.cwd()
           });
         } catch (error) {
@@ -233,6 +233,11 @@ async function handleRollback(
     }
 
     const previousDeployment = deployments[1]; // Second item (first is current)
+    if (!previousDeployment) {
+      spinner.fail(chalk.red('No previous successful deployment found'));
+      logger.error('Cannot rollback without a previous deployment');
+      return;
+    }
     
     spinner.stop();
     

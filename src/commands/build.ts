@@ -13,10 +13,10 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
     
     if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.config.json found'));
+      spinner.fail(chalk.red('No cirron.json found'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
@@ -61,7 +61,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
         logger.info(`Running: ${command}`);
         try {
           execSync(command, { 
-            stdio: process.env.CIRRON_VERBOSE ? 'inherit' : 'pipe',
+            stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
             env,
             cwd: process.cwd()
           });
@@ -91,7 +91,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
           logger.info(`Running: ${command}`);
           try {
             execSync(command, { 
-              stdio: process.env.CIRRON_VERBOSE ? 'inherit' : 'pipe',
+              stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
               env,
               cwd: process.cwd()
             });
@@ -135,7 +135,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
     
     // Report failure to API
     try {
-      const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+      const projectConfigPath = path.join(process.cwd(), 'cirron.json');
       if (fs.existsSync(projectConfigPath)) {
         const projectConfig = await fs.readJSON(projectConfigPath);
         await reportBuildStatus(projectConfig, options, 'failed', error);
@@ -157,9 +157,12 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
 async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Ora): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
-    
+    if (!cmd) {
+      reject(new Error('Build command is undefined'));
+      return;
+    }
     const child = spawn(cmd, args, {
-      stdio: process.env.CIRRON_VERBOSE ? 'inherit' : 'pipe',
+      stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
       env,
       cwd: process.cwd(),
       shell: true
@@ -168,52 +171,56 @@ async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Or
     let output = '';
     let errorOutput = '';
 
-    if (child.stdout) {
-      child.stdout.on('data', (data) => {
+    if (child.stdout && typeof child.stdout.on === 'function') {
+      child.stdout.on('data', (data: Buffer) => {
         output += data.toString();
-        if (process.env.CIRRON_VERBOSE) {
+        if (process.env['CIRRON_VERBOSE']) {
           process.stdout.write(data);
         }
       });
     }
 
-    if (child.stderr) {
-      child.stderr.on('data', (data) => {
+    if (child.stderr && typeof child.stderr.on === 'function') {
+      child.stderr.on('data', (data: Buffer) => {
         errorOutput += data.toString();
-        if (process.env.CIRRON_VERBOSE) {
+        if (process.env['CIRRON_VERBOSE']) {
           process.stderr.write(data);
         }
       });
     }
 
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        const error = new Error(`Build command failed with exit code ${code}`);
-        if (errorOutput) {
-          logger.error('Build output:', errorOutput);
+    if (typeof child.on === 'function') {
+      child.on('close', (code: number) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          const error = new Error(`Build command failed with exit code ${code}`);
+          if (errorOutput) {
+            logger.error('Build output:', errorOutput);
+          }
+          reject(error);
         }
-        reject(error);
-      }
-    });
+      });
 
-    child.on('error', (error) => {
-      spinner.fail(chalk.red('Failed to start build process'));
-      reject(error);
-    });
+      child.on('error', (error: Error) => {
+        spinner.fail(chalk.red('Failed to start build process'));
+        reject(error);
+      });
+    }
   });
 }
 
 async function runBuildWatch(command: string, env: NodeJS.ProcessEnv): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
-    
     // Add watch flag if not present
     if (!args.includes('--watch') && !args.includes('-w')) {
       args.push('--watch');
     }
-    
+    if (!cmd) {
+      reject(new Error('Build command is undefined'));
+      return;
+    }
     const child = spawn(cmd, args, {
       stdio: 'inherit',
       env,
@@ -224,27 +231,32 @@ async function runBuildWatch(command: string, env: NodeJS.ProcessEnv): Promise<v
     // Handle graceful shutdown
     process.on('SIGINT', () => {
       logger.info('\nStopping build watch...');
-      child.kill('SIGTERM');
-      setTimeout(() => {
-        child.kill('SIGKILL');
-      }, 5000);
-    });
-
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Watch process exited with code ${code}`));
+      if (typeof child.kill === 'function') {
+        child.kill('SIGTERM');
+        setTimeout(() => {
+          child.kill('SIGKILL');
+        }, 5000);
       }
     });
 
-    child.on('error', (error) => {
-      reject(error);
-    });
+    if (typeof child.on === 'function') {
+      child.on('close', (code: number) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Watch process exited with code ${code}`));
+        }
+      });
+
+      child.on('error', (error: Error) => {
+        reject(error);
+      });
+    }
   });
 }
 
-async function analyzeBuild(projectConfig: ProjectConfig, options: BuildOptions): Promise<void> {
+// Prefixing with _ to avoid unused-vars error. Will remove this once we have a proper build analysis.
+async function analyzeBuild(projectConfig: ProjectConfig, _options: BuildOptions): Promise<void> {
   const spinner = ora('Analyzing build...').start();
   
   try {
