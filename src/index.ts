@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import chalk from 'chalk';
+
 import { authCommand, loginCommand, logoutCommand } from './commands/auth';
 import { buildCommand } from './commands/build';
 import { deployCommand } from './commands/deploy';
 import { initCommand } from './commands/init';
+import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
 import { logger } from './utils/logger';
 
@@ -30,8 +31,8 @@ program
   .option('--config <path>', 'Path to config file')
   .hook('preAction', (thisCommand) => {
     const options = thisCommand.opts();
-    if (options.verbose) {
-      process.env.CIRRON_VERBOSE = 'true';
+    if (options['verbose']) {
+      process.env['CIRRON_VERBOSE'] = 'true';
     }
   });
 
@@ -67,6 +68,21 @@ program
   .option('--no-install', 'Skip package installation')
   .option('--git', 'Initialize git repository')
   .action(initCommand);
+
+// Test command
+program
+  .command('test')
+  .description('Run tests for your ML project')
+  .option('--env', 'Test environment setup (Python, CUDA, etc.)')
+  .option('--build', 'Test container build')
+  .option('--requirements', 'Test Python requirements')
+  .option('--unit', 'Run unit tests')
+  .option('--lint', 'Run code quality checks')
+  .option('--model', 'Test model loading and instantiation')
+  .option('--data', 'Test data loading')
+  .option('--inference', 'Test model inference')
+  .option('-w, --watch', 'Watch for changes and re-run tests')
+  .action(testCommand);
 
 // Build command
 program

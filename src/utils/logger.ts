@@ -5,7 +5,7 @@ export class Logger {
   private verbose: boolean;
 
   constructor() {
-    this.verbose = process.env.CIRRON_VERBOSE === 'true';
+    this.verbose = process.env['CIRRON_VERBOSE'] === 'true';
   }
 
   info(message: string, ...args: any[]): void {

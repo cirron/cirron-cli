@@ -4,7 +4,6 @@ import ora from 'ora';
 import { ConfigManager } from '../utils/config';
 import { CirronApi } from '../utils/api';
 import { logger } from '../utils/logger';
-import type { AuthInfo } from '../types';
 
 interface LoginOptions {
   token?: string;
@@ -49,8 +48,11 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
 
     // Verify token with API
     const api = new CirronApi({
-      baseUrl: currentConfig.apiUrl,
-      token: token!
+      apiUrl: currentConfig.apiUrl,
+      token: token!,
+      defaultEnv: currentConfig.defaultEnv,
+      timeout: currentConfig.timeout,
+      retries: currentConfig.retries
     });
 
     const authInfo = await api.verifyAuth();
@@ -60,7 +62,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     }
 
     // Save configuration
-    currentConfig.token = token;
+    currentConfig.token = token!;
     config.save(currentConfig);
 
     spinner.succeed(chalk.green('Successfully authenticated!'));

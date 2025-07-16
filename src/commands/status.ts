@@ -1,3 +1,4 @@
+// src/commands/status.ts
 import chalk from 'chalk';
 import ora from 'ora';
 import fs from 'fs-extra';
@@ -17,10 +18,10 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
     
     if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.config.json found'));
+      spinner.fail(chalk.red('No cirron.json found'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       return;
     }
@@ -86,7 +87,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
                  chalk.green('deployed') : chalk.red('failed');
       }
       
-      logger.info(`  ${env}: ${status}${envConfig.url ? ` (${envConfig.url})` : ''}`);
+      logger.info(`  ${env}: ${status}${envConfig?.url ? ` (${envConfig.url})` : ''}`);
     });
 
   } catch (error) {
@@ -118,15 +119,16 @@ async function getLocalStatus(projectConfig: ProjectConfig): Promise<Partial<Pro
     status.currentBranch = currentBranch;
   } catch (error) {
     // Not a git repository or git not available
-    status.isGitClean = undefined;
-    status.currentBranch = undefined;
+    // Don't assign undefined to optional properties
   }
 
   // Check build status
   const buildConfig = projectConfig.build;
   if (buildConfig?.outputDir) {
     const outputPath = path.resolve(process.cwd(), buildConfig.outputDir);
-    status.buildStatus = fs.existsSync(outputPath) ? 'success' : undefined;
+    if (fs.existsSync(outputPath)) {
+      status.buildStatus = 'success';
+    }
   }
 
   return status;
@@ -144,9 +146,11 @@ async function getRemoteStatus(projectConfig: ProjectConfig): Promise<Partial<Pr
     const api = new CirronApi(currentConfig);
     const deployments = await api.getDeployments(projectConfig.name, { limit: 1 });
     
-    return {
-      lastDeployment: deployments[0] || undefined
-    };
+    const result: Partial<ProjectStatus> = {};
+    if (deployments[0]) {
+      result.lastDeployment = deployments[0];
+    }
+    return result;
   } catch (error) {
     logger.debug('Failed to get remote status:', error);
     return null;

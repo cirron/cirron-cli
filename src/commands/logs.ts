@@ -80,7 +80,10 @@ async function followLogs(api: CirronApi, projectName: string, environment: stri
 
       if (logs.length > 0) {
         displayLogs(logs);
-        lastTimestamp = logs[logs.length - 1].timestamp;
+        const lastLog = logs[logs.length - 1];
+        if (lastLog) {
+          lastTimestamp = lastLog.timestamp;
+        }
       }
     } catch (error) {
       logger.debug('Error polling logs:', error);

@@ -17,9 +17,20 @@ export interface ProjectConfig {
   name: string;
   version: string;
   template: string;
+  framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
+  modelType?: string;
+  pythonVersion?: string;
+  gpuRequired?: boolean;
   environments: Record<string, EnvironmentConfig>;
   build?: BuildConfig;
   deploy?: DeployConfig;
+  artifacts?: ArtifactsConfig;
+}
+
+export interface ArtifactsConfig {
+  modelPath: string;
+  checkpointPath: string;
+  logsPath: string;
 }
 
 export interface EnvironmentConfig {
