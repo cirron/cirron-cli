@@ -154,8 +154,14 @@ cirron-cli/
 │   ├── commands/
 │   │   ├── auth.ts
 │   │   ├── build.ts
+│   │   ├── config.ts
 │   │   ├── deploy.ts
-│   │   └── init.ts
+│   │   ├── env.ts
+│   │   ├── files
+│   │   ├── init.ts
+│   │   ├── logs.ts
+│   │   ├── status.ts
+│   │   └── test.ts
 │   ├── utils/
 │   │   ├── api.ts
 │   │   ├── config.ts
@@ -163,11 +169,6 @@ cirron-cli/
 │   ├── types/
 │   │   └── index.ts
 │   └── index.ts
-├── templates/
-│   ├── nextjs/
-│   └── react/
-├── tests/
-│   └── commands/
 ├── .gitignore
 ├── .npmignore
 ├── package.json
