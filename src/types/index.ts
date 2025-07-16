@@ -70,6 +70,7 @@ export interface BuildOptions {
   output?: string;
   clean?: boolean;
   analyze?: boolean;
+  tag?: string;
 }
 
 export interface DeployOptions {
