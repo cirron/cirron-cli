@@ -1,0 +1,73 @@
+# name: CI
+
+# on:
+#   push:
+#     branches: [ main, develop ]
+#   pull_request:
+#     branches: [ main ]
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+    
+#     strategy:
+#       matrix:
+#         node-version: [16.x, 18.x, 20.x]
+
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Use Node.js ${{ matrix.node-version }}
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: ${{ matrix.node-version }}
+#         cache: 'npm'
+    
+#     - name: Install dependencies
+#       run: npm ci
+    
+#     - name: Run linter
+#       run: npm run lint
+    
+#     - name: Run tests
+#       run: npm test
+    
+#     - name: Build
+#       run: npm run build
+    
+#     - name: Upload coverage to Codecov
+#       if: matrix.node-version == '18.x'
+#       uses: codecov/codecov-action@v3
+#       with:
+#         file: ./coverage/lcov.info
+
+#   test-install:
+#     runs-on: ${{ matrix.os }}
+    
+#     strategy:
+#       matrix:
+#         os: [ubuntu-latest, macos-latest, windows-latest]
+        
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Use Node.js 18
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: 18
+#         cache: 'npm'
+    
+#     - name: Install and build
+#       run: |
+#         npm ci
+#         npm run build
+    
+#     - name: Test global install
+#       run: |
+#         npm pack
+#         npm install -g cirron-cli-*.tgz
+    
+#     - name: Test CLI commands
+#       run: |
+#         cirron --version
+#         cirron --help

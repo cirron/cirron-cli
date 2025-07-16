@@ -1,0 +1,257 @@
+import fetch from 'node-fetch';
+import fs from 'fs-extra';
+import FormData from 'form-data';
+import type { 
+  CirronConfig, 
+  ApiResponse, 
+  AuthInfo, 
+  DeploymentInfo,
+  LogEntry 
+} from '../types';
+
+export class CirronApi {
+  private config: CirronConfig;
+
+  constructor(config: CirronConfig) {
+    this.config = config;
+  }
+
+  async verifyAuth(): Promise<AuthInfo> {
+    const response = await this.request('/auth/verify');
+    return response.data;
+  }
+
+  async createProject(projectData: {
+    name: string;
+    template: string;
+    path: string;
+  }): Promise<any> {
+    const response = await this.request('/projects', {
+      method: 'POST',
+      body: projectData
+    });
+    return response.data;
+  }
+
+  async createDeployment(deploymentData: {
+    projectName: string;
+    environment: string;
+    message: string;
+    buildConfig: any;
+    deployConfig: any;
+    envConfig: any;
+  }): Promise<DeploymentInfo> {
+    const response = await this.request('/deployments', {
+      method: 'POST',
+      body: deploymentData
+    });
+    return response.data;
+  }
+
+  async startDeployment(deploymentId: string): Promise<void> {
+    await this.request(`/deployments/${deploymentId}/start`, {
+      method: 'POST'
+    });
+  }
+
+  async getDeployment(deploymentId: string): Promise<DeploymentInfo> {
+    const response = await this.request(`/deployments/${deploymentId}`);
+    return response.data;
+  }
+
+  async getDeployments(
+    projectName: string, 
+    options: {
+      environment?: string;
+      status?: string;
+      limit?: number;
+    } = {}
+  ): Promise<DeploymentInfo[]> {
+    const params = new URLSearchParams();
+    if (options.environment) params.append('environment', options.environment);
+    if (options.status) params.append('status', options.status);
+    if (options.limit) params.append('limit', options.limit.toString());
+
+    const response = await this.request(`/projects/${projectName}/deployments?${params}`);
+    return response.data;
+  }
+
+  async rollbackDeployment(
+    projectName: string,
+    environment: string,
+    deploymentId: string
+  ): Promise<DeploymentInfo> {
+    const response = await this.request(`/projects/${projectName}/rollback`, {
+      method: 'POST',
+      body: {
+        environment,
+        deploymentId
+      }
+    });
+    return response.data;
+  }
+
+  async uploadFile(
+    deploymentId: string,
+    filePath: string,
+    relativePath: string
+  ): Promise<void> {
+    const formData = new FormData();
+    formData.append('file', fs.createReadStream(filePath));
+    formData.append('path', relativePath);
+
+    await this.request(`/deployments/${deploymentId}/files`, {
+      method: 'POST',
+      body: formData,
+      isFormData: true
+    });
+  }
+
+  async reportBuild(buildData: {
+    projectName: string;
+    environment: string;
+    status: 'success' | 'failed';
+    timestamp: string;
+    error?: string;
+  }): Promise<void> {
+    await this.request('/builds', {
+      method: 'POST',
+      body: buildData
+    });
+  }
+
+  async getLogs(
+    projectName: string,
+    environment: string,
+    options: {
+      lines?: number;
+      since?: string;
+    } = {}
+  ): Promise<LogEntry[]> {
+    const params = new URLSearchParams();
+    if (options.lines) params.append('lines', options.lines.toString());
+    if (options.since) params.append('since', options.since);
+
+    const response = await this.request(
+      `/projects/${projectName}/logs/${environment}?${params}`
+    );
+    return response.data;
+  }
+
+  async getEnvironmentVariables(
+    projectName: string,
+    environment: string
+  ): Promise<Record<string, string>> {
+    const response = await this.request(
+      `/projects/${projectName}/env/${environment}`
+    );
+    return response.data;
+  }
+
+  async setEnvironmentVariable(
+    projectName: string,
+    environment: string,
+    key: string,
+    value: string
+  ): Promise<void> {
+    await this.request(`/projects/${projectName}/env/${environment}`, {
+      method: 'PUT',
+      body: { [key]: value }
+    });
+  }
+
+  async deleteEnvironmentVariable(
+    projectName: string,
+    environment: string,
+    key: string
+  ): Promise<void> {
+    await this.request(`/projects/${projectName}/env/${environment}/${key}`, {
+      method: 'DELETE'
+    });
+  }
+
+  private async request(
+    endpoint: string,
+    options: {
+      method?: string;
+      body?: any;
+      headers?: Record<string, string>;
+      isFormData?: boolean;
+    } = {}
+  ): Promise<ApiResponse> {
+    const url = new URL(endpoint, this.config.apiUrl);
+    const method = options.method || 'GET';
+    
+    const headers: Record<string, string> = {
+      'User-Agent': 'cirron-cli/1.0.0',
+      ...options.headers
+    };
+
+    if (this.config.token) {
+      headers['Authorization'] = `Bearer ${this.config.token}`;
+    }
+
+    let body: any = undefined;
+    if (options.body) {
+      if (options.isFormData) {
+        body = options.body;
+        // Let form-data set the content-type
+      } else {
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify(options.body);
+      }
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, this.config.timeout);
+
+    let attempt = 0;
+    let lastError: Error;
+
+    while (attempt <= this.config.retries) {
+      try {
+        const response = await fetch(url.toString(), {
+          method,
+          headers,
+          body,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.message || 
+            errorData.error || 
+            `HTTP ${response.status}: ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+        return data;
+
+      } catch (error) {
+        lastError = error as Error;
+        
+        // Don't retry on authentication errors
+        if (error instanceof Error && 
+            (error.message.includes('401') || error.message.includes('403'))) {
+          throw error;
+        }
+
+        attempt++;
+        if (attempt <= this.config.retries) {
+          // Exponential backoff
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    clearTimeout(timeoutId);
+    throw lastError!;
+  }
+}
