@@ -1,3 +1,124 @@
+# Cirron CLI
+Cirron's integrated CLI tool for machine learning engineers, data scientists, and anyone with an interest. The Cirron CLI streamlines the development, testing, and deployment of ML models with features like:
+
+- **Project Templates**: Quick-start with PyTorch, TensorFlow, or scikit-learn, with more to come
+- **Automated Testing**: Built-in test suite for ML environments, data pipelines, and model inference
+- **Container Management**: Simplified Docker builds and deployments
+- **Environment Validation**: Checks for Python, CUDA, and dependency compatibility
+- **Development Tools**: Code quality checks, dependency management, and more
+
+Install globally with:
+```bash
+npm install -g cirron-cli
+```
+or 
+```bash
+curl -fsSL https://cli.cirron.com | bash 
+```
+
+## Usage
+1. Initialize New Projects Anywhere:
+```bash
+# From your home directory
+cd ~
+cirron init my-new-model --template pytorch
+
+# From your projects folder
+cd ~/projects
+cirron init sentiment-analysis --template tensorflow
+
+# From anywhere
+cd /tmp
+cirron init test-model --template sklearn
+```
+2. Work on Existing Projects:
+```bash
+# Navigate to any existing cirron project
+cd ~/projects/my-pytorch-model
+
+# Use cirron commands (it finds cirron.json automatically)
+cirron test
+cirron build
+cirron deploy
+```
+
+3. How Cirron Finds Project Config:
+The CLI looks for cirron.json in the current working directory:
+```bash
+my-pytorch-model/
+├── cirron.json          ← CLI finds this
+├── src/
+├── Dockerfile
+└── requirements.txt
+
+# When you run:
+cd my-pytorch-model
+cirron build              # ✅ Works - finds cirron.json
+```
+
+```bash
+# If you're in the wrong directory:
+cd ~
+cirron build              # ❌ Fails - no cirron.json found
+```
+
+4. Multi-Project Workflow:
+
+```bash
+# Work on multiple projects
+cd ~/ml-projects/model-a
+cirron build --tag v1.0.0
+
+cd ~/ml-projects/model-b  
+cirron test --model
+
+cd ~/ml-projects/model-c
+cirron deploy --env staging
+```
+
+🔧 Pro Tips:
+Check if You're in a Cirron Project:
+```bash
+ # Shows project info if cirron.json exists
+cirron status 
+```
+
+Global Commands (Work Anywhere):
+```bash
+cirron --version          # ✅ Works from anywhere
+cirron --help             # ✅ Works from anywhere  
+cirron auth login         # ✅ Works from anywhere
+cirron config --list     # ✅ Works from anywhere
+```
+
+Project Commands (Need cirron.json):
+```bash
+cirron init               # ✅ Works anywhere (creates new project)
+cirron build              # ❌ Needs cirron.json in current directory
+cirron test               # ❌ Needs cirron.json in current directory
+cirron deploy             # ❌ Needs cirron.json in current directory
+```
+
+🚀 Typical Multi-Project Setup:
+```bash
+~/ml-projects/
+├── sentiment-model/
+│   ├── cirron.json
+│   └── src/
+├── image-classifier/
+│   ├── cirron.json  
+│   └── src/
+└── recommendation-engine/
+    ├── cirron.json
+    └── src/
+
+# Work on any project:
+cd ~/ml-projects/sentiment-model && cirron build
+cd ~/ml-projects/image-classifier && cirron test
+cd ~/ml-projects/recommendation-engine && cirron deploy
+```
+
+
 ## Development Commands
 In your cirron-cli directory
 
