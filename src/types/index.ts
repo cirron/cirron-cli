@@ -25,12 +25,22 @@ export interface ProjectConfig {
   build?: BuildConfig;
   deploy?: DeployConfig;
   artifacts?: ArtifactsConfig;
+  test?: TestConfig;
 }
 
 export interface ArtifactsConfig {
   modelPath: string;
   checkpointPath: string;
   logsPath: string;
+}
+
+export interface TestConfig {
+  dataPaths?: {
+    sample?: string;
+    validation?: string;
+    inference?: string;
+  };
+  fallbackToDummy?: boolean;
 }
 
 export interface EnvironmentConfig {

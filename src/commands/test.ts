@@ -78,7 +78,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
             await runDataTests();
             break;
           case 'inference':
-            await runInferenceTests();
+            await runInferenceTests(options.path);
             break;
           case 'val':
             await runValidationTests(projectConfig, options.path);
@@ -416,7 +416,7 @@ else:
   }
 }
 
-async function runInferenceTests(): Promise<void> {
+async function runInferenceTests(dataPath?: string): Promise<void> {
   const inferenceFile = path.join('src', 'inference.py');
   if (!fs.existsSync(inferenceFile)) {
     throw new Error('Inference file not found');
@@ -434,19 +434,77 @@ import numpy as np
 inference = ModelInference()
 print("Inference object created successfully")
 
-# Test with dummy data (basic smoke test)
-try:
-    # Create appropriate dummy input based on framework
-    dummy_input = np.random.randn(1, 10)  # Adjust as needed
-    result = inference.predict(dummy_input)
-    print("Inference test completed")
-except Exception as e:
-    print(f"Inference test failed: {e}")
-    # Don't fail the test if it's just a dimension mismatch in dummy data
-    if "dimension" in str(e).lower() or "shape" in str(e).lower():
-        print("Inference shape issue - expected with dummy data")
+# Check if we have a trained model to load
+import os
+model_path = 'models/model.joblib'
+if os.path.exists(model_path):
+    print("Loading trained model for inference test...")
+    inference.load_model(model_path)
+else:
+    print("No trained model found. Training model first...")
+    # Train the model using the training data
+    from train import Trainer
+    config = {
+        'model_type': 'nlp',
+        'data_path': 'data/sample/sample_data.csv',
+    }
+    trainer = Trainer(config)
+    trainer.train()
+    trainer.save_model()
+    inference.load_model(model_path)
+
+# Test with real data or fall back to dummy data
+import os
+import pandas as pd
+
+# Determine test data path from configuration
+import json
+config_path = 'cirron.json'
+test_data_path = None
+
+if "${dataPath}":
+    test_data_path = "${dataPath}"
+else:
+    # Load configuration
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        # Get test data paths from config
+        test_config = config.get('test', {})
+        data_paths = test_config.get('dataPaths', {})
+        
+        # Try inference path first, then validation, then sample
+        if 'inference' in data_paths and os.path.exists(data_paths['inference']):
+            test_data_path = data_paths['inference']
+        elif 'validation' in data_paths and os.path.exists(data_paths['validation']):
+            test_data_path = data_paths['validation']
+        elif 'sample' in data_paths and os.path.exists(data_paths['sample']):
+            test_data_path = data_paths['sample']
+
+if test_data_path and os.path.exists(test_data_path):
+    print(f"Testing inference with real data from: {test_data_path}")
+    # Load real data
+    data = pd.read_csv(test_data_path)
+    if not data.empty:
+        # Use first row as test input (excluding target column)
+        features = data.iloc[0:1, :-1].values  # First row, all columns except last
+        result = inference.predict(features)
+        print(f"Inference test completed with real data. Prediction: {result}")
     else:
-        raise e
+        raise Exception("Test data file is empty")
+else:
+    # Check if fallback to dummy data is allowed in config
+    fallback_allowed = test_config.get('fallbackToDummy', True) if 'test_config' in locals() else True
+    
+    if fallback_allowed:
+        print("No real data found, using dummy data for inference test")
+        # Fall back to dummy data
+        dummy_input = np.random.randn(1, 5)  # 5 features to match training data
+        result = inference.predict(dummy_input)
+        print("Inference test completed with dummy data")
+    else:
+        raise Exception("No test data found and fallback to dummy data is disabled")
 `;
 
     // Write script to temporary file to avoid shell escaping issues
@@ -542,23 +600,43 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
   // Determine validation data path
   let validationPath = dataPath;
   if (!validationPath) {
-    // Check common validation data locations
-    const commonPaths = [
-      'data/validation',
-      'data/val',
-      'data/test',
-      'data/sample'
-    ];
+    // Try to get validation path from configuration
+    try {
+      const configPath = path.join(process.cwd(), 'cirron.json');
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const testConfig = config.test || {};
+        const dataPaths = testConfig.dataPaths || {};
+        
+        if (dataPaths.validation && fs.existsSync(dataPaths.validation)) {
+          validationPath = dataPaths.validation;
+        } else if (dataPaths.sample && fs.existsSync(dataPaths.sample)) {
+          validationPath = dataPaths.sample;
+        }
+      }
+    } catch (error) {
+      // Continue with fallback paths if config reading fails
+    }
     
-    for (const commonPath of commonPaths) {
-      if (fs.existsSync(commonPath)) {
-        validationPath = commonPath;
-        break;
+    // Fallback to common validation data locations
+    if (!validationPath) {
+      const commonPaths = [
+        'data/validation',
+        'data/val',
+        'data/test',
+        'data/sample'
+      ];
+      
+      for (const commonPath of commonPaths) {
+        if (fs.existsSync(commonPath)) {
+          validationPath = commonPath;
+          break;
+        }
       }
     }
     
     if (!validationPath) {
-      throw new Error('No validation data found. Specify path with -p option');
+      throw new Error('No validation data found. Specify path with -p option or configure in cirron.json');
     }
   }
 
@@ -811,7 +889,7 @@ async function runPipelineTests(projectConfig: ProjectConfig, dataPath?: string)
     { name: 'Environment', test: () => runEnvironmentTests(projectConfig) },
     { name: 'Data Loading', test: () => runDataTests() },
     { name: 'Model Creation', test: () => runModelTests(projectConfig) },
-    { name: 'Inference', test: () => runInferenceTests() }
+    { name: 'Inference', test: () => runInferenceTests(dataPath) }
   ];
   
   // Add validation if data path provided
