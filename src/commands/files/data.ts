@@ -56,11 +56,9 @@ export default function getDataLoaderCode(framework: string, _modelType: string)
       
       val_dataset = CustomDataset(
           data_path=os.path.join(config['data_path'], 'val.csv')
-          val_dataset = CustomDataset(
-            data_path=os.path.join(config['data_path'], 'val.csv')
-            if os.path.exists(os.path.join(config['data_path'], 'val.csv'))
-            else 'data/sample/sample_data.csv'
-        )
+          if os.path.exists(os.path.join(config['data_path'], 'val.csv'))
+          else 'data/sample/sample_data.csv'
+      )
       
       # Create data loaders
       train_loader = DataLoader(
