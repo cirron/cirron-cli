@@ -239,109 +239,139 @@ export async function createCommonMLFiles(projectPath: string, projectName: stri
 async function createTestFiles(projectPath: string, _options: any): Promise<void> {
     // Model tests
     const modelTest = `import unittest
-  import sys
-  import os
-  sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-  
-  from model import create_model
-  
-  class TestModel(unittest.TestCase):
-      def setUp(self):
-          self.model = create_model()
-      
-      def test_model_creation(self):
-          """Test that model can be created"""
-          self.assertIsNotNone(self.model)
-      
-      def test_model_attributes(self):
-          """Test model has required attributes/methods"""
-          # Add framework-specific tests based on template
-          if hasattr(self.model, 'forward'):  # PyTorch
-              self.assertTrue(callable(self.model.forward))
-          elif hasattr(self.model, 'predict'):  # sklearn or custom
-              self.assertTrue(callable(self.model.predict))
-  
-  if __name__ == '__main__':
-      unittest.main()
-  `;
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from model import create_model
+
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        self.model = create_model()
+    
+    def test_model_creation(self):
+        """Test that model can be created"""
+        self.assertIsNotNone(self.model)
+    
+    def test_model_attributes(self):
+        """Test model has required attributes/methods"""
+        # Add framework-specific tests based on template
+        if hasattr(self.model, 'forward'):  # PyTorch
+            self.assertTrue(callable(self.model.forward))
+        elif hasattr(self.model, 'predict'):  # sklearn or custom
+            self.assertTrue(callable(self.model.predict))
+
+if __name__ == '__main__':
+    unittest.main()
+`;
   
     await fs.writeFile(path.join(projectPath, 'tests', 'test_model.py'), modelTest);
   
     // Inference tests
     const inferenceTest = `import unittest
-  import sys
-  import os
-  sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-  
-  from inference import ModelInference
-  
-  class TestInference(unittest.TestCase):
-      def setUp(self):
-          self.inference = ModelInference()
-      
-      def test_inference_creation(self):
-          """Test that inference object can be created"""
-          self.assertIsNotNone(self.inference)
-          self.assertIsNotNone(self.inference.model)
-      
-      def test_preprocess_method(self):
-          """Test preprocessing method exists and works"""
-          self.assertTrue(hasattr(self.inference, 'preprocess'))
-          self.assertTrue(callable(self.inference.preprocess))
-      
-      def test_predict_method(self):
-          """Test prediction method exists"""
-          self.assertTrue(hasattr(self.inference, 'predict'))
-          self.assertTrue(callable(self.inference.predict))
-  
-  if __name__ == '__main__':
-      unittest.main()
-  `;
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from inference import ModelInference
+
+class TestInference(unittest.TestCase):
+    def setUp(self):
+        self.inference = ModelInference()
+    
+    def test_inference_creation(self):
+        """Test that inference object can be created"""
+        self.assertIsNotNone(self.inference)
+        self.assertIsNotNone(self.inference.model)
+    
+    def test_preprocess_method(self):
+        """Test preprocessing method exists and works"""
+        self.assertTrue(hasattr(self.inference, 'preprocess'))
+        self.assertTrue(callable(self.inference.preprocess))
+    
+    def test_predict_method(self):
+        """Test prediction method exists"""
+        self.assertTrue(hasattr(self.inference, 'predict'))
+        self.assertTrue(callable(self.inference.predict))
+
+if __name__ == '__main__':
+    unittest.main()
+`;
   
     await fs.writeFile(path.join(projectPath, 'tests', 'test_inference.py'), inferenceTest);
   
     // Data tests
     const dataTest = `import unittest
-  import sys
-  import os
-  sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-  
-  class TestData(unittest.TestCase):
-      def test_data_directory_exists(self):
-          """Test that data directory structure exists"""
-          if os.path.exists('data'):
-              self.assertTrue(os.path.isdir('data'))
-      
-      def test_sample_data_format(self):
-          """Test sample data format if it exists"""
-          # Add specific data validation tests based on your requirements
-          pass
-  
-  if __name__ == '__main__':
-      unittest.main()
-  `;
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+class TestData(unittest.TestCase):
+    def test_data_directory_exists(self):
+        """Test that data directory structure exists"""
+        if os.path.exists('data'):
+            self.assertTrue(os.path.isdir('data'))
+    
+    def test_sample_data_format(self):
+        """Test sample data format if it exists"""
+        # Add specific data validation tests based on your requirements
+        pass
+
+if __name__ == '__main__':
+    unittest.main()
+`;
   
     await fs.writeFile(path.join(projectPath, 'tests', 'test_data.py'), dataTest);
   }
   
 async function createSampleData(projectPath: string, modelType: string): Promise<void> {
     if (modelType === 'classification') {
-      const sampleData = `feature1,feature2,feature3,label
-  1.2,2.3,3.4,0
-  2.1,3.2,4.3,1
-  3.0,4.1,5.2,0
-  4.3,5.4,6.5,1
-  5.1,6.2,7.3,0
-  `;
+      const sampleData = `feature1,feature2,feature3,feature4,feature5,target
+0.5,1.2,0.8,2.1,1.5,0
+1.1,0.9,1.3,1.7,0.8,1
+0.7,1.8,0.6,2.3,1.2,0
+1.4,0.6,1.9,1.1,2.1,1
+0.9,1.5,1.1,1.9,0.7,0
+1.7,0.4,2.2,0.9,1.8,1
+0.3,2.1,0.4,2.7,1.3,0
+1.9,0.2,2.5,0.6,2.4,1
+0.6,1.7,0.9,2.2,1.1,0
+2.1,0.1,2.8,0.4,2.7,1
+0.8,1.4,1.2,1.8,0.9,0
+1.6,0.7,2.1,1.2,2.0,1
+0.4,2.0,0.7,2.5,1.4,0
+2.0,0.3,2.6,0.7,2.5,1
+1.0,1.1,1.5,1.6,1.6,1
+0.2,2.3,0.3,2.9,1.0,0
+1.8,0.5,2.4,1.0,2.2,1
+0.9,1.6,1.0,2.0,1.2,0
+1.5,0.8,2.0,1.3,1.9,1
+0.7,1.9,0.8,2.4,1.1,0
+`;
       await fs.writeFile(path.join(projectPath, 'data', 'sample', 'sample_data.csv'), sampleData);
     } else if (modelType === 'regression') {
-      const sampleData = `feature1,feature2,feature3,target
-  1.2,2.3,3.4,10.5
-  2.1,3.2,4.3,15.2
-  3.0,4.1,5.2,18.7
-  4.3,5.4,6.5,22.1
-  5.1,6.2,7.3,25.8
-  `;
+      const sampleData = `feature1,feature2,feature3,feature4,feature5,target
+0.5,1.2,0.8,2.1,1.5,10.5
+1.1,0.9,1.3,1.7,0.8,15.2
+0.7,1.8,0.6,2.3,1.2,18.7
+1.4,0.6,1.9,1.1,2.1,22.1
+0.9,1.5,1.1,1.9,0.7,25.8
+1.7,0.4,2.2,0.9,1.8,30.2
+0.3,2.1,0.4,2.7,1.3,35.1
+1.9,0.2,2.5,0.6,2.4,40.3
+0.6,1.7,0.9,2.2,1.1,45.7
+2.1,0.1,2.8,0.4,2.7,50.9
+0.8,1.4,1.2,1.8,0.9,55.4
+1.6,0.7,2.1,1.2,2.0,60.1
+0.4,2.0,0.7,2.5,1.4,65.8
+2.0,0.3,2.6,0.7,2.5,70.2
+1.0,1.1,1.5,1.6,1.6,75.6
+0.2,2.3,0.3,2.9,1.0,80.3
+1.8,0.5,2.4,1.0,2.2,85.7
+0.9,1.6,1.0,2.0,1.2,90.1
+1.5,0.8,2.0,1.3,1.9,95.4
+0.7,1.9,0.8,2.4,1.1,100.2
+`;
       await fs.writeFile(path.join(projectPath, 'data', 'sample', 'sample_data.csv'), sampleData);
     }
     

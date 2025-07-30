@@ -103,20 +103,25 @@ export async function initCommand(projectName?: string, options: InitOptions = {
 
     const projectPath = path.resolve(process.cwd(), projectName!);
 
-    // Check if directory exists and is not empty
-    if (fs.existsSync(projectPath)) {
-      const files = fs.readdirSync(projectPath);
-      if (files.length > 0 && !options.force) {
+    // Check for existing project/model with the same name in the current directory
+    const existingProjectPath = path.resolve(process.cwd(), projectName!);
+    if (fs.existsSync(existingProjectPath)) {
+      // Check for cirron.json or model.py as a sign of an existing project/model
+      const cirronJsonExists = fs.existsSync(path.join(existingProjectPath, 'cirron.json'));
+      const modelPyExists = fs.existsSync(path.join(existingProjectPath, 'src', 'model.py'));
+      const files = fs.readdirSync(existingProjectPath);
+      const hasExistingFiles = files.length > 0;
+      
+      if (cirronJsonExists || modelPyExists || hasExistingFiles) {
         const answers = await inquirer.prompt([
           {
             type: 'confirm',
-            name: 'continue',
-            message: `Directory ${projectName} is not empty. Continue anyway?`,
+            name: 'proceed',
+            message: `WARNING: There is already a model with this name (${projectName}) and this action will overwrite existing files. This cannot be undone. Continue anyway?`,
             default: false
           }
         ]);
-        
-        if (!answers.continue) {
+        if (!answers.proceed) {
           logger.info('Initialization cancelled');
           return;
         }
@@ -126,8 +131,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Template and model type selection
     let template = options.template;
     let modelType = 'classification';
-    let includeSampleData = false;
-    let includeNotebook = false;
+    let includeSampleData = true; // Default to true for better testing
+    let includeNotebook = true; // Default to true for better development experience
 
     if (!TEMPLATES[template]) {
       const templateAnswers = await inquirer.prompt([
@@ -262,6 +267,68 @@ export async function initCommand(projectName?: string, options: InitOptions = {
   }
 }
 
+function getTemplateTestConfig(template: string): import('../types').TestConfig {
+  switch (template) {
+    case 'sklearn':
+      return {
+        dataPaths: {
+          sample: 'data/sample/sample_data.csv',
+          validation: 'data/sample/sample_data.csv',
+          inference: 'data/sample/sample_data.csv',
+        },
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 5,
+          targetColumn: 'target',
+          dataFormat: 'csv',
+          framework: 'sklearn',
+        },
+      };
+    case 'pytorch':
+      return {
+        dataPaths: {
+          sample: 'data/sample/sample_data.pt',
+          validation: 'data/sample/sample_data.pt',
+          inference: 'data/sample/sample_data.pt',
+        },
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 10,
+          targetColumn: 'labels',
+          dataFormat: 'tensor',
+          framework: 'pytorch',
+        },
+      };
+    case 'tensorflow':
+      return {
+        dataPaths: {
+          sample: 'data/sample/sample_data.tfrecord',
+          validation: 'data/sample/sample_data.tfrecord',
+          inference: 'data/sample/sample_data.tfrecord',
+        },
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 8,
+          targetColumn: 'target',
+          dataFormat: 'tfrecord',
+          framework: 'tensorflow',
+        },
+      };
+    case 'custom':
+    default:
+      return {
+        dataPaths: {},
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 5,
+          targetColumn: 'target',
+          dataFormat: 'csv',
+          framework: 'custom',
+        },
+      };
+  }
+}
+
 async function createProjectFiles(
   projectPath: string, 
   projectName: string, 
@@ -312,7 +379,8 @@ async function createProjectFiles(
       modelPath: 'models/',
       checkpointPath: 'checkpoints/',
       logsPath: 'logs/'
-    }
+    },
+    test: getTemplateTestConfig(template)
   };
 
   await fs.writeJSON(path.join(projectPath, 'cirron.json'), projectConfig, { spaces: 2 });
