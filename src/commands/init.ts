@@ -126,8 +126,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Template and model type selection
     let template = options.template;
     let modelType = 'classification';
-    let includeSampleData = false;
-    let includeNotebook = false;
+    let includeSampleData = true; // Default to true for better testing
+    let includeNotebook = true; // Default to true for better development experience
 
     if (!TEMPLATES[template]) {
       const templateAnswers = await inquirer.prompt([
@@ -312,6 +312,14 @@ async function createProjectFiles(
       modelPath: 'models/',
       checkpointPath: 'checkpoints/',
       logsPath: 'logs/'
+    },
+    test: {
+      dataPaths: {
+        sample: 'data/sample/sample_data.csv',
+        validation: 'data/sample/sample_data.csv',
+        inference: 'data/sample/sample_data.csv'
+      },
+      fallbackToDummy: true
     }
   };
 
