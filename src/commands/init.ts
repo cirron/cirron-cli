@@ -103,20 +103,25 @@ export async function initCommand(projectName?: string, options: InitOptions = {
 
     const projectPath = path.resolve(process.cwd(), projectName!);
 
-    // Check if directory exists and is not empty
-    if (fs.existsSync(projectPath)) {
-      const files = fs.readdirSync(projectPath);
-      if (files.length > 0 && !options.force) {
+    // Check for existing project/model with the same name in the current directory
+    const existingProjectPath = path.resolve(process.cwd(), projectName!);
+    if (fs.existsSync(existingProjectPath)) {
+      // Check for cirron.json or model.py as a sign of an existing project/model
+      const cirronJsonExists = fs.existsSync(path.join(existingProjectPath, 'cirron.json'));
+      const modelPyExists = fs.existsSync(path.join(existingProjectPath, 'src', 'model.py'));
+      const files = fs.readdirSync(existingProjectPath);
+      const hasExistingFiles = files.length > 0;
+      
+      if (cirronJsonExists || modelPyExists || hasExistingFiles) {
         const answers = await inquirer.prompt([
           {
             type: 'confirm',
-            name: 'continue',
-            message: `Directory ${projectName} is not empty. Continue anyway?`,
+            name: 'proceed',
+            message: `WARNING: There is already a model with this name (${projectName}) and this action will overwrite existing files. This cannot be undone. Continue anyway?`,
             default: false
           }
         ]);
-        
-        if (!answers.continue) {
+        if (!answers.proceed) {
           logger.info('Initialization cancelled');
           return;
         }
