@@ -41,6 +41,7 @@ export interface TestConfig {
     inference?: string;
   };
   fallbackToDummy?: boolean;
+  variables?: Record<string, any>;
 }
 
 export interface EnvironmentConfig {

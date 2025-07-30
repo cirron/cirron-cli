@@ -262,6 +262,68 @@ export async function initCommand(projectName?: string, options: InitOptions = {
   }
 }
 
+function getTemplateTestConfig(template: string): import('../types').TestConfig {
+  switch (template) {
+    case 'sklearn':
+      return {
+        dataPaths: {
+          sample: 'data/sample/sample_data.csv',
+          validation: 'data/sample/sample_data.csv',
+          inference: 'data/sample/sample_data.csv',
+        },
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 5,
+          targetColumn: 'target',
+          dataFormat: 'csv',
+          framework: 'sklearn',
+        },
+      };
+    case 'pytorch':
+      return {
+        dataPaths: {
+          sample: 'data/sample/sample_data.pt',
+          validation: 'data/sample/sample_data.pt',
+          inference: 'data/sample/sample_data.pt',
+        },
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 10,
+          targetColumn: 'labels',
+          dataFormat: 'tensor',
+          framework: 'pytorch',
+        },
+      };
+    case 'tensorflow':
+      return {
+        dataPaths: {
+          sample: 'data/sample/sample_data.tfrecord',
+          validation: 'data/sample/sample_data.tfrecord',
+          inference: 'data/sample/sample_data.tfrecord',
+        },
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 8,
+          targetColumn: 'target',
+          dataFormat: 'tfrecord',
+          framework: 'tensorflow',
+        },
+      };
+    case 'custom':
+    default:
+      return {
+        dataPaths: {},
+        fallbackToDummy: true,
+        variables: {
+          featureCount: 5,
+          targetColumn: 'target',
+          dataFormat: 'csv',
+          framework: 'custom',
+        },
+      };
+  }
+}
+
 async function createProjectFiles(
   projectPath: string, 
   projectName: string, 
@@ -313,14 +375,7 @@ async function createProjectFiles(
       checkpointPath: 'checkpoints/',
       logsPath: 'logs/'
     },
-    test: {
-      dataPaths: {
-        sample: 'data/sample/sample_data.csv',
-        validation: 'data/sample/sample_data.csv',
-        inference: 'data/sample/sample_data.csv'
-      },
-      fallbackToDummy: true
-    }
+    test: getTemplateTestConfig(template)
   };
 
   await fs.writeJSON(path.join(projectPath, 'cirron.json'), projectConfig, { spaces: 2 });
