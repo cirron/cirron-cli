@@ -19,10 +19,10 @@ export async function logsCommand(options: LogsOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
     
     if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.config.json found'));
+      spinner.fail(chalk.red('No cirron.json found'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       return;
     }

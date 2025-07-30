@@ -5,12 +5,13 @@ import getDataLoaderCode from './data';
 
 export async function createSklearnFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
     const requirements = `scikit-learn>=1.3.0
-  numpy>=1.21.0
-  pandas>=1.5.0
-  matplotlib>=3.5.0
-  seaborn>=0.11.0
-  joblib>=1.2.0
-  `;
+numpy>=1.21.0,<1.26.0
+pandas>=1.5.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+joblib>=1.2.0
+scipy>=1.4.1,<1.12.0
+`;
   
     await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
     await fs.ensureDir(path.join(projectPath, 'src'));
