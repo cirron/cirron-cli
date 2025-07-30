@@ -4,15 +4,15 @@ import getModelCode, { getModelClassName } from './models';
 import getDataLoaderCode from './data';
 
 export async function createPyTorchFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
-    // Requirements
+    // Requirements with M1/M2 Mac compatibility
     const requirements = `torch>=2.0.0
-  torchvision>=0.15.0
-  numpy>=1.21.0
-  scikit-learn>=1.3.0
-  matplotlib>=3.5.0
-  tqdm>=4.64.0
-  Pillow>=9.0.0
-  requests>=2.28.0
+torchvision>=0.15.0
+numpy>=1.21.0,<1.26.0
+scikit-learn>=1.3.0
+matplotlib>=3.5.0
+tqdm>=4.64.0
+Pillow>=9.0.0
+requests>=2.28.0
   `;
   
     await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);

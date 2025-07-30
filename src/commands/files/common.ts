@@ -239,87 +239,87 @@ export async function createCommonMLFiles(projectPath: string, projectName: stri
 async function createTestFiles(projectPath: string, _options: any): Promise<void> {
     // Model tests
     const modelTest = `import unittest
-  import sys
-  import os
-  sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-  
-  from model import create_model
-  
-  class TestModel(unittest.TestCase):
-      def setUp(self):
-          self.model = create_model()
-      
-      def test_model_creation(self):
-          """Test that model can be created"""
-          self.assertIsNotNone(self.model)
-      
-      def test_model_attributes(self):
-          """Test model has required attributes/methods"""
-          # Add framework-specific tests based on template
-          if hasattr(self.model, 'forward'):  # PyTorch
-              self.assertTrue(callable(self.model.forward))
-          elif hasattr(self.model, 'predict'):  # sklearn or custom
-              self.assertTrue(callable(self.model.predict))
-  
-  if __name__ == '__main__':
-      unittest.main()
-  `;
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from model import create_model
+
+class TestModel(unittest.TestCase):
+    def setUp(self):
+        self.model = create_model()
+    
+    def test_model_creation(self):
+        """Test that model can be created"""
+        self.assertIsNotNone(self.model)
+    
+    def test_model_attributes(self):
+        """Test model has required attributes/methods"""
+        # Add framework-specific tests based on template
+        if hasattr(self.model, 'forward'):  # PyTorch
+            self.assertTrue(callable(self.model.forward))
+        elif hasattr(self.model, 'predict'):  # sklearn or custom
+            self.assertTrue(callable(self.model.predict))
+
+if __name__ == '__main__':
+    unittest.main()
+`;
   
     await fs.writeFile(path.join(projectPath, 'tests', 'test_model.py'), modelTest);
   
     // Inference tests
     const inferenceTest = `import unittest
-  import sys
-  import os
-  sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-  
-  from inference import ModelInference
-  
-  class TestInference(unittest.TestCase):
-      def setUp(self):
-          self.inference = ModelInference()
-      
-      def test_inference_creation(self):
-          """Test that inference object can be created"""
-          self.assertIsNotNone(self.inference)
-          self.assertIsNotNone(self.inference.model)
-      
-      def test_preprocess_method(self):
-          """Test preprocessing method exists and works"""
-          self.assertTrue(hasattr(self.inference, 'preprocess'))
-          self.assertTrue(callable(self.inference.preprocess))
-      
-      def test_predict_method(self):
-          """Test prediction method exists"""
-          self.assertTrue(hasattr(self.inference, 'predict'))
-          self.assertTrue(callable(self.inference.predict))
-  
-  if __name__ == '__main__':
-      unittest.main()
-  `;
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from inference import ModelInference
+
+class TestInference(unittest.TestCase):
+    def setUp(self):
+        self.inference = ModelInference()
+    
+    def test_inference_creation(self):
+        """Test that inference object can be created"""
+        self.assertIsNotNone(self.inference)
+        self.assertIsNotNone(self.inference.model)
+    
+    def test_preprocess_method(self):
+        """Test preprocessing method exists and works"""
+        self.assertTrue(hasattr(self.inference, 'preprocess'))
+        self.assertTrue(callable(self.inference.preprocess))
+    
+    def test_predict_method(self):
+        """Test prediction method exists"""
+        self.assertTrue(hasattr(self.inference, 'predict'))
+        self.assertTrue(callable(self.inference.predict))
+
+if __name__ == '__main__':
+    unittest.main()
+`;
   
     await fs.writeFile(path.join(projectPath, 'tests', 'test_inference.py'), inferenceTest);
   
     // Data tests
     const dataTest = `import unittest
-  import sys
-  import os
-  sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-  
-  class TestData(unittest.TestCase):
-      def test_data_directory_exists(self):
-          """Test that data directory structure exists"""
-          if os.path.exists('data'):
-              self.assertTrue(os.path.isdir('data'))
-      
-      def test_sample_data_format(self):
-          """Test sample data format if it exists"""
-          # Add specific data validation tests based on your requirements
-          pass
-  
-  if __name__ == '__main__':
-      unittest.main()
-  `;
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+class TestData(unittest.TestCase):
+    def test_data_directory_exists(self):
+        """Test that data directory structure exists"""
+        if os.path.exists('data'):
+            self.assertTrue(os.path.isdir('data'))
+    
+    def test_sample_data_format(self):
+        """Test sample data format if it exists"""
+        # Add specific data validation tests based on your requirements
+        pass
+
+if __name__ == '__main__':
+    unittest.main()
+`;
   
     await fs.writeFile(path.join(projectPath, 'tests', 'test_data.py'), dataTest);
   }

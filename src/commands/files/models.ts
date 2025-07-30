@@ -131,7 +131,7 @@ import numpy as np
 
 `;
   
-    if (modelType === 'classification') {
+    if (modelType === 'classification' || modelType === 'nlp') {
       return baseImports + `def create_model():
     """Create a classification model"""
     return RandomForestClassifier(

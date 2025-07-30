@@ -139,75 +139,75 @@ export default function getDataLoaderCode(framework: string, _modelType: string)
   `;
     } else if (framework === 'sklearn') {
       return `import pandas as pd
-  import numpy as np
-  import os
-  from sklearn.model_selection import train_test_split
-  
-  def load_data(data_path):
-      """Load data for sklearn models"""
-      if os.path.isfile(data_path):
-          # Single file
-          data = pd.read_csv(data_path)
-      elif os.path.isdir(data_path):
-          # Directory with train/val files
-          train_path = os.path.join(data_path, 'train.csv')
-          if os.path.exists(train_path):
-              data = pd.read_csv(train_path)
-          else:
-              # Use sample data
-              data = pd.read_csv('data/sample/sample_data.csv')
-      else:
-          # Use sample data as fallback
-          data = pd.read_csv('data/sample/sample_data.csv')
-      
-      # Separate features and target
-      X = data.iloc[:, :-1]
-      y = data.iloc[:, -1]
-      
-      return X, y
-  
-  def prepare_data(data_path, test_size=0.2, random_state=42):
-      """Prepare data with train/test split"""
-      X, y = load_data(data_path)
-      
-      X_train, X_test, y_train, y_test = train_test_split(
-          X, y, test_size=test_size, random_state=random_state
-      )
-      
-      return X_train, X_test, y_train, y_test
-  `;
+import numpy as np
+import os
+from sklearn.model_selection import train_test_split
+
+def load_data(data_path):
+    """Load data for sklearn models"""
+    if os.path.isfile(data_path):
+        # Single file
+        data = pd.read_csv(data_path)
+    elif os.path.isdir(data_path):
+        # Directory with train/val files
+        train_path = os.path.join(data_path, 'train.csv')
+        if os.path.exists(train_path):
+            data = pd.read_csv(train_path)
+        else:
+            # Use sample data
+            data = pd.read_csv('data/sample/sample_data.csv')
+    else:
+        # Use sample data as fallback
+        data = pd.read_csv('data/sample/sample_data.csv')
+    
+    # Separate features and target
+    X = data.iloc[:, :-1]
+    y = data.iloc[:, -1]
+    
+    return X, y
+
+def prepare_data(data_path, test_size=0.2, random_state=42):
+    """Prepare data with train/test split"""
+    X, y = load_data(data_path)
+    
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state
+    )
+    
+    return X_train, X_test, y_train, y_test
+`;
     } else {
       // Custom framework
       return `import pandas as pd
-  import numpy as np
-  import os
-  
-  def load_data(data_path):
-      """Load data for custom models"""
-      if os.path.isfile(data_path) and data_path.endswith('.csv'):
-          data = pd.read_csv(data_path)
-          X = data.iloc[:, :-1].values
-          y = data.iloc[:, -1].values
-          return X, y
-      elif os.path.isdir(data_path):
-          # Handle directory structure
-          # Implement based on your specific needs
-          pass
-      else:
-          # Use sample data
-          data = pd.read_csv('data/sample/sample_data.csv')
-          X = data.iloc[:, :-1].values
-          y = data.iloc[:, -1].values
-          return X, y
-  
-  def prepare_data_splits(X, y, train_ratio=0.8):
-      """Split data into train/validation sets"""
-      split_idx = int(train_ratio * len(X))
-      
-      X_train, X_val = X[:split_idx], X[split_idx:]
-      y_train, y_val = y[:split_idx], y[split_idx:]
-      
-      return X_train, X_val, y_train, y_val
-  `;
+import numpy as np
+import os
+
+def load_data(data_path):
+    """Load data for custom models"""
+    if os.path.isfile(data_path) and data_path.endswith('.csv'):
+        data = pd.read_csv(data_path)
+        X = data.iloc[:, :-1].values
+        y = data.iloc[:, -1].values
+        return X, y
+    elif os.path.isdir(data_path):
+        # Handle directory structure
+        # Implement based on your specific needs
+        pass
+    else:
+        # Use sample data
+        data = pd.read_csv('data/sample/sample_data.csv')
+        X = data.iloc[:, :-1].values
+        y = data.iloc[:, -1].values
+        return X, y
+
+def prepare_data_splits(X, y, train_ratio=0.8):
+    """Split data into train/validation sets"""
+    split_idx = int(train_ratio * len(X))
+    
+    X_train, X_val = X[:split_idx], X[split_idx:]
+    y_train, y_val = y[:split_idx], y[split_idx:]
+    
+    return X_train, X_val, y_train, y_val
+`;
     }
 }
