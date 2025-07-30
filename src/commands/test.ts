@@ -15,6 +15,10 @@ interface TestOptions {
   model?: boolean;
   data?: boolean;
   inference?: boolean;
+  val?: boolean;
+  path?: string;
+  endpoint?: string;
+  pipeline?: boolean;
   watch?: boolean;
 }
 
@@ -37,7 +41,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     const testsToRun = determineTests(options);
     
     if (testsToRun.length === 0) {
-      // Run all tests by default
+      // Run all basic tests by default (not validation, endpoint, or pipeline)
       testsToRun.push('env', 'requirements', 'unit', 'model', 'data');
     }
 
@@ -75,6 +79,15 @@ export async function testCommand(options: TestOptions): Promise<void> {
             break;
           case 'inference':
             await runInferenceTests();
+            break;
+          case 'val':
+            await runValidationTests(projectConfig, options.path);
+            break;
+          case 'endpoint':
+            await runEndpointTests(options.endpoint!);
+            break;
+          case 'pipeline':
+            await runPipelineTests(projectConfig, options.path);
             break;
         }
         
@@ -140,6 +153,9 @@ function determineTests(options: TestOptions): string[] {
   if (options.model) tests.push('model');
   if (options.data) tests.push('data');
   if (options.inference) tests.push('inference');
+  if (options.val) tests.push('val');
+  if (options.endpoint) tests.push('endpoint');
+  if (options.pipeline) tests.push('pipeline');
   
   return tests;
 }
@@ -177,9 +193,27 @@ async function runEnvironmentTests(projectConfig: ProjectConfig): Promise<void> 
   if (projectConfig.gpuRequired) {
     try {
       if (projectConfig.framework === 'pytorch') {
-        execSync('python3 -c "import torch; assert torch.cuda.is_available()"', { stdio: 'pipe' });
+        const pytorchScript = 'import torch\nassert torch.cuda.is_available()';
+        const tempScriptPath = path.join(process.cwd(), 'temp_pytorch_cuda_test.py');
+        fs.writeFileSync(tempScriptPath, pytorchScript);
+        try {
+          execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+        } finally {
+          if (fs.existsSync(tempScriptPath)) {
+            fs.unlinkSync(tempScriptPath);
+          }
+        }
       } else if (projectConfig.framework === 'tensorflow') {
-        execSync('python3 -c "import tensorflow as tf; assert len(tf.config.list_physical_devices(\'GPU\')) > 0"', { stdio: 'pipe' });
+        const tfScript = 'import tensorflow as tf\nassert len(tf.config.list_physical_devices("GPU")) > 0';
+        const tempScriptPath = path.join(process.cwd(), 'temp_tf_cuda_test.py');
+        fs.writeFileSync(tempScriptPath, tfScript);
+        try {
+          execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+        } finally {
+          if (fs.existsSync(tempScriptPath)) {
+            fs.unlinkSync(tempScriptPath);
+          }
+        }
       }
     } catch (error) {
       throw new Error('CUDA/GPU not available but required by project');
@@ -308,12 +342,21 @@ else:
     raise Exception('Model missing required methods')
 `;
 
+    // Write script to temporary file to avoid shell escaping issues
+    const tempScriptPath = path.join(process.cwd(), 'temp_model_test.py');
+    fs.writeFileSync(tempScriptPath, testScript);
+    
     try {
-      const result = execSync(`python3 -c "${testScript}"`, { encoding: 'utf8' });
+      const result = execSync(`python3 ${tempScriptPath}`, { encoding: 'utf8' });
       console.log('Model test passed:', result);
     } catch (execError) {
       console.log('Model test failed:', String(execError));
       throw execError;
+    } finally {
+      // Clean up temporary file
+      if (fs.existsSync(tempScriptPath)) {
+        fs.unlinkSync(tempScriptPath);
+      }
     }
   } catch (error) {
     throw new Error('Model loading or instantiation failed');
@@ -356,7 +399,18 @@ else:
     print('No sample data found, skipping data validation')
 `;
 
-    execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+    // Write script to temporary file to avoid shell escaping issues
+    const tempScriptPath = path.join(process.cwd(), 'temp_data_test.py');
+    fs.writeFileSync(tempScriptPath, testScript);
+    
+    try {
+      execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+    } finally {
+      // Clean up temporary file
+      if (fs.existsSync(tempScriptPath)) {
+        fs.unlinkSync(tempScriptPath);
+      }
+    }
   } catch (error) {
     throw new Error('Data loading tests failed');
   }
@@ -395,7 +449,18 @@ except Exception as e:
         raise e
 `;
 
-    execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+    // Write script to temporary file to avoid shell escaping issues
+    const tempScriptPath = path.join(process.cwd(), 'temp_inference_test.py');
+    fs.writeFileSync(tempScriptPath, testScript);
+    
+    try {
+      execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+    } finally {
+      // Clean up temporary file
+      if (fs.existsSync(tempScriptPath)) {
+        fs.unlinkSync(tempScriptPath);
+      }
+    }
   } catch (error) {
     throw new Error('Inference tests failed');
   }
@@ -463,5 +528,337 @@ async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): P
     watcher.close();
     logger.info('\nStopped watching files');
     process.exit(0);
+  });
+}
+
+async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: string): Promise<void> {
+  const modelFile = path.join('src', 'model.py');
+  const inferenceFile = path.join('src', 'inference.py');
+  
+  if (!fs.existsSync(modelFile) || !fs.existsSync(inferenceFile)) {
+    throw new Error('Model or inference file not found');
+  }
+
+  // Determine validation data path
+  let validationPath = dataPath;
+  if (!validationPath) {
+    // Check common validation data locations
+    const commonPaths = [
+      'data/validation',
+      'data/val',
+      'data/test',
+      'data/sample'
+    ];
+    
+    for (const commonPath of commonPaths) {
+      if (fs.existsSync(commonPath)) {
+        validationPath = commonPath;
+        break;
+      }
+    }
+    
+    if (!validationPath) {
+      throw new Error('No validation data found. Specify path with -p option');
+    }
+  }
+
+  if (!fs.existsSync(validationPath)) {
+    throw new Error(`Validation data path not found: ${validationPath}`);
+  }
+
+  const isDirectory = fs.statSync(validationPath).isDirectory();
+  let testFiles: string[] = [];
+
+  if (isDirectory) {
+    // Get all CSV files in directory
+    testFiles = fs.readdirSync(validationPath)
+      .filter(file => file.endsWith('.csv'))
+      .map(file => path.join(validationPath!, file));
+  } else {
+    // Single file
+    testFiles = [validationPath];
+  }
+
+  if (testFiles.length === 0) {
+    throw new Error('No validation data files found (CSV format expected)');
+  }
+
+  logger.info(`Testing model accuracy on ${testFiles.length} validation file(s)`);
+
+  try {
+    // Run validation test for each file
+    for (const testFile of testFiles) {
+      const testScript = `import sys
+import os
+import time
+import pandas as pd
+import numpy as np
+sys.path.append('src')
+
+from model import create_model
+from inference import ModelInference
+
+# Load validation data
+print("Loading validation data from: ${path.basename(testFile)}")
+data = pd.read_csv("${testFile}")
+
+if data.empty:
+    raise Exception("Validation data is empty")
+
+# Assume last column is target, rest are features
+features = data.iloc[:, :-1].values
+targets = data.iloc[:, -1].values
+
+print("Validation data shape:", features.shape)
+print("Target distribution:", np.unique(targets, return_counts=True))
+
+# Initialize model and inference
+inference = ModelInference()
+model = create_model()
+
+# Check if we have a trained model to load
+import os
+model_path = 'models/model.joblib'
+if os.path.exists(model_path):
+    print("Loading trained model...")
+    inference.load_model(model_path)
+else:
+    print("No trained model found. Training model first...")
+    # Train the model using the training data
+    from train import Trainer
+    config = {
+        'model_type': 'nlp',
+        'data_path': 'data/sample/sample_data.csv',
+    }
+    trainer = Trainer(config)
+    trainer.train()
+    trainer.save_model()
+    inference.load_model(model_path)
+
+# Test prediction accuracy
+start_time = time.time()
+predictions = []
+
+for i in range(len(features)):
+    pred = inference.predict(features[i:i+1])
+    if hasattr(pred, 'numpy'):  # PyTorch tensor
+        pred = pred.numpy()
+    if isinstance(pred, np.ndarray):
+        pred = pred.flatten()[0] if pred.size == 1 else pred[0]
+    predictions.append(pred)
+
+end_time = time.time()
+predictions = np.array(predictions)
+
+# Calculate metrics
+if len(np.unique(targets)) <= 10:  # Classification
+    accuracy = np.mean(predictions.round() == targets)
+    print("Classification Accuracy: {:.4f} ({:.2f}%)".format(accuracy, accuracy*100))
+else:  # Regression
+    mse = np.mean((predictions - targets) ** 2)
+    mae = np.mean(np.abs(predictions - targets))
+    print("Mean Squared Error: {:.4f}".format(mse))
+    print("Mean Absolute Error: {:.4f}".format(mae))
+
+# Performance metrics
+total_time = end_time - start_time
+avg_latency = total_time / len(features) * 1000  # ms per prediction
+throughput = len(features) / total_time  # predictions per second
+
+print("Total inference time: {:.4f}s".format(total_time))
+print("Average latency: {:.2f}ms per prediction".format(avg_latency))
+print("Throughput: {:.2f} predictions/second".format(throughput))
+`;
+
+      // Write script to temporary file to avoid shell escaping issues
+      const tempScriptPath = path.join(process.cwd(), 'temp_validation_test.py');
+      fs.writeFileSync(tempScriptPath, testScript);
+      
+      try {
+        const result = execSync(`python3 ${tempScriptPath}`, { 
+          encoding: 'utf8',
+          timeout: 60000 // 60 second timeout
+        });
+        
+        logger.info(`Validation results for ${path.basename(testFile)}:`);
+        console.log(result);
+      } finally {
+        // Clean up temporary file
+        if (fs.existsSync(tempScriptPath)) {
+          fs.unlinkSync(tempScriptPath);
+        }
+      }
+    }
+  } catch (error) {
+    throw new Error(`Validation testing failed: ${error}`);
+  }
+}
+
+async function runEndpointTests(endpointUrl: string): Promise<void> {
+  try {
+    // Validate URL format
+    new URL(endpointUrl);
+  } catch {
+    throw new Error('Invalid endpoint URL format');
+  }
+
+  logger.info(`Testing endpoint: ${endpointUrl}`);
+
+  try {
+    const testScript = `import requests
+import json
+import time
+import numpy as np
+from statistics import mean, median
+
+endpoint = "${endpointUrl}"
+num_requests = 10
+
+# Generate test data (adjust based on your model's expected input)
+test_data = {
+    "features": [0.5, 1.2, 0.8, 2.1, 1.5],
+    "data": [[0.5, 1.2, 0.8, 2.1, 1.5], [1.1, 0.9, 1.3, 1.7, 0.8]]
+}
+
+latencies = []
+success_count = 0
+errors = []
+
+print("Testing endpoint with {} requests...".format(num_requests))
+
+for i in range(num_requests):
+    try:
+        start_time = time.time()
+        
+        # Make prediction request
+        response = requests.post(
+            endpoint,
+            json=test_data,
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
+        
+        end_time = time.time()
+        latency = (end_time - start_time) * 1000  # Convert to ms
+        latencies.append(latency)
+        
+        if response.status_code == 200:
+            success_count += 1
+            result = response.json()
+            print("Request {}: {} - {:.2f}ms".format(i+1, response.status_code, latency))
+        else:
+            errors.append("Request {}: HTTP {}".format(i+1, response.status_code))
+            print("Request {}: HTTP {} - {}".format(i+1, response.status_code, response.text[:100]))
+            
+    except requests.exceptions.Timeout:
+        errors.append("Request {}: Timeout".format(i+1))
+        print("Request {}: Timeout".format(i+1))
+    except Exception as e:
+        errors.append("Request {}: {}".format(i+1, str(e)))
+        print("Request {}: Error - {}".format(i+1, str(e)))
+
+# Calculate metrics
+if latencies:
+    avg_latency = mean(latencies)
+    median_latency = median(latencies)
+    min_latency = min(latencies)
+    max_latency = max(latencies)
+    success_rate = success_count / num_requests * 100
+    
+    print("\\n=== Endpoint Performance Metrics ===")
+    print("Success Rate: {:.1f}% ({}/{})".format(success_rate, success_count, num_requests))
+    print("Average Latency: {:.2f}ms".format(avg_latency))
+    print("Median Latency: {:.2f}ms".format(median_latency))
+    print("Min Latency: {:.2f}ms".format(min_latency))
+    print("Max Latency: {:.2f}ms".format(max_latency))
+    print("Throughput: {:.2f} requests/second".format(1000/avg_latency))
+    
+    if errors:
+        print("\\nErrors ({}):".format(len(errors)))
+        for error in errors[:5]:  # Show first 5 errors
+            print("  - {}".format(error))
+else:
+    raise Exception("No successful requests - endpoint may be down")
+`;
+
+    // Write script to temporary file to avoid shell escaping issues
+    const tempScriptPath = path.join(process.cwd(), 'temp_endpoint_test.py');
+    fs.writeFileSync(tempScriptPath, testScript);
+    
+    try {
+      const result = execSync(`python3 ${tempScriptPath}`, { 
+        encoding: 'utf8',
+        timeout: 120000 // 2 minute timeout
+      });
+      
+      console.log(result);
+    } finally {
+      // Clean up temporary file
+      if (fs.existsSync(tempScriptPath)) {
+        fs.unlinkSync(tempScriptPath);
+      }
+    }
+  } catch (error) {
+    throw new Error(`Endpoint testing failed: ${error}`);
+  }
+}
+
+async function runPipelineTests(projectConfig: ProjectConfig, dataPath?: string): Promise<void> {
+  logger.info('Testing complete ML pipeline...');
+  
+  // Run tests in sequence: data loading -> model -> inference -> validation
+  const pipelineSteps = [
+    { name: 'Environment', test: () => runEnvironmentTests(projectConfig) },
+    { name: 'Data Loading', test: () => runDataTests() },
+    { name: 'Model Creation', test: () => runModelTests(projectConfig) },
+    { name: 'Inference', test: () => runInferenceTests() }
+  ];
+  
+  // Add validation if data path provided
+  if (dataPath || fs.existsSync('data/sample') || fs.existsSync('data/validation')) {
+    pipelineSteps.push({ 
+      name: 'Validation', 
+      test: () => runValidationTests(projectConfig, dataPath)
+    });
+  }
+
+  const results: { step: string; success: boolean; time: number; error?: string }[] = [];
+  
+  for (const step of pipelineSteps) {
+    const startTime = Date.now();
+    try {
+      logger.info(`Pipeline step: ${step.name}`);
+      await step.test();
+      const endTime = Date.now();
+      results.push({
+        step: step.name,
+        success: true,
+        time: endTime - startTime
+      });
+      logger.info(`✓ ${step.name} completed in ${endTime - startTime}ms`);
+    } catch (error) {
+      const endTime = Date.now();
+      results.push({
+        step: step.name,
+        success: false,
+        time: endTime - startTime,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      logger.error(`✗ ${step.name} failed: ${error}`);
+      throw new Error(`Pipeline failed at step: ${step.name}`);
+    }
+  }
+  
+  // Summary
+  const totalTime = results.reduce((sum, result) => sum + result.time, 0);
+  const successfulSteps = results.filter(r => r.success).length;
+  
+  logger.info(`\n=== Pipeline Test Results ===`);
+  logger.info(`Steps completed: ${successfulSteps}/${results.length}`);
+  logger.info(`Total time: ${totalTime}ms`);
+  
+  results.forEach(result => {
+    const status = result.success ? '✓' : '✗';
+    logger.info(`${status} ${result.step}: ${result.time}ms`);
   });
 }
