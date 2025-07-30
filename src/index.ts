@@ -82,6 +82,10 @@ program
   .option('--model', 'Test model loading and instantiation')
   .option('--data', 'Test data loading')
   .option('--inference', 'Test model inference')
+  .option('-v, --val', 'Run validation tests on model accuracy')
+  .option('-p, --path <path>', 'Path to validation data (file or folder)')
+  .option('-e, --endpoint <url>', 'Test deployment endpoint for speed, accuracy, and latency')
+  .option('--pipeline', 'Test entire ML pipeline end-to-end')
   .option('-w, --watch', 'Watch for changes and re-run tests')
   .action(testCommand);
 
