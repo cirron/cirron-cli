@@ -10,6 +10,7 @@ import { deployCommand } from './commands/deploy';
 import { initCommand } from './commands/init';
 import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
+import { infoCommand } from './commands/info';
 import { logger } from './utils/logger';
 
 const program = new Command();
@@ -137,6 +138,12 @@ program
   .option('-d, --delete <key>', 'Delete configuration key')
   .option('--reset', 'Reset configuration to defaults')
   .action(configCommand);
+
+// Info command
+program
+  .command('info')
+  .description('Show model information and metadata')
+  .action(infoCommand);
 
 // Status command
 program
