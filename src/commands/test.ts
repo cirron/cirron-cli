@@ -4,6 +4,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
+import { CirronIgnore } from '../utils/ignore';
 import type { ProjectConfig } from '../types';
 
 interface TestOptions {
@@ -372,9 +373,11 @@ async function runDataTests(): Promise<void> {
   // Check if sample data exists
   const sampleDataPath = path.join('data', 'sample');
   if (fs.existsSync(sampleDataPath)) {
-    const files = fs.readdirSync(sampleDataPath);
+    const allFiles = fs.readdirSync(sampleDataPath);
+    const cirronIgnore = CirronIgnore.createDefault();
+    const files = cirronIgnore.filterFiles(allFiles.map(f => path.join(sampleDataPath, f)));
     if (files.length === 0) {
-      throw new Error('Sample data directory is empty');
+      throw new Error('Sample data directory is empty (after applying .cirronignore)');
     }
   }
 
@@ -648,13 +651,20 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
   let testFiles: string[] = [];
 
   if (isDirectory) {
-    // Get all CSV files in directory
-    testFiles = fs.readdirSync(validationPath)
+    // Get all CSV files in directory, filtered by .cirronignore
+    const cirronIgnore = CirronIgnore.createDefault();
+    const allFiles = fs.readdirSync(validationPath)
       .filter(file => file.endsWith('.csv'))
       .map(file => path.join(validationPath!, file));
+    testFiles = cirronIgnore.filterFiles(allFiles);
   } else {
-    // Single file
-    testFiles = [validationPath];
+    // Single file - check if it should be ignored
+    const cirronIgnore = CirronIgnore.createDefault();
+    if (!cirronIgnore.isIgnored(validationPath)) {
+      testFiles = [validationPath];
+    } else {
+      testFiles = [];
+    }
   }
 
   if (testFiles.length === 0) {

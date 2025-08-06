@@ -261,3 +261,95 @@ ${PROJECT_NAME} → project name
 ${VERSION} → project version
 ${IMAGE_NAME} → full image name
 ```
+
+## File Exclusion (.cirronignore)
+
+Control which files are processed by Cirron commands using a `.cirronignore` file, similar to `.dockerignore`:
+
+```bash
+# Create .cirronignore in your project root
+echo "*.log" > .cirronignore
+echo "temp_*" >> .cirronignore
+echo "__pycache__/" >> .cirronignore
+```
+
+### .cirronignore Syntax
+
+```bash
+# Comments start with #
+# Exclude all log files
+*.log
+
+# Exclude temporary files
+temp_*
+*.tmp
+
+# Exclude directories (trailing slash optional)
+__pycache__/
+node_modules
+
+# Exclude directory contents
+build/**
+
+# Include exceptions (negation with !)
+data/
+!data/sample/
+!data/test/
+
+# Exclude large model files but keep configs
+models/*.pth
+models/*.pkl
+!models/config.json
+```
+
+### Default Patterns
+
+When you run `cirron init`, a default `.cirronignore` is created with common patterns:
+
+```bash
+# Version control
+.git/
+.svn/
+
+# Large data files
+data/raw/
+data/processed/
+*.csv
+!data/sample/*.csv
+
+# Model artifacts
+models/*.pth
+models/*.pkl
+models/*.joblib
+
+# Development files
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+
+# Temporary files
+temp_*
+*.tmp
+*.log
+```
+
+### How .cirronignore Works
+
+- **Build Command**: Automatically integrates patterns into `.dockerignore` during container builds
+- **Test Command**: Filters files when scanning test data directories
+- **File Operations**: Excludes files from processing in various Cirron operations
+- **Pattern Matching**: Uses glob patterns with support for negation (`!`)
+
+Example usage:
+```bash
+# These files will be ignored during build and test
+echo "large-dataset.csv" >> .cirronignore
+echo "debug.log" >> .cirronignore
+
+# Run build - ignored files won't be included
+cirron build
+
+# Run tests - ignored files won't be processed  
+cirron test --data
+```
