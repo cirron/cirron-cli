@@ -143,6 +143,8 @@ program
 program
   .command('info')
   .description('Show model information and metadata')
+  .option('--update <type>', 'Update specific information (metadata)')
+  .option('--dry-run', 'Preview changes without applying them')
   .action(infoCommand);
 
 // Status command
