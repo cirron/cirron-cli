@@ -26,6 +26,7 @@ export interface ProjectConfig {
   deploy?: DeployConfig;
   artifacts?: ArtifactsConfig;
   test?: TestConfig;
+  metadata?: ModelMetadata;
 }
 
 export interface ArtifactsConfig {
@@ -154,4 +155,15 @@ export interface TemplateFile {
   path: string;
   content: string;
   executable?: boolean;
+}
+
+export interface ModelMetadata {
+  modelClassName?: string;
+  inputShape?: string | Record<string, string>;
+  architecture?: string;
+  gitCommitHash?: string;
+  trainingDataShape?: string;
+  testDataShape?: string;
+  lastUpdated?: string;
+  detectedPatterns?: string[];
 }
