@@ -11,6 +11,7 @@ import { initCommand } from './commands/init';
 import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
 import { infoCommand } from './commands/info';
+import { lintCommand } from './commands/lint';
 import { logger } from './utils/logger';
 
 const program = new Command();
@@ -146,6 +147,20 @@ program
   .option('--update <type>', 'Update specific information (metadata)')
   .option('--dry-run', 'Preview changes without applying them')
   .action(infoCommand);
+
+// Lint command
+program
+  .command('lint')
+  .description('Run linting checks for config and project health')
+  .option('--config', 'Lint project configuration only')
+  .option('--structure', 'Check project structure only')
+  .option('--dependencies', 'Validate dependencies only')
+  .option('--code', 'Run code quality checks only')
+  .option('--all', 'Run all lint checks (default)')
+  .option('--fix', 'Automatically fix issues where possible')
+  .option('--verbose', 'Show detailed output with suggestions')
+  .option('--json', 'Output results in JSON format')
+  .action(lintCommand);
 
 // Status command
 program
