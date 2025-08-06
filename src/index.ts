@@ -5,6 +5,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { authCommand, loginCommand, logoutCommand } from './commands/auth';
 import { buildCommand } from './commands/build';
+import { compileCommand } from './commands/compile';
 import { deployCommand } from './commands/deploy';
 import { initCommand } from './commands/init';
 import { testCommand } from './commands/test';
@@ -89,16 +90,30 @@ program
   .option('-w, --watch', 'Watch for changes and re-run tests')
   .action(testCommand);
 
+// Compile command
+program
+  .command('compile')
+  .description('Compile/build the model locally')
+  .option('-a, --arch <architecture>', 'Select a specific architecture')
+  .option('--index <file>', 'Path to index/manifest file')
+  .option('--validate', 'Run data/model integrity checks')
+  .option('--dry-run', 'Simulate compile without artifacts')
+  .action(compileCommand);
+
 // Build command
 program
   .command('build')
-  .description('Build your ML project container')
+  .description('Build your ML project (full build with container)')
   .option('-e, --env <environment>', 'Environment to build for', 'development')
   .option('-w, --watch', 'Watch for changes and rebuild (traditional projects only)')
   .option('-t, --tag <tag>', 'Container image tag')
   .option('--clean', 'Clean build (no cache)')
   .option('--push', 'Push image to registry after build')
   .option('--analyze', 'Analyze build output')
+  .option('-a, --arch <architecture>', 'Select a specific architecture')
+  .option('--index <file>', 'Path to index/manifest file')
+  .option('--validate', 'Run data/model integrity checks')
+  .option('--dry-run', 'Simulate build without artifacts')
   .action(buildCommand);
 
 // Deploy command
