@@ -768,7 +768,24 @@ function detectMetadataMismatches(
         storedValue: storedShape,
         detectedValue: detectedShape,
         description: `Input shape changed: ${storedShape} → ${detectedShape}`,
-        severity: 'info'
+        severity: 'critical'
+      });
+    }
+  }
+
+  // Check git commit mismatch
+  const gitInfo = getRepositoryInfo();
+  if (gitInfo.commitHash && metadata.gitCommitHash) {
+    const currentCommit = getShortCommitHash() || gitInfo.commitHash;
+    const storedCommit = metadata.gitCommitHash;
+    
+    if (currentCommit !== storedCommit) {
+      mismatches.push({
+        field: 'gitCommitHash',
+        storedValue: storedCommit,
+        detectedValue: currentCommit,
+        description: `Git commit changed: ${storedCommit} → ${currentCommit}`,
+        severity: 'warning'
       });
     }
   }
