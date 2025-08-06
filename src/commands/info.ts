@@ -692,11 +692,14 @@ function compareMetadata(existingMetadata: any, newMetadata: any): MetadataChang
   return changes;
 }
 
+type SeverityLevel = 'critical' | 'warning' | 'info';
+
 interface MetadataMismatch {
   field: string;
   storedValue?: string;
   detectedValue: string;
   description: string;
+  severity: SeverityLevel;
 }
 
 /**
@@ -723,7 +726,8 @@ function detectMetadataMismatches(
         field: 'modelClassName',
         storedValue: storedClassName,
         detectedValue: detectedClassName,
-        description: `Model class changed from ${storedClassName} → ${detectedClassName}`
+        description: `Model class changed: ${storedClassName} → ${detectedClassName}`,
+        severity: 'critical'
       });
     }
   }
@@ -741,7 +745,8 @@ function detectMetadataMismatches(
         const mismatch: MetadataMismatch = {
           field: 'architecture',
           detectedValue: detectedArch,
-          description: `Architecture patterns changed: ${storedArch} → ${detectedArch}`
+          description: `Architecture pattern changed: ${storedArch} → ${detectedArch}`,
+          severity: 'warning'
         };
         if (storedArch !== 'none') {
           mismatch.storedValue = storedArch;
@@ -762,7 +767,8 @@ function detectMetadataMismatches(
         field: 'inputShape',
         storedValue: storedShape,
         detectedValue: detectedShape,
-        description: `Input shape changed: ${storedShape} → ${detectedShape}`
+        description: `Input shape changed: ${storedShape} → ${detectedShape}`,
+        severity: 'info'
       });
     }
   }
@@ -771,7 +777,7 @@ function detectMetadataMismatches(
 }
 
 /**
- * Display mismatch warnings to the user
+ * Display mismatch warnings to the user with severity flags
  */
 function displayMismatchWarnings(mismatches: MetadataMismatch[]): void {
   console.log();
@@ -779,9 +785,27 @@ function displayMismatchWarnings(mismatches: MetadataMismatch[]): void {
   console.log(chalk.gray('─'.repeat(50)));
   
   for (const mismatch of mismatches) {
-    console.log(`  ${chalk.yellow('•')} ${mismatch.description}`);
+    const severityColor = getSeverityColor(mismatch.severity);
+    const severityFlag = `[${mismatch.severity}]`;
+    console.log(`  ${chalk.yellow('•')} ${severityColor(severityFlag)} ${mismatch.description}`);
   }
   
   console.log();
   console.log(chalk.gray('Run') + ' ' + chalk.cyan('cirron info --update metadata') + chalk.gray(' to refresh metadata.'));
+}
+
+/**
+ * Get chalk color function for severity level
+ */
+function getSeverityColor(severity: SeverityLevel) {
+  switch (severity) {
+    case 'critical':
+      return chalk.red.bold;
+    case 'warning':
+      return chalk.yellow.bold;
+    case 'info':
+      return chalk.blue.bold;
+    default:
+      return chalk.gray;
+  }
 }
