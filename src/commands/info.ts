@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import { logger } from '../utils/logger';
+import { getRepositoryInfo, getShortCommitHash } from '../utils/git';
 import type { ProjectConfig } from '../types';
 
 interface ModelInfo {
@@ -13,6 +14,12 @@ interface ModelInfo {
   pythonVersion?: string;
   gpuRequired?: boolean;
   dependencies?: string[];
+  modelClassName?: string;
+  inputShape?: string;
+  architecture?: string;
+  gitCommitHash?: string;
+  trainingDataShape?: string;
+  testDataShape?: string;
 }
 
 interface ModelAnalysis {
@@ -22,9 +29,18 @@ interface ModelAnalysis {
   modelDefinitions: string[];
   outputShapes: string[];
   parameterCounts: number[];
+  modelClassNames: string[];
+  inputShapes: string[];
+  architecturePatterns: string[];
+  sampleCalls: string[];
 }
 
-export async function infoCommand(): Promise<void> {
+interface InfoOptions {
+  update?: string;
+  dryRun?: boolean;
+}
+
+export async function infoCommand(options: InfoOptions = {}): Promise<void> {
   try {
     // Check if we're in a Cirron project
     const cirronJsonPath = path.join(process.cwd(), 'cirron.json');
@@ -45,11 +61,30 @@ export async function infoCommand(): Promise<void> {
       modelAnalysis = await analyzeModelFile(modelContent, projectConfig.framework || 'custom');
     }
 
-    // Extract model info
+    // Handle update command
+    if (options.update) {
+      if (options.update === 'metadata') {
+        await handleMetadataUpdate(projectConfig, modelAnalysis, cirronJsonPath, options.dryRun || false);
+        return;
+      } else {
+        logger.error(`Unknown update type: ${options.update}. Available options: metadata`);
+        process.exit(1);
+      }
+    }
+
+    // Extract model info for display
     const modelInfo = extractModelInfo(projectConfig, modelAnalysis);
 
+    // Check for metadata mismatches and warn user
+    const mismatches = detectMetadataMismatches(projectConfig, modelAnalysis);
+    
     // Display the information
     displayModelInfo(projectConfig.name, modelInfo);
+    
+    // Display mismatch warnings after the main info
+    if (mismatches.length > 0) {
+      displayMismatchWarnings(mismatches);
+    }
 
   } catch (error) {
     logger.error('Failed to get model info:', error);
@@ -64,7 +99,11 @@ async function analyzeModelFile(content: string, framework: string): Promise<Mod
     functions: [],
     modelDefinitions: [],
     outputShapes: [],
-    parameterCounts: []
+    parameterCounts: [],
+    modelClassNames: [],
+    inputShapes: [],
+    architecturePatterns: [],
+    sampleCalls: []
   };
 
   const lines = content.split('\n');
@@ -77,16 +116,69 @@ async function analyzeModelFile(content: string, framework: string): Promise<Mod
       analysis.imports.push(trimmedLine);
     }
     
-    // Extract class definitions
-    const classMatch = trimmedLine.match(/^class\s+(\w+)/);
+    // Extract class definitions and detect model classes
+    const classMatch = trimmedLine.match(/^class\s+(\w+)(?:\(([^)]+)\))?/);
     if (classMatch && classMatch[1]) {
       analysis.classes.push(classMatch[1]);
+      
+      // Check if this is a model class based on inheritance
+      const inheritance = classMatch[2] || '';
+      if (inheritance.includes('nn.Module') || 
+          inheritance.includes('torch.nn.Module') ||
+          inheritance.includes('tf.keras.Model') ||
+          inheritance.includes('keras.Model') ||
+          inheritance.includes('BaseEstimator') ||
+          inheritance.includes('Model')) {
+        analysis.modelClassNames.push(classMatch[1]);
+      }
     }
     
     // Extract function definitions
     const functionMatch = trimmedLine.match(/^def\s+(\w+)/);
     if (functionMatch && functionMatch[1]) {
       analysis.functions.push(functionMatch[1]);
+    }
+    
+    // Extract input shapes from sample calls
+    const shapePatterns = [
+      /torch\.randn\(([^)]+)\)/g,
+      /torch\.zeros\(([^)]+)\)/g,
+      /torch\.ones\(([^)]+)\)/g,
+      /np\.random\.randn\(([^)]+)\)/g,
+      /np\.zeros\(([^)]+)\)/g,
+      /np\.ones\(([^)]+)\)/g,
+      /tf\.random\.normal\(\[([^\]]+)\]/g,
+      /tf\.zeros\(\[([^\]]+)\]/g,
+    ];
+    
+    for (const pattern of shapePatterns) {
+      let match;
+      while ((match = pattern.exec(trimmedLine)) !== null) {
+        const shape = match[1]?.trim();
+        if (shape && !analysis.inputShapes.includes(shape)) {
+          analysis.inputShapes.push(shape);
+        }
+        analysis.sampleCalls.push(trimmedLine.trim());
+      }
+    }
+    
+    // Detect architecture patterns
+    const architecturePatterns = [
+      { pattern: /Conv2d|nn\.Conv2d|tf\.keras\.layers\.Conv2D/i, type: 'CNN' },
+      { pattern: /LSTM|nn\.LSTM|tf\.keras\.layers\.LSTM/i, type: 'LSTM' },
+      { pattern: /GRU|nn\.GRU|tf\.keras\.layers\.GRU/i, type: 'GRU' },
+      { pattern: /Transformer|nn\.Transformer|MultiheadAttention/i, type: 'Transformer' },
+      { pattern: /ResNet|residual|skip.*connection/i, type: 'ResNet' },
+      { pattern: /BatchNorm|nn\.BatchNorm|tf\.keras\.layers\.BatchNormalization/i, type: 'BatchNorm' },
+      { pattern: /Dropout|nn\.Dropout|tf\.keras\.layers\.Dropout/i, type: 'Regularization' },
+      { pattern: /Attention|attention|self\.attn/i, type: 'Attention' },
+      { pattern: /Embedding|nn\.Embedding|tf\.keras\.layers\.Embedding/i, type: 'Embedding' },
+    ];
+    
+    for (const { pattern, type } of architecturePatterns) {
+      if (pattern.test(trimmedLine) && !analysis.architecturePatterns.includes(type)) {
+        analysis.architecturePatterns.push(type);
+      }
     }
     
     // Framework-specific analysis
@@ -201,8 +293,38 @@ function extractModelInfo(projectConfig: ProjectConfig, modelAnalysis: ModelAnal
   }
   info.endpoints = endpoints;
 
+  // Add git information
+  const gitInfo = getRepositoryInfo();
+  if (gitInfo.commitHash) {
+    info.gitCommitHash = getShortCommitHash() || gitInfo.commitHash;
+  }
+
   // Add analysis results if available
   if (modelAnalysis) {
+    // Extract model class name
+    if (modelAnalysis.modelClassNames.length > 0) {
+      const className = modelAnalysis.modelClassNames[0];
+      if (className) {
+        info.modelClassName = className; // Use the first model class found
+      }
+    }
+    
+    // Extract input shape information
+    if (modelAnalysis.inputShapes.length > 0) {
+      info.inputShape = `(${modelAnalysis.inputShapes[0]})`;
+      
+      // Separate training and test shapes if multiple found
+      if (modelAnalysis.inputShapes.length > 1) {
+        info.trainingDataShape = `(${modelAnalysis.inputShapes[0]})`;
+        info.testDataShape = `(${modelAnalysis.inputShapes[1]})`;
+      }
+    }
+    
+    // Extract architecture information
+    if (modelAnalysis.architecturePatterns.length > 0) {
+      info.architecture = modelAnalysis.architecturePatterns.join(' + ');
+    }
+    
     // Estimate parameters based on framework and model definitions
     if (modelAnalysis.parameterCounts.length > 0 || modelAnalysis.modelDefinitions.length > 0) {
       info.params = estimateParameterCount(projectConfig.framework || 'custom', modelAnalysis);
@@ -215,6 +337,30 @@ function extractModelInfo(projectConfig: ProjectConfig, modelAnalysis: ModelAnal
     
     // Extract dependencies from imports
     info.dependencies = extractDependencies(modelAnalysis.imports);
+  }
+
+  // Use metadata from project config if available
+  if (projectConfig.metadata) {
+    if (!info.modelClassName && projectConfig.metadata.modelClassName) {
+      info.modelClassName = projectConfig.metadata.modelClassName;
+    }
+    if (!info.inputShape && projectConfig.metadata.inputShape) {
+      info.inputShape = typeof projectConfig.metadata.inputShape === 'string' 
+        ? projectConfig.metadata.inputShape 
+        : JSON.stringify(projectConfig.metadata.inputShape);
+    }
+    if (!info.architecture && projectConfig.metadata.architecture) {
+      info.architecture = projectConfig.metadata.architecture;
+    }
+    if (!info.gitCommitHash && projectConfig.metadata.gitCommitHash) {
+      info.gitCommitHash = projectConfig.metadata.gitCommitHash;
+    }
+    if (!info.trainingDataShape && projectConfig.metadata.trainingDataShape) {
+      info.trainingDataShape = projectConfig.metadata.trainingDataShape;
+    }
+    if (!info.testDataShape && projectConfig.metadata.testDataShape) {
+      info.testDataShape = projectConfig.metadata.testDataShape;
+    }
   }
 
   return info;
@@ -283,6 +429,14 @@ function displayModelInfo(projectName: string, info: ModelInfo): void {
   // Model Details
   console.log(chalk.bold('Model Details'));
   
+  if (info.modelClassName) {
+    console.log(`  ${chalk.yellow('Model Class:')} ${info.modelClassName}`);
+  }
+  
+  if (info.architecture) {
+    console.log(`  ${chalk.yellow('Architecture:')} ${info.architecture}`);
+  }
+  
   if (info.params !== undefined && info.params > 0) {
     const paramsFormatted = info.params.toLocaleString();
     console.log(`  ${chalk.yellow('Parameters:')} ${paramsFormatted}`);
@@ -290,13 +444,38 @@ function displayModelInfo(projectName: string, info: ModelInfo): void {
     console.log(`  ${chalk.yellow('Parameters:')} ${chalk.gray('Unable to determine (run with model loaded for accurate count)')}`);
   }
   
+  if (info.inputShape) {
+    console.log(`  ${chalk.yellow('Input Shape:')} ${info.inputShape}`);
+  }
+  
+  if (info.trainingDataShape && info.testDataShape) {
+    console.log(`  ${chalk.yellow('Training Data Shape:')} ${info.trainingDataShape}`);
+    console.log(`  ${chalk.yellow('Test Data Shape:')} ${info.testDataShape}`);
+  }
+  
   if (info.outputShape) {
     console.log(`  ${chalk.yellow('Output Shape:')} ${info.outputShape}`);
-  } else {
-    console.log(`  ${chalk.yellow('Output Shape:')} ${chalk.gray('Not detected')}`);
+  } else if (!info.inputShape) {
+    console.log(`  ${chalk.yellow('Input/Output Shape:')} ${chalk.gray('Not detected')}`);
   }
   
   console.log();
+  
+  // Version Control
+  if (info.gitCommitHash) {
+    console.log(chalk.bold('Version Control'));
+    console.log(`  ${chalk.yellow('Git Commit:')} ${info.gitCommitHash}`);
+    
+    const gitInfo = getRepositoryInfo();
+    if (gitInfo.branch) {
+      console.log(`  ${chalk.yellow('Branch:')} ${gitInfo.branch}`);
+    }
+    if (gitInfo.isClean !== undefined) {
+      const status = gitInfo.isClean ? 'Clean working directory' : 'Uncommitted changes';
+      console.log(`  ${chalk.yellow('Repository:')} ${status}`);
+    }
+    console.log();
+  }
   
   // Endpoints
   if (info.endpoints && info.endpoints.length > 0) {
@@ -323,4 +502,327 @@ function displayModelInfo(projectName: string, info: ModelInfo): void {
   }
   
   console.log();
+  console.log(chalk.gray('Tip: Run ') + chalk.cyan('cirron test') + chalk.gray(' to validate your model setup and dependencies'));
+}
+
+/**
+ * Handle metadata update with idempotent behavior
+ */
+async function handleMetadataUpdate(
+  projectConfig: ProjectConfig, 
+  modelAnalysis: ModelAnalysis | null, 
+  cirronJsonPath: string, 
+  dryRun: boolean
+): Promise<void> {
+  try {
+    // Get file stats for concurrent change detection
+    const stats = await fs.stat(cirronJsonPath);
+    const originalModTime = stats.mtime;
+
+    // Generate new metadata based on current analysis
+    const newMetadata = generateUpdatedMetadata(projectConfig, modelAnalysis);
+    
+    // Compare with existing metadata
+    const changes = compareMetadata(projectConfig.metadata, newMetadata);
+    
+    if (changes.length === 0) {
+      console.log(chalk.green('No metadata changes found. cirron.json is up to date.'));
+      return;
+    }
+
+    // Display changes
+    console.log(chalk.bold.cyan('Metadata Update Preview'));
+    console.log(chalk.gray('─'.repeat(50)));
+    
+    for (const change of changes) {
+      console.log(`  ${chalk.yellow(change.field)}:`);
+      if (change.oldValue) {
+        console.log(`    ${chalk.red('-')} ${change.oldValue}`);
+      } else {
+        console.log(`    ${chalk.gray('(not set)')}`);
+      }
+      console.log(`    ${chalk.green('+')} ${change.newValue}`);
+      console.log();
+    }
+
+    if (dryRun) {
+      console.log(chalk.blue('Dry run mode - no changes were made to cirron.json'));
+      console.log(chalk.gray('Run without --dry-run to apply these changes'));
+      return;
+    }
+
+    // Check for concurrent changes before writing
+    const currentStats = await fs.stat(cirronJsonPath);
+    if (currentStats.mtime.getTime() !== originalModTime.getTime()) {
+      logger.error('cirron.json has been modified by another process. Please retry the update.');
+      process.exit(1);
+    }
+
+    // Apply the changes
+    const updatedConfig = {
+      ...projectConfig,
+      metadata: newMetadata
+    };
+
+    await fs.writeJSON(cirronJsonPath, updatedConfig, { spaces: 2 });
+    
+    console.log(chalk.green(`✓ Successfully updated ${changes.length} metadata field(s) in cirron.json`));
+    
+  } catch (error) {
+    logger.error('Failed to update metadata:', error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Generate updated metadata based on current analysis
+ */
+function generateUpdatedMetadata(
+  projectConfig: ProjectConfig, 
+  modelAnalysis: ModelAnalysis | null
+): any {
+  const gitInfo = getRepositoryInfo();
+  const metadata: any = {
+    lastUpdated: new Date().toISOString(),
+    detectedPatterns: []
+  };
+
+  // Preserve existing values that can't be auto-detected
+  if (projectConfig.metadata) {
+    if (projectConfig.metadata.modelClassName) {
+      metadata.modelClassName = projectConfig.metadata.modelClassName;
+    }
+    if (projectConfig.metadata.architecture) {
+      metadata.architecture = projectConfig.metadata.architecture;
+    }
+    if (projectConfig.metadata.inputShape) {
+      metadata.inputShape = projectConfig.metadata.inputShape;
+    }
+    if (projectConfig.metadata.trainingDataShape) {
+      metadata.trainingDataShape = projectConfig.metadata.trainingDataShape;
+    }
+    if (projectConfig.metadata.testDataShape) {
+      metadata.testDataShape = projectConfig.metadata.testDataShape;
+    }
+  }
+
+  // Update with fresh analysis if available
+  if (modelAnalysis) {
+    // Update model class name if detected
+    if (modelAnalysis.modelClassNames.length > 0 && modelAnalysis.modelClassNames[0]) {
+      metadata.modelClassName = modelAnalysis.modelClassNames[0];
+    }
+    
+    // Update input shape if detected
+    if (modelAnalysis.inputShapes.length > 0) {
+      metadata.inputShape = `(${modelAnalysis.inputShapes[0]})`;
+      
+      if (modelAnalysis.inputShapes.length > 1) {
+        metadata.trainingDataShape = `(${modelAnalysis.inputShapes[0]})`;
+        metadata.testDataShape = `(${modelAnalysis.inputShapes[1]})`;
+      }
+    }
+    
+    // Update architecture patterns
+    if (modelAnalysis.architecturePatterns.length > 0) {
+      metadata.architecture = modelAnalysis.architecturePatterns.join(' + ');
+      metadata.detectedPatterns = modelAnalysis.architecturePatterns;
+    }
+  }
+
+  // Always update git information if available
+  if (gitInfo.commitHash) {
+    metadata.gitCommitHash = getShortCommitHash() || gitInfo.commitHash;
+  }
+
+  return metadata;
+}
+
+interface MetadataChange {
+  field: string;
+  oldValue?: string;
+  newValue: string;
+}
+
+/**
+ * Compare existing and new metadata to detect changes
+ */
+function compareMetadata(existingMetadata: any, newMetadata: any): MetadataChange[] {
+  const changes: MetadataChange[] = [];
+  const fieldsToCheck = [
+    'modelClassName',
+    'architecture', 
+    'inputShape',
+    'trainingDataShape',
+    'testDataShape',
+    'gitCommitHash'
+  ];
+
+  for (const field of fieldsToCheck) {
+    const oldValue = existingMetadata?.[field];
+    const newValue = newMetadata[field];
+    
+    // Skip if both are undefined/null
+    if (!oldValue && !newValue) {
+      continue;
+    }
+    
+    // Detect change
+    if (oldValue !== newValue) {
+      changes.push({
+        field,
+        oldValue: oldValue || undefined,
+        newValue: newValue || '(removed)'
+      });
+    }
+  }
+
+  // Special handling for detected patterns array
+  const oldPatterns = existingMetadata?.detectedPatterns || [];
+  const newPatterns = newMetadata.detectedPatterns || [];
+  
+  if (JSON.stringify(oldPatterns.sort()) !== JSON.stringify(newPatterns.sort())) {
+    changes.push({
+      field: 'detectedPatterns',
+      oldValue: oldPatterns.length > 0 ? oldPatterns.join(', ') : '(none)',
+      newValue: newPatterns.length > 0 ? newPatterns.join(', ') : '(none)'
+    });
+  }
+
+  return changes;
+}
+
+type SeverityLevel = 'critical' | 'warning' | 'info';
+
+interface MetadataMismatch {
+  field: string;
+  storedValue?: string;
+  detectedValue: string;
+  description: string;
+  severity: SeverityLevel;
+}
+
+/**
+ * Detect mismatches between stored metadata and current model analysis
+ */
+function detectMetadataMismatches(
+  projectConfig: ProjectConfig,
+  modelAnalysis: ModelAnalysis | null
+): MetadataMismatch[] {
+  if (!modelAnalysis || !projectConfig.metadata) {
+    return [];
+  }
+
+  const mismatches: MetadataMismatch[] = [];
+  const metadata = projectConfig.metadata;
+
+  // Check model class name mismatch
+  if (modelAnalysis.modelClassNames.length > 0) {
+    const detectedClassName = modelAnalysis.modelClassNames[0];
+    const storedClassName = metadata.modelClassName;
+    
+    if (detectedClassName && storedClassName && detectedClassName !== storedClassName) {
+      mismatches.push({
+        field: 'modelClassName',
+        storedValue: storedClassName,
+        detectedValue: detectedClassName,
+        description: `Model class changed: ${storedClassName} → ${detectedClassName}`,
+        severity: 'critical'
+      });
+    }
+  }
+
+  // Check architecture patterns mismatch
+  if (modelAnalysis.architecturePatterns.length > 0) {
+    const detectedPatterns = modelAnalysis.architecturePatterns.sort();
+    const storedPatterns = (metadata.detectedPatterns || []).sort();
+    
+    if (JSON.stringify(detectedPatterns) !== JSON.stringify(storedPatterns)) {
+      const detectedArch = detectedPatterns.join(' + ');
+      const storedArch = storedPatterns.length > 0 ? storedPatterns.join(' + ') : 'none';
+      
+      if (detectedArch !== storedArch) {
+        const mismatch: MetadataMismatch = {
+          field: 'architecture',
+          detectedValue: detectedArch,
+          description: `Architecture pattern changed: ${storedArch} → ${detectedArch}`,
+          severity: 'warning'
+        };
+        if (storedArch !== 'none') {
+          mismatch.storedValue = storedArch;
+        }
+        mismatches.push(mismatch);
+      }
+    }
+  }
+
+  // Check input shape mismatch
+  if (modelAnalysis.inputShapes.length > 0) {
+    const detectedShape = `(${modelAnalysis.inputShapes[0]})`;
+    const storedShape = typeof metadata.inputShape === 'string' ? metadata.inputShape : undefined;
+    
+    if (storedShape && detectedShape !== storedShape && 
+        !storedShape.includes('Varies') && !storedShape.includes('Not specified')) {
+      mismatches.push({
+        field: 'inputShape',
+        storedValue: storedShape,
+        detectedValue: detectedShape,
+        description: `Input shape changed: ${storedShape} → ${detectedShape}`,
+        severity: 'critical'
+      });
+    }
+  }
+
+  // Check git commit mismatch
+  const gitInfo = getRepositoryInfo();
+  if (gitInfo.commitHash && metadata.gitCommitHash) {
+    const currentCommit = getShortCommitHash() || gitInfo.commitHash;
+    const storedCommit = metadata.gitCommitHash;
+    
+    if (currentCommit !== storedCommit) {
+      mismatches.push({
+        field: 'gitCommitHash',
+        storedValue: storedCommit,
+        detectedValue: currentCommit,
+        description: `Git commit changed: ${storedCommit} → ${currentCommit}`,
+        severity: 'warning'
+      });
+    }
+  }
+
+  return mismatches;
+}
+
+/**
+ * Display mismatch warnings to the user with severity flags
+ */
+function displayMismatchWarnings(mismatches: MetadataMismatch[]): void {
+  console.log();
+  console.log(chalk.bold.yellow('Metadata Mismatch Detected'));
+  console.log(chalk.gray('─'.repeat(50)));
+  
+  for (const mismatch of mismatches) {
+    const severityColor = getSeverityColor(mismatch.severity);
+    const severityFlag = `[${mismatch.severity}]`;
+    console.log(`  ${chalk.yellow('•')} ${severityColor(severityFlag)} ${mismatch.description}`);
+  }
+  
+  console.log();
+  console.log(chalk.gray('Run') + ' ' + chalk.cyan('cirron info --update metadata') + chalk.gray(' to refresh metadata.'));
+}
+
+/**
+ * Get chalk color function for severity level
+ */
+function getSeverityColor(severity: SeverityLevel) {
+  switch (severity) {
+    case 'critical':
+      return chalk.red.bold;
+    case 'warning':
+      return chalk.yellow.bold;
+    case 'info':
+      return chalk.blue.bold;
+    default:
+      return chalk.gray;
+  }
 }
