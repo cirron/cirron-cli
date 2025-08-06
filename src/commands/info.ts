@@ -75,8 +75,16 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
     // Extract model info for display
     const modelInfo = extractModelInfo(projectConfig, modelAnalysis);
 
+    // Check for metadata mismatches and warn user
+    const mismatches = detectMetadataMismatches(projectConfig, modelAnalysis);
+    
     // Display the information
     displayModelInfo(projectConfig.name, modelInfo);
+    
+    // Display mismatch warnings after the main info
+    if (mismatches.length > 0) {
+      displayMismatchWarnings(mismatches);
+    }
 
   } catch (error) {
     logger.error('Failed to get model info:', error);
@@ -682,4 +690,98 @@ function compareMetadata(existingMetadata: any, newMetadata: any): MetadataChang
   }
 
   return changes;
+}
+
+interface MetadataMismatch {
+  field: string;
+  storedValue?: string;
+  detectedValue: string;
+  description: string;
+}
+
+/**
+ * Detect mismatches between stored metadata and current model analysis
+ */
+function detectMetadataMismatches(
+  projectConfig: ProjectConfig,
+  modelAnalysis: ModelAnalysis | null
+): MetadataMismatch[] {
+  if (!modelAnalysis || !projectConfig.metadata) {
+    return [];
+  }
+
+  const mismatches: MetadataMismatch[] = [];
+  const metadata = projectConfig.metadata;
+
+  // Check model class name mismatch
+  if (modelAnalysis.modelClassNames.length > 0) {
+    const detectedClassName = modelAnalysis.modelClassNames[0];
+    const storedClassName = metadata.modelClassName;
+    
+    if (detectedClassName && storedClassName && detectedClassName !== storedClassName) {
+      mismatches.push({
+        field: 'modelClassName',
+        storedValue: storedClassName,
+        detectedValue: detectedClassName,
+        description: `Model class changed from ${storedClassName} → ${detectedClassName}`
+      });
+    }
+  }
+
+  // Check architecture patterns mismatch
+  if (modelAnalysis.architecturePatterns.length > 0) {
+    const detectedPatterns = modelAnalysis.architecturePatterns.sort();
+    const storedPatterns = (metadata.detectedPatterns || []).sort();
+    
+    if (JSON.stringify(detectedPatterns) !== JSON.stringify(storedPatterns)) {
+      const detectedArch = detectedPatterns.join(' + ');
+      const storedArch = storedPatterns.length > 0 ? storedPatterns.join(' + ') : 'none';
+      
+      if (detectedArch !== storedArch) {
+        const mismatch: MetadataMismatch = {
+          field: 'architecture',
+          detectedValue: detectedArch,
+          description: `Architecture patterns changed: ${storedArch} → ${detectedArch}`
+        };
+        if (storedArch !== 'none') {
+          mismatch.storedValue = storedArch;
+        }
+        mismatches.push(mismatch);
+      }
+    }
+  }
+
+  // Check input shape mismatch
+  if (modelAnalysis.inputShapes.length > 0) {
+    const detectedShape = `(${modelAnalysis.inputShapes[0]})`;
+    const storedShape = typeof metadata.inputShape === 'string' ? metadata.inputShape : undefined;
+    
+    if (storedShape && detectedShape !== storedShape && 
+        !storedShape.includes('Varies') && !storedShape.includes('Not specified')) {
+      mismatches.push({
+        field: 'inputShape',
+        storedValue: storedShape,
+        detectedValue: detectedShape,
+        description: `Input shape changed: ${storedShape} → ${detectedShape}`
+      });
+    }
+  }
+
+  return mismatches;
+}
+
+/**
+ * Display mismatch warnings to the user
+ */
+function displayMismatchWarnings(mismatches: MetadataMismatch[]): void {
+  console.log();
+  console.log(chalk.bold.yellow('Metadata Mismatch Detected'));
+  console.log(chalk.gray('─'.repeat(50)));
+  
+  for (const mismatch of mismatches) {
+    console.log(`  ${chalk.yellow('•')} ${mismatch.description}`);
+  }
+  
+  console.log();
+  console.log(chalk.gray('Run') + ' ' + chalk.cyan('cirron info --update metadata') + chalk.gray(' to refresh metadata.'));
 }
