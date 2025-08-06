@@ -82,6 +82,11 @@ export interface BuildOptions {
   clean?: boolean;
   analyze?: boolean;
   tag?: string;
+  arch?: string;
+  index?: string;
+  validate?: boolean;
+  dryRun?: boolean;
+  push?: boolean;
 }
 
 export interface DeployOptions {
