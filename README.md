@@ -154,6 +154,7 @@ cirron-cli/
 │   ├── commands/
 │   │   ├── auth.ts
 │   │   ├── build.ts
+│   │   ├── compile.ts
 │   │   ├── config.ts
 │   │   ├── deploy.ts
 │   │   ├── env.ts
@@ -178,19 +179,50 @@ cirron-cli/
 └── LICENSE
 ```
 
+## Compile
+
+ML model compilation with architecture optimization:
+
+```bash
+cirron compile                        # Compile with default architecture
+cirron compile --arch cuda           # Compile for CUDA
+cirron compile --arch gpu            # Compile for GPU (TensorFlow)
+cirron compile --validate            # Run validation checks before compile
+cirron compile --dry-run             # Simulate compilation without execution
+cirron compile --index config.json   # Use custom configuration file
+```
+
 ## Build
 
 Smart Project Detection:
-- ML Projects (PyTorch, TensorFlow, sklearn) → Build Docker containers
-- Traditional Projects → Use original build process
+- ML Projects (PyTorch, TensorFlow, sklearn) → ML builds with architecture templates
+- Traditional Projects → Standard build process
 
-Container Build Process:
+### Basic Build Commands
 ```bash
 cirron build                           # Build container: localhost:5000/user/project:latest
 cirron build --env staging             # Build: localhost:5000/user/project:staging-1.0.0  
 cirron build --tag v1.2.3             # Build: localhost:5000/user/project:v1.2.3
 cirron build --push                   # Build + push to registry
 cirron build --clean                  # No-cache build
+```
+
+### Architecture Templates
+Use pre-built templates for common ML patterns:
+```bash
+cirron build --arch transformer       # Build with transformer architecture
+cirron build --arch xgboost          # Build with XGBoost model template
+cirron build --arch resnet           # Build with ResNet architecture
+cirron build --arch lstm             # Build with LSTM/RNN template
+cirron build --arch autoencoder      # Build with encoder-decoder template
+```
+
+### Validation and Dry-Run
+```bash
+cirron build --validate              # Run comprehensive validation checks
+cirron build --dry-run               # Simulate build without execution
+cirron build --dry-run --validate    # Full validation + build simulation
+cirron build --index manifest.json   # Build with custom manifest file
 ```
 
 ### Registry Configuration:
