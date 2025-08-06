@@ -35,7 +35,12 @@ interface ModelAnalysis {
   sampleCalls: string[];
 }
 
-export async function infoCommand(): Promise<void> {
+interface InfoOptions {
+  update?: string;
+  dryRun?: boolean;
+}
+
+export async function infoCommand(options: InfoOptions = {}): Promise<void> {
   try {
     // Check if we're in a Cirron project
     const cirronJsonPath = path.join(process.cwd(), 'cirron.json');
@@ -56,7 +61,18 @@ export async function infoCommand(): Promise<void> {
       modelAnalysis = await analyzeModelFile(modelContent, projectConfig.framework || 'custom');
     }
 
-    // Extract model info
+    // Handle update command
+    if (options.update) {
+      if (options.update === 'metadata') {
+        await handleMetadataUpdate(projectConfig, modelAnalysis, cirronJsonPath, options.dryRun || false);
+        return;
+      } else {
+        logger.error(`Unknown update type: ${options.update}. Available options: metadata`);
+        process.exit(1);
+      }
+    }
+
+    // Extract model info for display
     const modelInfo = extractModelInfo(projectConfig, modelAnalysis);
 
     // Display the information
@@ -479,4 +495,191 @@ function displayModelInfo(projectName: string, info: ModelInfo): void {
   
   console.log();
   console.log(chalk.gray('Tip: Run ') + chalk.cyan('cirron test') + chalk.gray(' to validate your model setup and dependencies'));
+}
+
+/**
+ * Handle metadata update with idempotent behavior
+ */
+async function handleMetadataUpdate(
+  projectConfig: ProjectConfig, 
+  modelAnalysis: ModelAnalysis | null, 
+  cirronJsonPath: string, 
+  dryRun: boolean
+): Promise<void> {
+  try {
+    // Get file stats for concurrent change detection
+    const stats = await fs.stat(cirronJsonPath);
+    const originalModTime = stats.mtime;
+
+    // Generate new metadata based on current analysis
+    const newMetadata = generateUpdatedMetadata(projectConfig, modelAnalysis);
+    
+    // Compare with existing metadata
+    const changes = compareMetadata(projectConfig.metadata, newMetadata);
+    
+    if (changes.length === 0) {
+      console.log(chalk.green('No metadata changes found. cirron.json is up to date.'));
+      return;
+    }
+
+    // Display changes
+    console.log(chalk.bold.cyan('Metadata Update Preview'));
+    console.log(chalk.gray('─'.repeat(50)));
+    
+    for (const change of changes) {
+      console.log(`  ${chalk.yellow(change.field)}:`);
+      if (change.oldValue) {
+        console.log(`    ${chalk.red('-')} ${change.oldValue}`);
+      } else {
+        console.log(`    ${chalk.gray('(not set)')}`);
+      }
+      console.log(`    ${chalk.green('+')} ${change.newValue}`);
+      console.log();
+    }
+
+    if (dryRun) {
+      console.log(chalk.blue('Dry run mode - no changes were made to cirron.json'));
+      console.log(chalk.gray('Run without --dry-run to apply these changes'));
+      return;
+    }
+
+    // Check for concurrent changes before writing
+    const currentStats = await fs.stat(cirronJsonPath);
+    if (currentStats.mtime.getTime() !== originalModTime.getTime()) {
+      logger.error('cirron.json has been modified by another process. Please retry the update.');
+      process.exit(1);
+    }
+
+    // Apply the changes
+    const updatedConfig = {
+      ...projectConfig,
+      metadata: newMetadata
+    };
+
+    await fs.writeJSON(cirronJsonPath, updatedConfig, { spaces: 2 });
+    
+    console.log(chalk.green(`✓ Successfully updated ${changes.length} metadata field(s) in cirron.json`));
+    
+  } catch (error) {
+    logger.error('Failed to update metadata:', error);
+    process.exit(1);
+  }
+}
+
+/**
+ * Generate updated metadata based on current analysis
+ */
+function generateUpdatedMetadata(
+  projectConfig: ProjectConfig, 
+  modelAnalysis: ModelAnalysis | null
+): any {
+  const gitInfo = getRepositoryInfo();
+  const metadata: any = {
+    lastUpdated: new Date().toISOString(),
+    detectedPatterns: []
+  };
+
+  // Preserve existing values that can't be auto-detected
+  if (projectConfig.metadata) {
+    if (projectConfig.metadata.modelClassName) {
+      metadata.modelClassName = projectConfig.metadata.modelClassName;
+    }
+    if (projectConfig.metadata.architecture) {
+      metadata.architecture = projectConfig.metadata.architecture;
+    }
+    if (projectConfig.metadata.inputShape) {
+      metadata.inputShape = projectConfig.metadata.inputShape;
+    }
+    if (projectConfig.metadata.trainingDataShape) {
+      metadata.trainingDataShape = projectConfig.metadata.trainingDataShape;
+    }
+    if (projectConfig.metadata.testDataShape) {
+      metadata.testDataShape = projectConfig.metadata.testDataShape;
+    }
+  }
+
+  // Update with fresh analysis if available
+  if (modelAnalysis) {
+    // Update model class name if detected
+    if (modelAnalysis.modelClassNames.length > 0 && modelAnalysis.modelClassNames[0]) {
+      metadata.modelClassName = modelAnalysis.modelClassNames[0];
+    }
+    
+    // Update input shape if detected
+    if (modelAnalysis.inputShapes.length > 0) {
+      metadata.inputShape = `(${modelAnalysis.inputShapes[0]})`;
+      
+      if (modelAnalysis.inputShapes.length > 1) {
+        metadata.trainingDataShape = `(${modelAnalysis.inputShapes[0]})`;
+        metadata.testDataShape = `(${modelAnalysis.inputShapes[1]})`;
+      }
+    }
+    
+    // Update architecture patterns
+    if (modelAnalysis.architecturePatterns.length > 0) {
+      metadata.architecture = modelAnalysis.architecturePatterns.join(' + ');
+      metadata.detectedPatterns = modelAnalysis.architecturePatterns;
+    }
+  }
+
+  // Always update git information if available
+  if (gitInfo.commitHash) {
+    metadata.gitCommitHash = getShortCommitHash() || gitInfo.commitHash;
+  }
+
+  return metadata;
+}
+
+interface MetadataChange {
+  field: string;
+  oldValue?: string;
+  newValue: string;
+}
+
+/**
+ * Compare existing and new metadata to detect changes
+ */
+function compareMetadata(existingMetadata: any, newMetadata: any): MetadataChange[] {
+  const changes: MetadataChange[] = [];
+  const fieldsToCheck = [
+    'modelClassName',
+    'architecture', 
+    'inputShape',
+    'trainingDataShape',
+    'testDataShape',
+    'gitCommitHash'
+  ];
+
+  for (const field of fieldsToCheck) {
+    const oldValue = existingMetadata?.[field];
+    const newValue = newMetadata[field];
+    
+    // Skip if both are undefined/null
+    if (!oldValue && !newValue) {
+      continue;
+    }
+    
+    // Detect change
+    if (oldValue !== newValue) {
+      changes.push({
+        field,
+        oldValue: oldValue || undefined,
+        newValue: newValue || '(removed)'
+      });
+    }
+  }
+
+  // Special handling for detected patterns array
+  const oldPatterns = existingMetadata?.detectedPatterns || [];
+  const newPatterns = newMetadata.detectedPatterns || [];
+  
+  if (JSON.stringify(oldPatterns.sort()) !== JSON.stringify(newPatterns.sort())) {
+    changes.push({
+      field: 'detectedPatterns',
+      oldValue: oldPatterns.length > 0 ? oldPatterns.join(', ') : '(none)',
+      newValue: newPatterns.length > 0 ? newPatterns.join(', ') : '(none)'
+    });
+  }
+
+  return changes;
 }
