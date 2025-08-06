@@ -108,6 +108,73 @@ export async function createCommonMLFiles(projectPath: string, projectName: stri
   .env.local
   `
     );
+
+    // .cirronignore
+    await fs.writeFile(
+      path.join(projectPath, '.cirronignore'),
+      `# Cirron ignore patterns
+# Exclude files and directories from Cirron processing
+
+# Version control
+.git/
+.svn/
+
+# Large data files (add specific patterns as needed)
+data/raw/
+data/processed/
+*.csv
+!data/sample/*.csv
+!data/test/*.csv
+
+# Model artifacts (exclude large trained models, keep configs)
+models/*.pth
+models/*.pkl
+models/*.joblib
+models/*.onnx
+!models/config.json
+!models/model_config.yaml
+
+# Temporary files
+temp_*
+*.tmp
+*.temp
+*.log
+
+# Build and cache
+__pycache__/
+.pytest_cache/
+*.pyc
+build/
+dist/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Jupyter notebooks (optional - remove if you want to process them)
+notebooks/
+*.ipynb
+
+# Documentation (optional - remove if you want to process them)
+docs/
+*.md
+!README.md
+
+# Testing artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+`
+    );
   
     // README.md
     await fs.writeFile(

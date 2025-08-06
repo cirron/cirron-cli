@@ -6,6 +6,7 @@ import { spawn, execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
+import { CirronIgnore } from '../utils/ignore';
 import type { BuildOptions, ProjectConfig } from '../types';
 
 export async function buildCommand(options: BuildOptions): Promise<void> {
@@ -270,22 +271,28 @@ async function buildDockerImage(
   options: BuildOptions, 
   spinner: ora.Ora
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const buildArgs = [
-      'build',
-      '-t', imageName,
-      '.'
-    ];
+  let tempDockerIgnore: string | null = null;
+  
+  try {
+    // Create temporary .dockerignore from .cirronignore if it exists
+    tempDockerIgnore = await createDockerIgnoreFromCirronIgnore();
+    
+    return new Promise((resolve, reject) => {
+      const buildArgs = [
+        'build',
+        '-t', imageName,
+        '.'
+      ];
 
-    // Add build args if specified
-    if (options.env) {
-      buildArgs.push('--build-arg', `CIRRON_ENV=${options.env}`);
-    }
+      // Add build args if specified
+      if (options.env) {
+        buildArgs.push('--build-arg', `CIRRON_ENV=${options.env}`);
+      }
 
-    // Add no-cache flag if clean build requested
-    if (options.clean) {
-      buildArgs.push('--no-cache');
-    }
+      // Add no-cache flag if clean build requested
+      if (options.clean) {
+        buildArgs.push('--no-cache');
+      }
 
     const child = spawn('docker', buildArgs, {
       stdio: process.env['CIRRON_VERBOSE'] ? 'inherit' : 'pipe',
@@ -323,23 +330,40 @@ async function buildDockerImage(
       });
     }
 
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        const error = new Error(`Docker build failed with exit code ${code}`);
-        if (errorOutput) {
-          logger.error('Docker build error:', errorOutput);
+      child.on('close', async (code) => {
+        // Cleanup temporary .dockerignore
+        if (tempDockerIgnore) {
+          await cleanupDockerIgnore(tempDockerIgnore);
         }
-        reject(error);
-      }
-    });
+        
+        if (code === 0) {
+          resolve();
+        } else {
+          const error = new Error(`Docker build failed with exit code ${code}`);
+          if (errorOutput) {
+            logger.error('Docker build error:', errorOutput);
+          }
+          reject(error);
+        }
+      });
 
-    child.on('error', (error) => {
-      spinner.fail(chalk.red('Failed to start Docker build'));
-      reject(error);
+      child.on('error', async (error) => {
+        // Cleanup temporary .dockerignore
+        if (tempDockerIgnore) {
+          await cleanupDockerIgnore(tempDockerIgnore);
+        }
+        
+        spinner.fail(chalk.red('Failed to start Docker build'));
+        reject(error);
+      });
     });
-  });
+  } catch (error) {
+    // Cleanup temporary .dockerignore if creation failed
+    if (tempDockerIgnore) {
+      await cleanupDockerIgnore(tempDockerIgnore);
+    }
+    throw error;
+  }
 }
 
 async function pushImage(imageName: string, spinner: ora.Ora): Promise<void> {
@@ -926,5 +950,81 @@ print("Integrity tests completed successfully")
     if (fs.existsSync(tempScriptPath)) {
       await fs.remove(tempScriptPath);
     }
+  }
+}
+
+async function createDockerIgnoreFromCirronIgnore(): Promise<string | null> {
+  const cirronIgnorePath = path.join(process.cwd(), '.cirronignore');
+  const dockerIgnorePath = path.join(process.cwd(), '.dockerignore');
+  const tempDockerIgnorePath = path.join(process.cwd(), '.dockerignore.cirron-temp');
+  
+  // Check if .cirronignore exists
+  if (!fs.existsSync(cirronIgnorePath)) {
+    return null;
+  }
+  
+  try {
+    // Load .cirronignore patterns
+    const cirronIgnore = new CirronIgnore();
+    const patterns = cirronIgnore.getPatterns();
+    
+    // Read existing .dockerignore if it exists
+    let existingDockerIgnore = '';
+    if (fs.existsSync(dockerIgnorePath)) {
+      existingDockerIgnore = await fs.readFile(dockerIgnorePath, 'utf8');
+    }
+    
+    // Combine patterns
+    const combinedContent = [
+      '# Existing .dockerignore content',
+      existingDockerIgnore.trim(),
+      '',
+      '# Added from .cirronignore',
+      ...patterns.map(pattern => {
+        // Convert some common .cirronignore patterns to .dockerignore format
+        if (pattern.endsWith('/**')) {
+          return pattern.slice(0, -3) + '/';
+        }
+        return pattern;
+      })
+    ].filter(line => line !== '').join('\n');
+    
+    // Write temporary .dockerignore
+    await fs.writeFile(tempDockerIgnorePath, combinedContent);
+    
+    // Replace original .dockerignore temporarily
+    if (fs.existsSync(dockerIgnorePath)) {
+      await fs.move(dockerIgnorePath, dockerIgnorePath + '.backup');
+    }
+    await fs.move(tempDockerIgnorePath, dockerIgnorePath);
+    
+    logger.debug('Created temporary .dockerignore with .cirronignore patterns');
+    return dockerIgnorePath + '.backup';
+    
+  } catch (error) {
+    logger.debug('Failed to create temporary .dockerignore:', error);
+    // Clean up any partial files
+    if (fs.existsSync(tempDockerIgnorePath)) {
+      await fs.remove(tempDockerIgnorePath);
+    }
+    return null;
+  }
+}
+
+async function cleanupDockerIgnore(backupPath: string): Promise<void> {
+  const dockerIgnorePath = path.join(process.cwd(), '.dockerignore');
+  
+  try {
+    // Remove temporary .dockerignore
+    if (fs.existsSync(dockerIgnorePath)) {
+      await fs.remove(dockerIgnorePath);
+    }
+    
+    // Restore original .dockerignore if it existed
+    if (fs.existsSync(backupPath)) {
+      await fs.move(backupPath, dockerIgnorePath);
+    }
+  } catch (error) {
+    logger.debug('Failed to cleanup .dockerignore:', error);
   }
 }
