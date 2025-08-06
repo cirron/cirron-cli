@@ -22,6 +22,7 @@ import {
   createSklearnPipelineFiles,
   createCustomFiles 
 } from './files';
+import { getRepositoryInfo } from '../utils/git';
 
 const TEMPLATES: Record<string, Template> = {
   pytorch: {
@@ -339,6 +340,21 @@ async function createProjectFiles(
     includeNotebook: boolean;
   }
 ): Promise<void> {
+  // Get initial metadata
+  const gitInfo = getRepositoryInfo(projectPath);
+  const initialMetadata: any = {
+    modelClassName: getDefaultModelClassName(template, options.modelType),
+    architecture: getDefaultArchitecture(template),
+    lastUpdated: new Date().toISOString(),
+    inputShape: getDefaultInputShape(template),
+    detectedPatterns: []
+  };
+
+  // Only add gitCommitHash if it exists
+  if (gitInfo.commitHash) {
+    initialMetadata.gitCommitHash = gitInfo.commitHash;
+  }
+
   // Create cirron.json
   const projectConfig: ProjectConfig = {
     name: projectName,
@@ -380,7 +396,8 @@ async function createProjectFiles(
       checkpointPath: 'checkpoints/',
       logsPath: 'logs/'
     },
-    test: getTemplateTestConfig(template)
+    test: getTemplateTestConfig(template),
+    metadata: initialMetadata
   };
 
   await fs.writeJSON(path.join(projectPath, 'cirron.json'), projectConfig, { spaces: 2 });
@@ -412,4 +429,99 @@ async function createProjectFiles(
 
   // Create common ML files
   await createCommonMLFiles(projectPath, projectName, options);
+}
+
+/**
+ * Get default model class name based on template and model type
+ */
+function getDefaultModelClassName(template: string, modelType: string): string {
+  const baseNames = {
+    'pytorch': {
+      'classification': 'ClassificationModel',
+      'regression': 'RegressionModel', 
+      'computer_vision': 'CNNModel',
+      'nlp': 'TransformerModel',
+      'time_series': 'LSTMModel',
+      'custom': 'CustomModel'
+    },
+    'pytorch-train': {
+      'classification': 'ClassificationModel',
+      'regression': 'RegressionModel',
+      'computer_vision': 'CNNModel',
+      'nlp': 'TransformerModel',
+      'time_series': 'LSTMModel',
+      'custom': 'CustomModel'
+    },
+    'tensorflow': {
+      'classification': 'ClassificationModel',
+      'regression': 'RegressionModel',
+      'computer_vision': 'CNNModel', 
+      'nlp': 'TransformerModel',
+      'time_series': 'LSTMModel',
+      'custom': 'CustomModel'
+    },
+    'tensorflow-train': {
+      'classification': 'ClassificationModel',
+      'regression': 'RegressionModel',
+      'computer_vision': 'CNNModel',
+      'nlp': 'TransformerModel', 
+      'time_series': 'LSTMModel',
+      'custom': 'CustomModel'
+    },
+    'sklearn': {
+      'classification': 'ClassificationPipeline',
+      'regression': 'RegressionPipeline',
+      'custom': 'MLPipeline'
+    },
+    'sklearn-pipeline': {
+      'classification': 'ClassificationPipeline',
+      'regression': 'RegressionPipeline',
+      'custom': 'MLPipeline'
+    },
+    'custom': {
+      'classification': 'Model',
+      'regression': 'Model',
+      'custom': 'Model'
+    }
+  };
+
+  const templateMap = baseNames[template as keyof typeof baseNames];
+  if (templateMap) {
+    return templateMap[modelType as keyof typeof templateMap] || templateMap['custom'] || 'Model';
+  }
+  return 'Model';
+}
+
+/**
+ * Get default architecture based on template
+ */
+function getDefaultArchitecture(template: string): string {
+  const architectures = {
+    'pytorch': 'Neural Network',
+    'pytorch-train': 'Neural Network',
+    'tensorflow': 'Keras Model',
+    'tensorflow-train': 'Keras Model', 
+    'sklearn': 'Scikit-learn Pipeline',
+    'sklearn-pipeline': 'Scikit-learn Pipeline',
+    'custom': 'Custom Model'
+  };
+
+  return architectures[template as keyof typeof architectures] || 'Custom Model';
+}
+
+/**
+ * Get default input shape based on template
+ */
+function getDefaultInputShape(template: string): string {
+  const shapes = {
+    'pytorch': '(1, 3, 224, 224)',
+    'pytorch-train': '(1, 3, 224, 224)',
+    'tensorflow': '(224, 224, 3)',
+    'tensorflow-train': '(224, 224, 3)',
+    'sklearn': 'Varies by dataset',
+    'sklearn-pipeline': 'Varies by dataset', 
+    'custom': 'Not specified'
+  };
+
+  return shapes[template as keyof typeof shapes] || 'Not specified';
 }
