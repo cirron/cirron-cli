@@ -8,6 +8,8 @@ import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
 import { executePythonScript, formatExecutionError } from '../utils/execution';
+import { PlanGenerator } from '../utils/plan';
+import { PlanFormatter } from '../utils/plan-formatter';
 import type { BuildOptions, ProjectConfig } from '../types';
 
 export async function buildCommand(options: BuildOptions): Promise<void> {
@@ -86,19 +88,28 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
   }
 
   if (options.dryRun) {
-    spinner.text = 'Simulating build (dry run)...';
+    spinner.text = 'Generating build plan...';
+    
+    // Generate comprehensive build plan
+    const planGenerator = new PlanGenerator(projectConfig, process.cwd());
+    const plan = await planGenerator.generatePlan('build', architecture, indexConfig);
+    
+    // Simulate build steps
     await simulateMLBuild(projectConfig, architecture, indexConfig);
+    
     spinner.succeed(chalk.green('Dry run completed successfully'));
     
-    logger.info('\n📋 Build Plan Summary:');
-    logger.info(`  • Target: ${architecture}`);
-    logger.info(`  • Framework: ${projectConfig.framework || 'custom'}`);
-    logger.info(`  • Python: ${projectConfig.pythonVersion || '3.9'}`);
-    if (indexConfig) {
-      logger.info(`  • Features: ${indexConfig.features?.length || 0}`);
-      logger.info(`  • Data types: ${Object.keys(indexConfig.dataTypes || {}).length}`);
+    // Format and display the plan
+    if (options.json) {
+      console.log(PlanFormatter.formatJSON(plan, true));
+    } else {
+      const formatOptions = {
+        useColors: process.stdout.isTTY,
+        showDetails: options.verbose || false,
+        compact: false
+      };
+      console.log('\n' + PlanFormatter.formatConsole(plan, formatOptions));
     }
-    logger.info(`  • GPU required: ${projectConfig.gpuRequired ? 'Yes' : 'No'}`);
     
     return;
   }
