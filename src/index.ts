@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-// @ts-expect-error - Unused import kept for future use
-import chalk from 'chalk';
 import { authCommand, loginCommand, logoutCommand } from './commands/auth';
 import { buildCommand } from './commands/build';
 import { compileCommand } from './commands/compile';
@@ -90,6 +88,8 @@ program
   .option('-e, --endpoint <url>', 'Test deployment endpoint for speed, accuracy, and latency')
   .option('--pipeline', 'Test entire ML pipeline end-to-end')
   .option('-w, --watch', 'Watch for changes and re-run tests')
+  .option('--json', 'Output results in JSON format')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(testCommand);
 
 // Compile command
@@ -100,6 +100,8 @@ program
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
   .option('--dry-run', 'Simulate compile without artifacts')
+  .option('--json', 'Output results in JSON format')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(compileCommand);
 
 // Build command
@@ -116,6 +118,7 @@ program
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
   .option('--dry-run', 'Simulate build without artifacts')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(buildCommand);
 
 // Deploy command
@@ -160,6 +163,7 @@ program
   .option('--fix', 'Automatically fix issues where possible')
   .option('--verbose', 'Show detailed output with suggestions')
   .option('--json', 'Output results in JSON format')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(lintCommand);
 
 // Status command

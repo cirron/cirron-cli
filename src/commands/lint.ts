@@ -5,6 +5,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
+import { executeScript } from '../utils/execution';
 import type { ProjectConfig } from '../types';
 
 interface LintOptions {
@@ -16,6 +17,7 @@ interface LintOptions {
   fix?: boolean;
   verbose?: boolean;
   json?: boolean;
+  strict?: boolean;
 }
 
 interface LintResult {
@@ -341,13 +343,25 @@ async function lintCode(summary: LintSummary, _options: LintOptions): Promise<vo
   const pythonFiles = await findPythonFiles();
   for (const file of pythonFiles) {
     try {
-      execSync(`python -m py_compile "${file}"`, { stdio: 'pipe' });
-      addResult(summary, {
-        category: 'code',
-        severity: 'info',
-        message: 'Python syntax is valid',
-        file: path.relative(process.cwd(), file)
-      });
+      const result = await executeScript('python', ['-m', 'py_compile', file]);
+      if (result.success) {
+        addResult(summary, {
+          category: 'code',
+          severity: 'info',
+          message: 'Python syntax is valid',
+          file: path.relative(process.cwd(), file)
+        });
+      } else {
+        const errorDetails = result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0] ? 
+          result.parsedErrors[0].message : result.stderr;
+        addResult(summary, {
+          category: 'code',
+          severity: 'error',
+          message: `Python syntax error: ${errorDetails}`,
+          file: path.relative(process.cwd(), file),
+          fixable: false
+        });
+      }
     } catch (error) {
       addResult(summary, {
         category: 'code',

@@ -5,6 +5,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
+import { executePythonFile, formatExecutionError, executeScript } from '../utils/execution';
 import type { ProjectConfig } from '../types';
 
 interface TestOptions {
@@ -21,6 +22,7 @@ interface TestOptions {
   endpoint?: string;
   pipeline?: boolean;
   watch?: boolean;
+  strict?: boolean;
 }
 
 export async function testCommand(options: TestOptions): Promise<void> {
@@ -198,7 +200,10 @@ async function runEnvironmentTests(projectConfig: ProjectConfig): Promise<void> 
         const tempScriptPath = path.join(process.cwd(), 'temp_pytorch_cuda_test.py');
         fs.writeFileSync(tempScriptPath, pytorchScript);
         try {
-          execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+          const result = await executePythonFile(tempScriptPath);
+          if (!result.success) {
+            throw new Error(`PyTorch framework test failed: ${formatExecutionError(result)}`);
+          }
         } finally {
           if (fs.existsSync(tempScriptPath)) {
             fs.unlinkSync(tempScriptPath);
@@ -209,7 +214,10 @@ async function runEnvironmentTests(projectConfig: ProjectConfig): Promise<void> 
         const tempScriptPath = path.join(process.cwd(), 'temp_tf_cuda_test.py');
         fs.writeFileSync(tempScriptPath, tfScript);
         try {
-          execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+          const result = await executePythonFile(tempScriptPath);
+          if (!result.success) {
+            throw new Error(`TensorFlow framework test failed: ${formatExecutionError(result)}`);
+          }
         } finally {
           if (fs.existsSync(tempScriptPath)) {
             fs.unlinkSync(tempScriptPath);
@@ -303,15 +311,21 @@ async function runLintTests(): Promise<void> {
   try {
     // Run flake8 if available
     try {
-      execSync(`python3 -m flake8 ${srcDir}`, { stdio: 'pipe' });
-    } catch (flake8Error) {
-      // Try pylint as fallback
-      try {
-        execSync(`python3 -m pylint ${srcDir}`, { stdio: 'pipe' });
-      } catch (pylintError) {
-        // Skip linting if no linter available
-        logger.warn('No linter found (flake8 or pylint), skipping code quality checks');
+      const flake8Result = await executeScript('python3', ['-m', 'flake8', srcDir]);
+      if (!flake8Result.success) {
+        // Try pylint as fallback
+        try {
+          const pylintResult = await executeScript('python3', ['-m', 'pylint', srcDir]);
+          if (!pylintResult.success) {
+            logger.warn('Code linting issues found, but continuing...');
+          }
+        } catch (pylintError) {
+          // Skip linting if no linter available
+          logger.warn('No linter found (flake8 or pylint), skipping code quality checks');
+        }
       }
+    } catch (flake8Error) {
+      logger.warn('Linting skipped - linters not available');
     }
   } catch (error) {
     throw new Error('Code quality checks failed');
@@ -407,7 +421,10 @@ else:
     fs.writeFileSync(tempScriptPath, testScript);
     
     try {
-      execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+      const result = await executePythonFile(tempScriptPath);
+      if (!result.success) {
+        throw new Error(`Model test failed: ${formatExecutionError(result)}`);
+      }
     } finally {
       // Clean up temporary file
       if (fs.existsSync(tempScriptPath)) {
@@ -515,7 +532,10 @@ else:
     fs.writeFileSync(tempScriptPath, testScript);
     
     try {
-      execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+      const result = await executePythonFile(tempScriptPath);
+      if (!result.success) {
+        throw new Error(`Inference test failed: ${formatExecutionError(result)}`);
+      }
     } finally {
       // Clean up temporary file
       if (fs.existsSync(tempScriptPath)) {
@@ -531,7 +551,7 @@ async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): P
   const chokidar = require('chokidar');
   
   const watcher = chokidar.watch(['src/**/*.py', 'tests/**/*.py', 'cirron.json'], {
-    ignored: /(^|[\/\\])\../,
+    ignored: /(^|[/\\])\../,
     persistent: true
   });
 

@@ -88,6 +88,7 @@ export interface BuildOptions {
   validate?: boolean;
   dryRun?: boolean;
   push?: boolean;
+  strict?: boolean;
 }
 
 export interface DeployOptions {
