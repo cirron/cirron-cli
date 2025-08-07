@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { logger } from './logger';
+import { CLIError, CLIErrorCode } from './errors';
 import chalk from 'chalk';
 
 export interface ExecutionResult {
@@ -10,6 +11,7 @@ export interface ExecutionResult {
   command: string;
   duration: number;
   parsedErrors?: ParsedError[];
+  cliError?: CLIError;
 }
 
 export interface ParsedError {
@@ -29,6 +31,8 @@ export interface ExecutionOptions {
   encoding?: string;
   env?: Record<string, string>;
   showOutput?: boolean;
+  strictMode?: boolean;
+  baseErrorCode?: CLIErrorCode;
 }
 
 export interface RetryableOperation {
@@ -68,7 +72,8 @@ export async function executeScript(
     retryCondition,
     encoding = 'utf8',
     env = process.env as Record<string, string>,
-    showOutput = false
+    showOutput = false,
+    baseErrorCode = CLIErrorCode.SCRIPT_FAILED
   } = options;
 
   let attempt = 0;
@@ -87,7 +92,8 @@ export async function executeScript(
       timeout,
       encoding,
       env,
-      showOutput
+      showOutput,
+      baseErrorCode
     });
 
     // Check if retry condition is met
@@ -109,6 +115,7 @@ async function executeOnce(
     encoding: string;
     env: Record<string, string>;
     showOutput: boolean;
+    baseErrorCode: CLIErrorCode;
   }
 ): Promise<ExecutionResult> {
   const startTime = Date.now();
@@ -161,6 +168,13 @@ async function executeOnce(
           duration
         };
         result.parsedErrors = parseErrors(stderr + '\nProcess timed out');
+        result.cliError = new CLIError({
+          code: CLIErrorCode.TIMEOUT,
+          message: `Operation timed out after ${options.timeout}ms`,
+          details: { command: commandStr, duration, stdout, stderr },
+          suggestions: ['Increase timeout or optimize the operation'],
+          recoverable: true
+        });
         resolve(result);
         return;
       }
@@ -177,6 +191,8 @@ async function executeOnce(
 
       if (!success) {
         result.parsedErrors = parseErrors(stderr);
+        // Create CLI error for failed executions
+        result.cliError = CLIError.fromExecutionResult(result, options.baseErrorCode || CLIErrorCode.SCRIPT_FAILED);
       }
 
       resolve(result);
@@ -196,6 +212,13 @@ async function executeOnce(
         duration
       };
       result.parsedErrors = parseErrors(`Process error: ${error.message}`);
+      result.cliError = new CLIError({
+        code: CLIErrorCode.COMMAND_NOT_FOUND,
+        message: `Process error: ${error.message}`,
+        details: { command: commandStr, duration, stdout, stderr },
+        cause: error,
+        recoverable: true
+      });
       resolve(result);
     });
   });
@@ -354,8 +377,31 @@ export async function executePythonScript(
     },
     retries: 2,
     retryDelay: 2000,
+    baseErrorCode: CLIErrorCode.PYTHON_SYNTAX_ERROR, // More specific error code for Python scripts
     ...options
   });
+}
+
+/**
+ * Execute a result and throw CLIError in strict mode if it fails
+ */
+export function handleExecutionResult(result: ExecutionResult, strictMode = false): ExecutionResult {
+  if (!result.success && strictMode && result.cliError) {
+    throw result.cliError;
+  }
+  return result;
+}
+
+/**
+ * Execute a command and handle strict mode errors
+ */
+export async function executeWithStrictMode(
+  command: string,
+  args: string[] = [],
+  options: ExecutionOptions = {}
+): Promise<ExecutionResult> {
+  const result = await executeScript(command, args, options);
+  return handleExecutionResult(result, options.strictMode);
 }
 
 export async function executePythonFile(
@@ -370,6 +416,7 @@ export async function executePythonFile(
     },
     retries: 1,
     retryDelay: 1500,
+    baseErrorCode: CLIErrorCode.SCRIPT_FAILED,
     ...options
   });
 }
