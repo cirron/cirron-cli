@@ -86,11 +86,9 @@ export interface BuildOptions {
   arch?: string;
   index?: string;
   validate?: boolean;
-  dryRun?: boolean;
   push?: boolean;
   strict?: boolean;
   verbose?: boolean;
-  json?: boolean;
 }
 
 export interface DeployOptions {
@@ -169,4 +167,62 @@ export interface ModelMetadata {
   testDataShape?: string;
   lastUpdated?: string;
   detectedPatterns?: string[];
+}
+
+// Plan command interfaces
+export interface PlanOptions {
+  verbose?: boolean;
+  json?: boolean;
+  save?: string;
+  arch?: string;
+  index?: string;
+  validate?: boolean;
+}
+
+export interface PlanDiff {
+  type: 'added' | 'removed' | 'changed';
+  category: 'dependencies' | 'artifacts' | 'model' | 'resources' | 'config';
+  field: string;
+  oldValue?: any;
+  newValue?: any;
+  impact: 'low' | 'medium' | 'high';
+  description: string;
+}
+
+export interface PlanComparison {
+  planA: {
+    timestamp: string;
+    command: string;
+    framework: string;
+  };
+  planB: {
+    timestamp: string;
+    command: string;
+    framework: string;
+  };
+  differences: PlanDiff[];
+  summary: {
+    totalChanges: number;
+    highImpactChanges: number;
+    categoryCounts: Record<string, number>;
+  };
+}
+
+export interface SavedPlan {
+  filePath: string;
+  plan: any; // PlanFile from plan.ts
+  metadata: {
+    savedAt: string;
+    savedBy?: string;
+    description?: string;
+    tags?: string[];
+  };
+}
+
+export interface ReplayOptions {
+  plan: string;
+  validate?: boolean;
+  dryRun?: boolean;
+  verbose?: boolean;
+  force?: boolean;
 }
