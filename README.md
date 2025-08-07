@@ -243,9 +243,9 @@ Examples:
 
 Build Output:
 ```bash
-✅ Container build completed successfully! 🐳
+Container build completed successfully!
 
-📦 Build Results
+Build Results
 Image: localhost:5000/john/my-model:development-1.0.0
 Environment: development  
 Size: 2.1 GB
@@ -352,4 +352,96 @@ cirron build
 
 # Run tests - ignored files won't be processed  
 cirron test --data
+```
+
+## Plan and Replay
+
+Preview and plan complex operations before execution:
+
+### Plan Commands
+```bash
+# Preview compilation with resource estimates
+cirron plan compile                    # Plan compilation for default architecture
+cirron plan compile --arch cuda        # Plan CUDA-specific compilation
+cirron plan compile --validate         # Include validation checks in plan
+
+# Preview container builds  
+cirron plan build                      # Plan build with current configuration
+cirron plan build --arch transformer   # Plan build with transformer template
+cirron plan build --validate          # Include comprehensive validation
+
+# Preview project linting
+cirron plan lint                       # Plan lint checks for all categories
+cirron plan lint --code                # Plan code quality checks only
+
+# Preview testing strategy
+cirron plan test                       # Plan test execution
+cirron plan test --model               # Plan model testing only
+```
+
+### Plan Management
+```bash
+# Save plans for later execution
+cirron plan save --name "v1.0-build"   # Save current build plan
+cirron plan save --file build-plan.json # Save to specific file
+
+# Compare plans to detect changes
+cirron plan compare                     # Compare with previous plan
+cirron plan compare --baseline v1.0     # Compare with named baseline
+```
+
+### Replay Saved Plans
+```bash
+# Execute previously saved plans
+cirron replay build-plan.json          # Execute saved plan file
+cirron replay --plan v1.0-build        # Execute named plan
+cirron replay --validate               # Validate plan before execution
+```
+
+**Use Cases:**
+- **CI/CD Planning**: Preview deployment impacts before execution
+- **Change Detection**: Compare current vs previous plans to understand modifications
+- **Resource Planning**: Estimate requirements for large ML operations  
+- **Team Collaboration**: Share plans for review before execution
+
+## Lint
+
+Comprehensive project health checking and code quality analysis:
+
+### Basic Lint Commands
+```bash
+cirron lint                            # Run all lint categories
+cirron lint --fix                      # Automatically fix issues where possible
+cirron lint --json                     # Output structured JSON results
+cirron lint --strict                   # Treat warnings as errors
+```
+
+### Category-Specific Linting
+```bash
+cirron lint --config                   # Check cirron.json and configurations
+cirron lint --structure                # Validate project file structure
+cirron lint --dependencies             # Analyze Python requirements conflicts
+cirron lint --code                     # Run code quality checks
+```
+
+### Lint Output
+The lint command provides:
+- **Severity Levels**: Errors, warnings, and info messages
+- **Fixable Indicators**: Shows which issues can be auto-resolved
+- **File Locations**: Specific line numbers for code issues
+- **Fix Suggestions**: Actionable recommendations for resolution
+- **Category Grouping**: Organized by config, structure, dependencies, and code
+
+Example output:
+```bash
+Configuration: All checks passed
+Structure: 2 warnings found
+- Missing model.py in src/ directory (fixable)
+- No test data samples found in data/sample/
+Dependencies: 1 error found  
+- Conflicting versions: torch>=1.9.0 vs torchvision==0.10.0 (requires torch<1.9)
+Code Quality: All checks passed
+
+Summary: 1 error, 2 warnings, 0 info
+Run with --fix to automatically resolve fixable issues
 ```
