@@ -4,6 +4,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
+import { executePythonScript, handleExecutionResult, formatExecutionError } from '../utils/execution';
+import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
 import type { ProjectConfig } from '../types';
 
 interface CompileOptions {
@@ -11,10 +13,13 @@ interface CompileOptions {
   index?: string;
   validate?: boolean;
   dryRun?: boolean;
+  strict?: boolean;
+  verbose?: boolean;
 }
 
 export async function compileCommand(options: CompileOptions): Promise<void> {
   const spinner = ora('Preparing compilation...').start();
+  const strictMode = options.strict || false;
 
   try {
     // Load project configuration
@@ -22,8 +27,11 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     
     if (!fs.existsSync(projectConfigPath)) {
       spinner.fail(chalk.red('No cirron.json found'));
+      if (strictMode) {
+        handleCLIError(new Error('Project configuration not found'), true);
+      }
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
-      process.exit(1);
+      process.exit(CLIErrorCode.PROJECT_NOT_FOUND);
     }
 
     const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
@@ -48,7 +56,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     // Pre-compilation validation
     if (options.validate) {
       spinner.text = 'Running validation checks...';
-      await runValidationChecks(projectConfig, indexConfig, architecture);
+      await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
       logger.success('✓ Validation checks passed');
     }
 
@@ -92,8 +100,31 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
   } catch (error) {
     spinner.fail(chalk.red('Compilation failed'));
-    logger.error('Error:', error);
-    process.exit(1);
+    
+    // Handle CLI errors with proper exit codes
+    if (error instanceof CLIError) {
+      handleCLIError(error, strictMode, options.verbose);
+    } else {
+      // Handle generic errors
+      const errorDetails: any = {
+        code: CLIErrorCode.COMPILE_FAILED,
+        message: error instanceof Error ? error.message : String(error),
+        suggestions: [
+          'Check compilation logs for specific errors',
+          'Verify project configuration and dependencies',
+          'Try running with --validate flag first'
+        ],
+        recoverable: true
+      };
+      
+      if (error instanceof Error) {
+        errorDetails.cause = error;
+      }
+      
+      const compileError = new CLIError(errorDetails);
+      
+      handleCLIError(compileError, strictMode, options.verbose);
+    }
   }
 }
 
@@ -132,7 +163,8 @@ async function loadIndexFile(indexPath: string): Promise<any> {
 async function runValidationChecks(
   projectConfig: ProjectConfig, 
   indexConfig: any, 
-  architecture: string
+  architecture: string,
+  strictMode: boolean
 ): Promise<void> {
   const validationErrors: string[] = [];
 
@@ -179,7 +211,14 @@ async function runValidationChecks(
     if (projectConfig.framework === 'pytorch') {
       try {
         const testScript = 'import torch; assert torch.cuda.is_available()';
-        execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+        const result = await executePythonScript(testScript, { strictMode });
+        handleExecutionResult(result, strictMode);
+        if (!result.success) {
+          validationErrors.push('CUDA not available for PyTorch');
+          if (result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0]) {
+            logger.debug('CUDA validation details:', result.parsedErrors[0].message);
+          }
+        }
       } catch (error) {
         validationErrors.push('CUDA not available for PyTorch');
       }
@@ -189,7 +228,14 @@ async function runValidationChecks(
     if (projectConfig.framework === 'tensorflow') {
       try {
         const testScript = 'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0';
-        execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+        const result = await executePythonScript(testScript, { strictMode });
+        handleExecutionResult(result, strictMode);
+        if (!result.success) {
+          validationErrors.push('GPU not available for TensorFlow');
+          if (result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0]) {
+            logger.debug('TensorFlow GPU validation details:', result.parsedErrors[0].message);
+          }
+        }
       } catch (error) {
         validationErrors.push('GPU not available for TensorFlow');
       }
@@ -218,12 +264,37 @@ from model import create_model
 model = create_model()
 print('Model validation passed')
 `;
-    execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+    const result = await executePythonScript(testScript, { strictMode, baseErrorCode: CLIErrorCode.MODEL_CREATION_FAILED });
+    handleExecutionResult(result, strictMode);
+    if (!result.success) {
+      validationErrors.push('Model creation failed during validation');
+      if (result.parsedErrors && result.parsedErrors.length > 0) {
+        const firstError = result.parsedErrors[0];
+        if (firstError) {
+          logger.debug('Model validation error:', firstError.message);
+          if (firstError.file && firstError.line) {
+            logger.debug(`Error location: ${firstError.file}:${firstError.line}`);
+          }
+        }
+      }
+    }
   } catch (error) {
     validationErrors.push('Model creation failed during validation');
   }
 
   if (validationErrors.length > 0) {
+    const validationError = new CLIError({
+      code: CLIErrorCode.VALIDATION_FAILED,
+      message: 'Validation checks failed',
+      details: { errors: validationErrors },
+      suggestions: ['Fix validation errors and retry'],
+      recoverable: true
+    });
+    
+    if (strictMode) {
+      handleCLIError(validationError, strictMode);
+    }
+    
     throw new Error(`Validation failed:\n${validationErrors.map(err => `  • ${err}`).join('\n')}`);
   }
 }
@@ -521,7 +592,10 @@ print("Integrity tests completed successfully")
   
   try {
     await fs.writeFile(tempScriptPath, testScript);
-    execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+    const result = await executePythonScript(testScript, { cwd: process.cwd() });
+    if (!result.success) {
+      throw new Error(`Compilation test failed: ${formatExecutionError(result)}`);
+    }
     
   } finally {
     if (fs.existsSync(tempScriptPath)) {
