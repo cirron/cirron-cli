@@ -109,6 +109,30 @@ case $exit_code in
 esac
 ```
 
+## Timeout Support
+
+The CLI includes comprehensive timeout support for preventing hanging operations:
+
+```bash
+# Default timeouts (30 seconds for most operations)
+cirron compile --strict
+cirron test --strict
+
+# Operations automatically timeout and return exit code 4
+# Useful for:
+# - Hanging GPU kernel compilation
+# - Dataset loading that goes wrong  
+# - Network operations that stall
+# - Training loops that get stuck
+```
+
+### Timeout Scenarios
+- **Model Compilation**: GPU kernels that hang during compilation
+- **Data Loading**: Large dataset loading that stalls
+- **Training**: ML training loops that get stuck
+- **Inference**: Model inference that hangs on GPU
+- **Network Operations**: API calls or downloads that timeout
+
 ## Error Details
 
 In strict mode, errors include:
@@ -117,6 +141,7 @@ In strict mode, errors include:
 - **Actionable suggestions** for resolution
 - **Parsed error information** (file locations, line numbers)
 - **Retry logic** for transient failures (CUDA setup, etc.)
+- **Timeout handling** for hanging operations
 
 ## Non-Strict vs Strict Mode
 
@@ -127,6 +152,7 @@ In strict mode, errors include:
 | **Import Errors** | Warning, degraded functionality | Exit code 3 |
 | **Validation Failures** | Warning, continue build | Exit code 35 |
 | **Model Loading Issues** | Warning, skip tests | Exit code 21 |
+| **Timeouts** | Warning, operation cancelled | Exit code 4 |
 
 ## Getting Error Information
 
