@@ -434,7 +434,7 @@ export function formatExecutionError(result: ExecutionResult, showDetails = fals
       
       // File and line information
       if (error.file && error.line !== undefined) {
-        parts.push(colorize(`     📍 ${error.file}:${error.line}`, chalk.yellow));
+        parts.push(colorize(`     Location: ${error.file}:${error.line}`, chalk.yellow));
       }
       
       // Suggestions
@@ -447,7 +447,7 @@ export function formatExecutionError(result: ExecutionResult, showDetails = fals
       
       // Colorized traceback
       if (showDetails && error.traceback.length > 0) {
-        parts.push(colorize('     📋 Traceback:', chalk.blue));
+        parts.push(colorize('     Traceback:', chalk.blue));
         error.traceback.forEach(tracebackLine => {
           if (tracebackLine && tracebackLine.trim()) {
             parts.push(formatTracebackLine(tracebackLine, useColors));
@@ -460,13 +460,13 @@ export function formatExecutionError(result: ExecutionResult, showDetails = fals
   if (showDetails) {
     if (result.stdout) {
       parts.push('');
-      parts.push(colorize('📤 STDOUT:', chalk.blue));
+      parts.push(colorize('STDOUT:', chalk.blue));
       parts.push(result.stdout);
     }
     
     if (result.stderr) {
       parts.push('');
-      parts.push(colorize('📥 STDERR:', chalk.magenta));
+      parts.push(colorize('STDERR:', chalk.magenta));
       parts.push(result.stderr);
     }
   }
