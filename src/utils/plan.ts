@@ -44,6 +44,9 @@ export interface ResourceEstimate {
   memory: number; // in bytes
   estimatedTime: number; // in seconds
   gpuMemory?: number; // in bytes if GPU required
+  estimatedTimeRange?: { min: number; max: number }; // time range in seconds
+  baseline?: string; // framework baseline used
+  totalDependencySize?: number; // total dependency size in bytes
 }
 
 export interface PlanFile {
@@ -72,6 +75,8 @@ export class PlanGenerator {
     architecture: string,
     indexConfig?: any
   ): Promise<PlanFile> {
+    const dependencies = await this.parseDependencies();
+    
     const plan: PlanFile = {
       timestamp: new Date().toISOString(),
       command,
@@ -80,7 +85,7 @@ export class PlanGenerator {
       architecture,
       pythonVersion: this.projectConfig.pythonVersion || '3.9',
       artifacts: await this.generateArtifactPlan(architecture, indexConfig),
-      dependencies: await this.parseDependencies(),
+      dependencies,
       resources: await this.estimateResources(architecture),
       buildSteps: this.generateBuildSteps(command, architecture),
       warnings: []
@@ -94,6 +99,12 @@ export class PlanGenerator {
       }
     } catch (error) {
       plan.warnings?.push('Could not analyze model shape: model files may not exist yet');
+    }
+
+    // Generate dependency size warnings
+    const depWarnings = this.generateDependencyWarnings(dependencies);
+    if (depWarnings.length > 0) {
+      plan.warnings = (plan.warnings || []).concat(depWarnings);
     }
 
     return plan;
@@ -401,8 +412,17 @@ export class PlanGenerator {
     // Base resource estimates
     let diskSpace = 100 * 1024 * 1024; // 100MB base
     let memory = 500 * 1024 * 1024; // 500MB base
-    let estimatedTime = 60; // 1 minute base
     let gpuMemory = undefined;
+
+    // Framework-specific baseline time estimates (in seconds)
+    const baselineTimes = {
+      'pytorch': { min: 15, max: 20 },
+      'tensorflow': { min: 20, max: 25 },
+      'sklearn': { min: 5, max: 8 },
+      'custom': { min: 10, max: 15 }
+    };
+
+    let timeEstimate = baselineTimes[framework as keyof typeof baselineTimes] || baselineTimes.custom;
 
     // Adjust based on framework
     if (framework === 'pytorch') {
@@ -410,26 +430,39 @@ export class PlanGenerator {
       memory += 200 * 1024 * 1024; // +200MB
       if (isGPU) {
         gpuMemory = 1024 * 1024 * 1024; // 1GB GPU memory
-        estimatedTime = 30; // Faster with GPU
+        // GPU builds are 20-30% faster for large models
+        timeEstimate = { min: Math.ceil(timeEstimate.min * 0.7), max: Math.ceil(timeEstimate.max * 0.8) };
       }
     } else if (framework === 'tensorflow') {
       diskSpace += 75 * 1024 * 1024; // +75MB
       memory += 300 * 1024 * 1024; // +300MB
       if (isGPU) {
         gpuMemory = 1.5 * 1024 * 1024 * 1024; // 1.5GB GPU memory
-        estimatedTime = 45;
+        timeEstimate = { min: Math.ceil(timeEstimate.min * 0.75), max: Math.ceil(timeEstimate.max * 0.85) };
       }
     }
 
-    // Add dependency sizes
+    // Add dependency sizes and impact on build time
     const dependencies = await this.parseDependencies();
-    diskSpace += dependencies.reduce((sum, dep) => sum + dep.estimatedSize, 0);
+    const totalDepSize = dependencies.reduce((sum, dep) => sum + dep.estimatedSize, 0);
+    diskSpace += totalDepSize;
+
+    // Large dependency penalty (adds to build time)
+    const depSizeGB = totalDepSize / (1024 * 1024 * 1024);
+    if (depSizeGB > 1) {
+      const penalty = Math.ceil(depSizeGB * 2); // 2 seconds per GB of dependencies
+      timeEstimate.min += penalty;
+      timeEstimate.max += penalty;
+    }
 
     const resources: ResourceEstimate = {
       diskSpace,
       memory,
-      estimatedTime
-    };
+      estimatedTime: timeEstimate.min, // Keep single value for compatibility
+      estimatedTimeRange: timeEstimate,
+      baseline: framework,
+      totalDependencySize: totalDepSize
+    } as any;
     
     if (gpuMemory !== undefined) {
       resources.gpuMemory = gpuMemory;
@@ -463,5 +496,45 @@ export class PlanGenerator {
     }
 
     return steps;
+  }
+
+  private generateDependencyWarnings(dependencies: DependencyInfo[]): string[] {
+    const warnings: string[] = [];
+    const largeSizeThreshold = 100 * 1024 * 1024; // 100MB
+    const veryLargeSizeThreshold = 500 * 1024 * 1024; // 500MB
+
+    for (const dep of dependencies) {
+      if (dep.estimatedSize >= veryLargeSizeThreshold) {
+        const sizeStr = this.formatBytes(dep.estimatedSize);
+        let suggestion = '';
+        
+        if (dep.name.toLowerCase().includes('torch')) {
+          suggestion = 'Consider using torch-cpu for inference workloads or pruning unused operations';
+        } else if (dep.name.toLowerCase().includes('tensorflow')) {
+          suggestion = 'Consider using tensorflow-cpu or custom builds with only required operations';
+        } else if (dep.name.toLowerCase().includes('transformers')) {
+          suggestion = 'Consider using specific model packages or lightweight alternatives';
+        } else {
+          suggestion = 'Consider using a lightweight alternative or CPU-only variant';
+        }
+
+        warnings.push(`${dep.name}==${dep.version} (~${sizeStr}) - ${suggestion}`);
+      } else if (dep.estimatedSize >= largeSizeThreshold) {
+        const sizeStr = this.formatBytes(dep.estimatedSize);
+        warnings.push(`${dep.name}==${dep.version} (~${sizeStr}) is large. Consider optimized variants if available`);
+      }
+    }
+
+    return warnings;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return `${(bytes / Math.pow(k, i)).toFixed(0)}${sizes[i]}`;
   }
 }

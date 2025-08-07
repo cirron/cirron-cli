@@ -58,7 +58,15 @@ export class PlanFormatter {
             
             for (const dep of deps) {
               const sizeStr = this.formatBytes(dep.estimatedSize);
-              sections.push(colorize(`     • ${dep.name}${dep.version}`, chalk.green) + colorize(` (~${sizeStr})`, chalk.gray));
+              const sizeColor = this.getSizeColor(dep.estimatedSize, useColors);
+              sections.push(colorize(`     • ${dep.name}${dep.version}`, chalk.green) + colorize(` (~${sizeStr})`, sizeColor));
+              
+              // Show size warnings inline
+              if (dep.estimatedSize >= 500 * 1024 * 1024) { // 500MB+
+                sections.push(colorize(`       ⚠ Very large package - consider alternatives`, chalk.yellow));
+              } else if (dep.estimatedSize >= 100 * 1024 * 1024) { // 100MB+
+                sections.push(colorize(`       ⚡ Large package`, chalk.yellow));
+              }
               
               if (showDetails && dep.conflicts && dep.conflicts.length > 0) {
                 sections.push(colorize(`       ⚠ Potential conflicts: ${dep.conflicts.join(', ')}`, chalk.yellow));
@@ -112,7 +120,18 @@ export class PlanFormatter {
       sections.push(colorize('💾 Resource Estimates:', chalk.bold.red));
       sections.push(colorize(`  • Disk space: ${this.formatBytes(plan.resources.diskSpace)}`, chalk.cyan));
       sections.push(colorize(`  • Memory: ${this.formatBytes(plan.resources.memory)}`, chalk.yellow));
-      sections.push(colorize(`  • Estimated time: ${this.formatDuration(plan.resources.estimatedTime)}`, chalk.green));
+      
+      // Enhanced time estimation
+      const resources = plan.resources as any;
+      if (resources.estimatedTimeRange && resources.baseline) {
+        const { min, max } = resources.estimatedTimeRange;
+        const timeStr = `${min}–${max} sec (based on ${resources.baseline} baseline`;
+        const depStr = resources.totalDependencySize ? ` + ${this.formatBytes(resources.totalDependencySize)} deps` : '';
+        sections.push(colorize(`  • Estimated time: ${timeStr}${depStr})`, chalk.green));
+      } else {
+        sections.push(colorize(`  • Estimated time: ${this.formatDuration(plan.resources.estimatedTime)}`, chalk.green));
+      }
+      
       if (plan.resources.gpuMemory) {
         sections.push(colorize(`  • GPU memory: ${this.formatBytes(plan.resources.gpuMemory)}`, chalk.magenta));
       }
@@ -240,6 +259,18 @@ export class PlanFormatter {
     }
 
     return categorized;
+  }
+
+  private static getSizeColor(size: number, useColors: boolean): (text: string) => string {
+    if (!useColors) return (text: string) => text;
+    
+    if (size >= 500 * 1024 * 1024) { // 500MB+
+      return chalk.red;
+    } else if (size >= 100 * 1024 * 1024) { // 100MB+
+      return chalk.yellow;
+    } else {
+      return chalk.gray;
+    }
   }
 
   // Export plan to file
