@@ -10,6 +10,16 @@ import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
 import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
+import { 
+  planCompileCommand, 
+  planBuildCommand, 
+  planLintCommand, 
+  planTestCommand, 
+  planDiffCommand,
+  planCompareCommand,
+  planSaveCommand
+} from './commands/plan';
+import { replayCommand } from './commands/replay';
 import { logger } from './utils/logger';
 
 const program = new Command();
@@ -95,12 +105,10 @@ program
 // Compile command
 program
   .command('compile')
-  .description('Compile/build the model locally')
+  .description('Compile the model (build the model locally)')
   .option('-a, --arch <architecture>', 'Select a specific architecture')
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
-  .option('--dry-run', 'Simulate compile without artifacts')
-  .option('--json', 'Output results in JSON format')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(compileCommand);
 
@@ -117,7 +125,6 @@ program
   .option('-a, --arch <architecture>', 'Select a specific architecture')
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
-  .option('--dry-run', 'Simulate build without artifacts')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(buildCommand);
 
@@ -165,6 +172,91 @@ program
   .option('--json', 'Output results in JSON format')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(lintCommand);
+
+// Plan commands
+const planCmd = program
+  .command('plan')
+  .description('Preview and plan project operations')
+  .option('--compare [planA] [planB]', 'Compare two saved plans (interactive if no plans specified)')
+  .action(async (options) => {
+    if (options.compare !== undefined) {
+      // Handle --compare option at the main plan level
+      await planCompareCommand(options.compare, undefined, { verbose: options.verbose, json: options.json });
+    } else {
+      // Show help if no subcommand or options provided
+      planCmd.outputHelp();
+    }
+  });
+
+planCmd
+  .command('compile')
+  .description('Preview model compilation with artifact paths and dependencies')
+  .option('-a, --arch <architecture>', 'Select a specific architecture')
+  .option('--index <file>', 'Path to index/manifest file')
+  .option('--validate', 'Run validation checks during planning')
+  .option('--save [filename]', 'Save plan to file')
+  .option('--verbose', 'Show detailed planning information')
+  .option('--json', 'Output plan in JSON format')
+  .action(planCompileCommand);
+
+planCmd
+  .command('build')
+  .description('Preview build artifacts, model shape, and resource usage')
+  .option('-a, --arch <architecture>', 'Select a specific architecture')
+  .option('--index <file>', 'Path to index/manifest file')
+  .option('--validate', 'Run validation checks during planning')
+  .option('--save [filename]', 'Save plan to file')
+  .option('--verbose', 'Show detailed planning information')
+  .option('--json', 'Output plan in JSON format')
+  .action(planBuildCommand);
+
+planCmd
+  .command('lint')
+  .description('Preview linting scope and expected issues')
+  .option('--save [filename]', 'Save plan to file')
+  .option('--verbose', 'Show detailed planning information')
+  .option('--json', 'Output plan in JSON format')
+  .action(planLintCommand);
+
+planCmd
+  .command('test')
+  .description('Preview test suite setup and coverage')
+  .option('--save [filename]', 'Save plan to file')
+  .option('--verbose', 'Show detailed planning information')
+  .option('--json', 'Output plan in JSON format')
+  .action(planTestCommand);
+
+planCmd
+  .command('diff <planA> <planB>')
+  .description('Compare two plan files to detect changes and impacts')
+  .option('--save [filename]', 'Save comparison to file')
+  .option('--verbose', 'Show detailed diff information')
+  .option('--json', 'Output comparison in JSON format')
+  .action(planDiffCommand);
+
+planCmd
+  .command('save [type]')
+  .description('Save plans to disk for later comparison and auditing')
+  .option('--all', 'Save all plan types (compile, build, lint, test)')
+  .option('--name <filename>', 'Custom filename for the saved plan')
+  .option('--description <desc>', 'Description for the saved plan')
+  .option('--tags <tags>', 'Comma-separated tags for the saved plan')
+  .option('--list', 'List all saved plans')
+  .option('--cleanup [days]', 'Remove plans older than specified days (default: 30)')
+  .option('--verbose', 'Show detailed save information')
+  .option('--json', 'Output plan in JSON format')
+  .action(planSaveCommand);
+
+// Replay command
+program
+  .command('replay')
+  .description('Execute saved plan from file')
+  .requiredOption('--plan <file>', 'Plan file to replay')
+  .option('--validate', 'Validate environment compatibility (default: true)')
+  .option('--dry-run', 'Show what would be executed without running')
+  .option('--verbose', 'Show detailed execution information')
+  .option('--force', 'Force execution despite compatibility warnings')
+  .action(replayCommand);
 
 // Status command
 program

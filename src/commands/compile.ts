@@ -6,18 +6,14 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { executePythonScript, handleExecutionResult, formatExecutionError } from '../utils/execution';
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
-import { PlanGenerator } from '../utils/plan';
-import { PlanFormatter } from '../utils/plan-formatter';
 import type { ProjectConfig } from '../types';
 
 interface CompileOptions {
   arch?: string;
   index?: string;
   validate?: boolean;
-  dryRun?: boolean;
   strict?: boolean;
   verbose?: boolean;
-  json?: boolean;
 }
 
 export async function compileCommand(options: CompileOptions): Promise<void> {
@@ -63,32 +59,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       logger.success('✓ Validation checks passed');
     }
 
-    if (options.dryRun) {
-      spinner.text = 'Generating compilation plan...';
-      
-      // Generate comprehensive build plan
-      const planGenerator = new PlanGenerator(projectConfig, process.cwd());
-      const plan = await planGenerator.generatePlan('compile', architecture, indexConfig);
-      
-      // Simulate compilation steps
-      await simulateCompilation(projectConfig, architecture, indexConfig);
-      
-      spinner.succeed(chalk.green('Dry run completed successfully'));
-      
-      // Format and display the plan
-      if (options.json) {
-        console.log(PlanFormatter.formatJSON(plan, true));
-      } else {
-        const formatOptions = {
-          useColors: process.stdout.isTTY,
-          showDetails: options.verbose || false,
-          compact: false
-        };
-        console.log('\n' + PlanFormatter.formatConsole(plan, formatOptions));
-      }
-      
-      return;
-    }
 
     // Actual compilation
     spinner.text = 'Compiling model...';
@@ -311,35 +281,6 @@ print('Model validation passed')
   }
 }
 
-async function simulateCompilation(
-  _projectConfig: ProjectConfig,
-  architecture: string,
-  _indexConfig: any
-): Promise<void> {
-  // Simulate compilation steps without actually performing them
-  
-  logger.info('📋 Compilation simulation:');
-  
-  // Step 1: Environment setup
-  await new Promise(resolve => setTimeout(resolve, 500));
-  logger.info('  ✓ Environment setup simulation');
-  
-  // Step 2: Dependencies
-  await new Promise(resolve => setTimeout(resolve, 300));
-  logger.info('  ✓ Dependencies resolution simulation');
-  
-  // Step 3: Model compilation
-  await new Promise(resolve => setTimeout(resolve, 800));
-  logger.info('  ✓ Model compilation simulation');
-  
-  // Step 4: Architecture optimization
-  await new Promise(resolve => setTimeout(resolve, 600));
-  logger.info(`  ✓ ${architecture} optimization simulation`);
-  
-  // Step 5: Artifact generation
-  await new Promise(resolve => setTimeout(resolve, 400));
-  logger.info('  ✓ Artifact generation simulation');
-}
 
 async function performCompilation(
   projectConfig: ProjectConfig,

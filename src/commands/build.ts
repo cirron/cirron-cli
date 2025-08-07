@@ -8,8 +8,6 @@ import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
 import { executePythonScript, formatExecutionError } from '../utils/execution';
-import { PlanGenerator } from '../utils/plan';
-import { PlanFormatter } from '../utils/plan-formatter';
 import type { BuildOptions, ProjectConfig } from '../types';
 
 export async function buildCommand(options: BuildOptions): Promise<void> {
@@ -87,32 +85,6 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
     logger.success('✓ Validation checks passed');
   }
 
-  if (options.dryRun) {
-    spinner.text = 'Generating build plan...';
-    
-    // Generate comprehensive build plan
-    const planGenerator = new PlanGenerator(projectConfig, process.cwd());
-    const plan = await planGenerator.generatePlan('build', architecture, indexConfig);
-    
-    // Simulate build steps
-    await simulateMLBuild(projectConfig, architecture, indexConfig);
-    
-    spinner.succeed(chalk.green('Dry run completed successfully'));
-    
-    // Format and display the plan
-    if (options.json) {
-      console.log(PlanFormatter.formatJSON(plan, true));
-    } else {
-      const formatOptions = {
-        useColors: process.stdout.isTTY,
-        showDetails: options.verbose || false,
-        compact: false
-      };
-      console.log('\n' + PlanFormatter.formatConsole(plan, formatOptions));
-    }
-    
-    return;
-  }
 
   // Actual ML model build
   spinner.text = 'Building ML model...';
@@ -815,24 +787,6 @@ async function runValidationChecks(
   }
 }
 
-async function simulateMLBuild(_projectConfig: ProjectConfig, architecture: string, _indexConfig: any): Promise<void> {
-  logger.info('📋 Build simulation:');
-  
-  await new Promise(resolve => setTimeout(resolve, 500));
-  logger.info('  ✓ Environment setup simulation');
-  
-  await new Promise(resolve => setTimeout(resolve, 300));
-  logger.info('  ✓ Dependencies resolution simulation');
-  
-  await new Promise(resolve => setTimeout(resolve, 800));
-  logger.info('  ✓ Model compilation simulation');
-  
-  await new Promise(resolve => setTimeout(resolve, 600));
-  logger.info(`  ✓ ${architecture} optimization simulation`);
-  
-  await new Promise(resolve => setTimeout(resolve, 400));
-  logger.info('  ✓ Artifact generation simulation');
-}
 
 async function performMLBuild(projectConfig: ProjectConfig, architecture: string, _indexConfig: any): Promise<string[]> {
   const artifacts: string[] = [];
