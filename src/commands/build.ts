@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
+import { executePythonScript, formatExecutionError } from '../utils/execution';
 import type { BuildOptions, ProjectConfig } from '../types';
 
 export async function buildCommand(options: BuildOptions): Promise<void> {
@@ -760,7 +761,13 @@ async function runValidationChecks(
     if (projectConfig.framework === 'pytorch') {
       try {
         const testScript = 'import torch; assert torch.cuda.is_available()';
-        execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+        const result = await executePythonScript(testScript);
+        if (!result.success) {
+          validationErrors.push('CUDA not available for PyTorch');
+          if (result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0]) {
+            logger.debug('CUDA validation details:', result.parsedErrors[0].message);
+          }
+        }
       } catch (error) {
         validationErrors.push('CUDA not available for PyTorch');
       }
@@ -775,7 +782,19 @@ async function runValidationChecks(
 
   try {
     const testScript = 'import sys; sys.path.append("src"); from model import create_model; create_model()';
-    execSync(`python3 -c "${testScript}"`, { stdio: 'pipe' });
+    const result = await executePythonScript(testScript);
+    if (!result.success) {
+      validationErrors.push('Model creation failed during validation');
+      if (result.parsedErrors && result.parsedErrors.length > 0) {
+        const firstError = result.parsedErrors[0];
+        if (firstError) {
+          logger.debug('Model validation error:', firstError.message);
+          if (firstError.file && firstError.line) {
+            logger.debug(`Error location: ${firstError.file}:${firstError.line}`);
+          }
+        }
+      }
+    }
   } catch (error) {
     validationErrors.push('Model creation failed during validation');
   }
@@ -944,7 +963,10 @@ print("Integrity tests completed successfully")
   
   try {
     await fs.writeFile(tempScriptPath, testScript);
-    execSync(`python3 ${tempScriptPath}`, { stdio: 'pipe' });
+    const result = await executePythonScript(testScript, { cwd: process.cwd() });
+    if (!result.success) {
+      throw new Error(`Architecture test failed: ${formatExecutionError(result)}`);
+    }
     
   } finally {
     if (fs.existsSync(tempScriptPath)) {

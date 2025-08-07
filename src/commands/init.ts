@@ -3,10 +3,10 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
-import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
+import { executeScript, formatExecutionError } from '../utils/execution';
 import type { 
   InitOptions, 
   ProjectConfig, 
@@ -197,9 +197,21 @@ export async function initCommand(projectName?: string, options: InitOptions = {
       if (options.git) {
         spinner.text = 'Initializing git repository...';
         try {
-          execSync('git init', { cwd: projectPath, stdio: 'pipe' });
-          execSync('git add .', { cwd: projectPath, stdio: 'pipe' });
-          execSync('git commit -m "Initial commit"', { cwd: projectPath, stdio: 'pipe' });
+          const gitInitResult = await executeScript('git', ['init'], { cwd: projectPath });
+          if (!gitInitResult.success) {
+            throw new Error(`Git init failed: ${gitInitResult.stderr}`);
+          }
+          
+          const gitAddResult = await executeScript('git', ['add', '.'], { cwd: projectPath });
+          if (!gitAddResult.success) {
+            throw new Error(`Git add failed: ${gitAddResult.stderr}`);
+          }
+          
+          const gitCommitResult = await executeScript('git', ['commit', '-m', 'Initial commit'], { cwd: projectPath });
+          if (!gitCommitResult.success) {
+            throw new Error(`Git commit failed: ${gitCommitResult.stderr}`);
+          }
+          
           logger.info('Git repository initialized');
         } catch (error) {
           logger.warn('Failed to initialize git repository');
@@ -211,7 +223,14 @@ export async function initCommand(projectName?: string, options: InitOptions = {
         spinner.text = 'Installing dependencies...';
         for (const command of selectedTemplate.postInstall) {
           try {
-            execSync(command, { cwd: projectPath, stdio: 'pipe' });
+            const [cmd, ...args] = command.split(' ');
+            const result = await executeScript(cmd || '', args, { cwd: projectPath });
+            if (!result.success) {
+              logger.warn(`Failed to run: ${command}`);
+              if (result.parsedErrors && result.parsedErrors.length > 0) {
+                logger.debug('Command error details:', formatExecutionError(result));
+              }
+            }
           } catch (error) {
             logger.warn(`Failed to run: ${command}`);
           }
