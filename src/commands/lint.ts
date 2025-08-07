@@ -17,6 +17,7 @@ interface LintOptions {
   fix?: boolean;
   verbose?: boolean;
   json?: boolean;
+  strict?: boolean;
 }
 
 interface LintResult {

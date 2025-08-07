@@ -22,6 +22,7 @@ interface TestOptions {
   endpoint?: string;
   pipeline?: boolean;
   watch?: boolean;
+  strict?: boolean;
 }
 
 export async function testCommand(options: TestOptions): Promise<void> {
@@ -550,7 +551,7 @@ async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): P
   const chokidar = require('chokidar');
   
   const watcher = chokidar.watch(['src/**/*.py', 'tests/**/*.py', 'cirron.json'], {
-    ignored: /(^|[\/\\])\../,
+    ignored: /(^|[/\\])\../,
     persistent: true
   });
 

@@ -90,6 +90,7 @@ program
   .option('-e, --endpoint <url>', 'Test deployment endpoint for speed, accuracy, and latency')
   .option('--pipeline', 'Test entire ML pipeline end-to-end')
   .option('-w, --watch', 'Watch for changes and re-run tests')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(testCommand);
 
 // Compile command
@@ -100,6 +101,7 @@ program
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
   .option('--dry-run', 'Simulate compile without artifacts')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(compileCommand);
 
 // Build command
@@ -116,6 +118,7 @@ program
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
   .option('--dry-run', 'Simulate build without artifacts')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(buildCommand);
 
 // Deploy command
@@ -160,6 +163,7 @@ program
   .option('--fix', 'Automatically fix issues where possible')
   .option('--verbose', 'Show detailed output with suggestions')
   .option('--json', 'Output results in JSON format')
+  .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .action(lintCommand);
 
 // Status command
