@@ -6,6 +6,8 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { executePythonScript, handleExecutionResult, formatExecutionError } from '../utils/execution';
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
+import { PlanGenerator } from '../utils/plan';
+import { PlanFormatter } from '../utils/plan-formatter';
 import type { ProjectConfig } from '../types';
 
 interface CompileOptions {
@@ -15,6 +17,7 @@ interface CompileOptions {
   dryRun?: boolean;
   strict?: boolean;
   verbose?: boolean;
+  json?: boolean;
 }
 
 export async function compileCommand(options: CompileOptions): Promise<void> {
@@ -61,19 +64,28 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     }
 
     if (options.dryRun) {
-      spinner.text = 'Simulating compilation (dry run)...';
+      spinner.text = 'Generating compilation plan...';
+      
+      // Generate comprehensive build plan
+      const planGenerator = new PlanGenerator(projectConfig, process.cwd());
+      const plan = await planGenerator.generatePlan('compile', architecture, indexConfig);
+      
+      // Simulate compilation steps
       await simulateCompilation(projectConfig, architecture, indexConfig);
+      
       spinner.succeed(chalk.green('Dry run completed successfully'));
       
-      logger.info('\n📋 Compilation Plan Summary:');
-      logger.info(`  • Target: ${architecture}`);
-      logger.info(`  • Framework: ${projectConfig.framework || 'custom'}`);
-      logger.info(`  • Python: ${projectConfig.pythonVersion || '3.9'}`);
-      if (indexConfig) {
-        logger.info(`  • Features: ${indexConfig.features?.length || 0}`);
-        logger.info(`  • Data types: ${Object.keys(indexConfig.dataTypes || {}).length}`);
+      // Format and display the plan
+      if (options.json) {
+        console.log(PlanFormatter.formatJSON(plan, true));
+      } else {
+        const formatOptions = {
+          useColors: process.stdout.isTTY,
+          showDetails: options.verbose || false,
+          compact: false
+        };
+        console.log('\n' + PlanFormatter.formatConsole(plan, formatOptions));
       }
-      logger.info(`  • GPU required: ${projectConfig.gpuRequired ? 'Yes' : 'No'}`);
       
       return;
     }

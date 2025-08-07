@@ -89,6 +89,8 @@ export interface BuildOptions {
   dryRun?: boolean;
   push?: boolean;
   strict?: boolean;
+  verbose?: boolean;
+  json?: boolean;
 }
 
 export interface DeployOptions {
