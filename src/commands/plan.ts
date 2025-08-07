@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
+import os from 'os';
 import { logger } from '../utils/logger';
 import { PlanGenerator } from '../utils/plan';
 import { PlanFormatter } from '../utils/plan-formatter';
@@ -9,7 +10,8 @@ import { PlanStorage } from '../utils/plan-storage';
 import { PlanDiffAnalyzer } from '../utils/plan-diff';
 import { executePythonScript, handleExecutionResult } from '../utils/execution';
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
-import type { ProjectConfig, PlanOptions } from '../types';
+import type { ProjectConfig, PlanOptions, PlanCompareOptions, PlanSaveOptions } from '../types';
+import inquirer from 'inquirer';
 
 // Plan compile subcommand
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
@@ -632,4 +634,344 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
       console.log(colorize(`  • ${type}: ${path}`, chalk.gray));
     }
   }
+}
+
+// Plan compare command (interactive)
+export async function planCompareCommand(planA?: string, planB?: string, options: PlanCompareOptions = {}): Promise<void> {
+  const spinner = ora('Loading saved plans...').start();
+
+  try {
+    // If specific plans weren't provided, show interactive selection
+    if (!planA || !planB) {
+      const savedPlans = await PlanStorage.listPlans();
+      
+      if (savedPlans.length < 2) {
+        spinner.fail(chalk.red('Need at least 2 saved plans to compare'));
+        logger.error('Run some plan commands with --save to create comparison data');
+        process.exit(1);
+      }
+
+      spinner.succeed(chalk.green(`Found ${savedPlans.length} saved plans`));
+
+      // Interactive plan selection
+      console.log('\n' + chalk.bold.blue('📋 Select Plans to Compare:'));
+      
+      const planChoices = savedPlans.map((plan, index) => ({
+        name: `${plan.plan.command} • ${plan.plan.framework} • ${new Date(plan.metadata.savedAt).toLocaleString()} ${plan.metadata.description ? `• ${plan.metadata.description}` : ''}`,
+        value: index,
+        short: `Plan ${index + 1}`
+      }));
+
+      const { planAIndex, planBIndex } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'planAIndex',
+          message: 'Select first plan (Plan A):',
+          choices: planChoices
+        },
+        {
+          type: 'list',
+          name: 'planBIndex',
+          message: 'Select second plan (Plan B):',
+          choices: planChoices.filter((_, index) => index !== undefined),
+          validate: (input, answers) => {
+            if (input === answers?.planAIndex) {
+              return 'Please select a different plan for comparison';
+            }
+            return true;
+          }
+        }
+      ]);
+
+      const selectedPlanA = savedPlans[planAIndex];
+      const selectedPlanB = savedPlans[planBIndex];
+
+      if (!selectedPlanA || !selectedPlanB) {
+        throw new Error('Invalid plan selection');
+      }
+
+      // Compare the selected plans
+      const comparison = PlanDiffAnalyzer.comparePlans(selectedPlanA.plan, selectedPlanB.plan);
+
+      // Display comparison
+      if (options.json) {
+        console.log(JSON.stringify(comparison, null, 2));
+      } else {
+        console.log('\n' + PlanDiffAnalyzer.formatComparison(comparison, process.stdout.isTTY));
+        
+        // Show enhanced diff format for dependencies
+        formatEnhancedDiff(comparison, options.verbose || false);
+      }
+
+      // Save comparison if requested
+      if (options.save) {
+        const filename = typeof options.save === 'string' ? options.save : `plan-comparison-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        await fs.writeJson(filename, comparison, { spaces: 2 });
+        logger.info(`Comparison saved to: ${filename}`);
+      }
+
+    } else {
+      // Direct comparison mode (existing functionality)
+      await planDiffCommand(planA, planB, options);
+    }
+
+  } catch (error) {
+    spinner.fail(chalk.red('Plan comparison failed'));
+    logger.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
+// Plan save command
+export async function planSaveCommand(type?: string, options: PlanSaveOptions = {}): Promise<void> {
+  // Handle list option
+  if (options.list) {
+    const spinner = ora('Loading saved plans...').start();
+    try {
+      const savedPlans = await PlanStorage.listPlans();
+      spinner.succeed(chalk.green(`Found ${savedPlans.length} saved plans`));
+      
+      if (savedPlans.length === 0) {
+        console.log(chalk.yellow('\nNo saved plans found. Create some plans with save options first.'));
+        return;
+      }
+
+      console.log('\n' + chalk.bold.blue('📋 Saved Plans:'));
+      for (const [index, savedPlan] of savedPlans.entries()) {
+        const date = new Date(savedPlan.metadata.savedAt).toLocaleString();
+        const tags = savedPlan.metadata.tags?.join(', ') || '';
+        console.log(`${chalk.cyan(`${index + 1}.`)} ${chalk.bold(savedPlan.plan.command)} • ${savedPlan.plan.framework} • ${date}`);
+        if (savedPlan.metadata.description) {
+          console.log(`   ${chalk.gray(savedPlan.metadata.description)}`);
+        }
+        if (tags) {
+          console.log(`   ${chalk.gray('Tags:')} ${chalk.yellow(tags)}`);
+        }
+        console.log(`   ${chalk.gray('File:')} ${path.basename(savedPlan.filePath)}`);
+        console.log('');
+      }
+      return;
+    } catch (error) {
+      spinner.fail(chalk.red('Failed to list plans'));
+      logger.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  // Handle cleanup option
+  if (options.cleanup !== undefined) {
+    const maxAge = options.cleanup || 30;
+    const spinner = ora(`Cleaning up plans older than ${maxAge} days...`).start();
+    try {
+      const deletedCount = await PlanStorage.cleanupOldPlans(maxAge);
+      spinner.succeed(chalk.green(`Cleaned up ${deletedCount} old plans`));
+      return;
+    } catch (error) {
+      spinner.fail(chalk.red('Cleanup failed'));
+      logger.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  // Load project configuration
+  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
+  
+  if (!fs.existsSync(projectConfigPath)) {
+    logger.error(chalk.red('No cirron.json found'));
+    logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
+    process.exit(1);
+  }
+
+  const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+  
+  // Parse tags
+  const tags = options.tags ? options.tags.split(',').map(tag => tag.trim()) : undefined;
+  
+  // Save options
+  const saveOptions = {
+    filename: options.name,
+    description: options.description,
+    tags
+  };
+
+  // Handle --all flag
+  if (options.all) {
+    const spinner = ora('Generating and saving all plans...').start();
+    const planTypes = ['compile', 'build', 'lint', 'test'];
+    const savedPaths: string[] = [];
+
+    try {
+      for (const planType of planTypes) {
+        spinner.text = `Generating ${planType} plan...`;
+        const planGenerator = new PlanGenerator(projectConfig, process.cwd());
+        
+        let plan;
+        if (planType === 'compile' || planType === 'build') {
+          const architecture = await determineDefaultArchitecture(projectConfig);
+          plan = await planGenerator.generatePlan(planType as 'compile' | 'build', architecture);
+        } else if (planType === 'lint') {
+          plan = await generateLintPlan(projectConfig);
+        } else if (planType === 'test') {
+          plan = await generateTestPlan(projectConfig);
+        }
+        
+        if (plan) {
+          const typeSpecificOptions = {
+            ...saveOptions,
+            filename: saveOptions.filename ? `${saveOptions.filename}-${planType}` : undefined
+          };
+          
+          // Only save compile and build plans through PlanStorage (they match PlanFile interface)
+          if (planType === 'compile' || planType === 'build') {
+            const cleanedOptions: { filename?: string; description?: string; tags?: string[] } = {};
+            if (typeSpecificOptions.filename) cleanedOptions.filename = typeSpecificOptions.filename;
+            if (typeSpecificOptions.description) cleanedOptions.description = typeSpecificOptions.description;
+            if (typeSpecificOptions.tags) cleanedOptions.tags = typeSpecificOptions.tags;
+            
+            const savedPath = await PlanStorage.savePlan(plan as any, cleanedOptions);
+            savedPaths.push(savedPath);
+          } else {
+            // For lint and test plans, save them directly as JSON files
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = typeSpecificOptions.filename || `${planType}-plan-${timestamp}.json`;
+            const filePath = path.join(os.homedir(), '.cirron', 'plans', filename);
+            await fs.writeJson(filePath, plan, { spaces: 2 });
+            savedPaths.push(filePath);
+          }
+        }
+      }
+
+      spinner.succeed(chalk.green(`Saved ${savedPaths.length} plans successfully`));
+      
+      if (options.verbose) {
+        console.log('\n' + chalk.bold.blue('📁 Saved Plans:'));
+        for (const savedPath of savedPaths) {
+          console.log(`  • ${path.basename(savedPath)}`);
+        }
+      }
+
+    } catch (error) {
+      spinner.fail(chalk.red('Failed to save plans'));
+      logger.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    
+    return;
+  }
+
+  // Handle single plan type
+  if (!type) {
+    logger.error(chalk.red('Please specify a plan type (compile, build, lint, test) or use --all'));
+    process.exit(1);
+  }
+
+  if (!['compile', 'build', 'lint', 'test'].includes(type)) {
+    logger.error(chalk.red(`Invalid plan type: ${type}. Use: compile, build, lint, test`));
+    process.exit(1);
+  }
+
+  const spinner = ora(`Generating and saving ${type} plan...`).start();
+
+  try {
+    let plan;
+    
+    if (type === 'compile' || type === 'build') {
+      const architecture = await determineDefaultArchitecture(projectConfig);
+      const planGenerator = new PlanGenerator(projectConfig, process.cwd());
+      plan = await planGenerator.generatePlan(type as 'compile' | 'build', architecture);
+    } else if (type === 'lint') {
+      plan = await generateLintPlan(projectConfig);
+    } else if (type === 'test') {
+      plan = await generateTestPlan(projectConfig);
+    }
+
+    if (!plan) {
+      throw new Error(`Failed to generate ${type} plan`);
+    }
+
+    let savedPath: string;
+    if (type === 'compile' || type === 'build') {
+      const cleanedOptions: { filename?: string; description?: string; tags?: string[] } = {};
+      if (saveOptions.filename) cleanedOptions.filename = saveOptions.filename;
+      if (saveOptions.description) cleanedOptions.description = saveOptions.description;
+      if (saveOptions.tags) cleanedOptions.tags = saveOptions.tags;
+      
+      savedPath = await PlanStorage.savePlan(plan as any, cleanedOptions);
+    } else {
+      // For lint and test plans, save them directly as JSON files
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = saveOptions.filename || `${type}-plan-${timestamp}.json`;
+      const filePath = path.join(os.homedir(), '.cirron', 'plans', filename);
+      await fs.ensureDir(path.dirname(filePath));
+      await fs.writeJson(filePath, plan, { spaces: 2 });
+      savedPath = filePath;
+    }
+    
+    spinner.succeed(chalk.green(`${type} plan saved successfully`));
+    
+    if (options.verbose) {
+      console.log(`\n📁 Saved to: ${savedPath}`);
+    }
+
+  } catch (error) {
+    spinner.fail(chalk.red(`Failed to save ${type} plan`));
+    logger.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
+// Enhanced diff formatting for dependencies  
+function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
+  const useColors = process.stdout.isTTY;
+  const colorize = (text: string, colorFn: (text: string) => string) => useColors ? colorFn(text) : text;
+  
+  // Find dependency changes for enhanced display
+  const depChanges = comparison.differences.filter((diff: any) => diff.category === 'dependencies');
+  
+  if (depChanges.length > 0) {
+    console.log('\n' + colorize('📦 Dependencies Changed:', chalk.bold.blue));
+    
+    for (const change of depChanges) {
+      if (change.type === 'changed') {
+        const name = change.field.replace('dependency.', '');
+        console.log(colorize(`- ${name}==${change.oldValue}`, chalk.red));
+        console.log(colorize(`+ ${name}==${change.newValue}`, chalk.green));
+      } else if (change.type === 'added') {
+        const name = change.field.replace('dependency.', '');
+        console.log(colorize(`+ ${name}==${change.newValue}`, chalk.green));
+      } else if (change.type === 'removed') {
+        const name = change.field.replace('dependency.', '');
+        console.log(colorize(`- ${name}==${change.oldValue}`, chalk.red));
+      }
+    }
+  }
+
+  // Model parameter changes
+  const modelChanges = comparison.differences.filter((diff: any) => 
+    diff.category === 'model' && (diff.field.includes('Parameters') || diff.field.includes('totalParameters'))
+  );
+  
+  if (modelChanges.length > 0) {
+    console.log('\n' + colorize('🧠 Model Params:', chalk.bold.magenta));
+    
+    for (const change of modelChanges) {
+      if (change.type === 'changed' && typeof change.oldValue === 'number' && typeof change.newValue === 'number') {
+        const diff = change.newValue - change.oldValue;
+        const percentage = ((diff / change.oldValue) * 100).toFixed(1);
+        const diffText = diff > 0 ? `+${percentage}%` : `${percentage}%`;
+        const diffColor = diff > 0 ? chalk.green : chalk.red;
+        
+        console.log(colorize(`- Total: ${formatNumber(change.oldValue)} → ${formatNumber(change.newValue)} (${diffColor(diffText)})`, chalk.cyan));
+      }
+    }
+  }
+}
+
+function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toString();
 }

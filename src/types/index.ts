@@ -226,3 +226,20 @@ export interface ReplayOptions {
   verbose?: boolean;
   force?: boolean;
 }
+
+export interface PlanCompareOptions {
+  verbose?: boolean;
+  json?: boolean;
+  save?: string;
+}
+
+export interface PlanSaveOptions {
+  all?: boolean;
+  name?: string;
+  description?: string;
+  tags?: string;
+  list?: boolean;
+  cleanup?: number;
+  verbose?: boolean;
+  json?: boolean;
+}

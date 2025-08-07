@@ -15,7 +15,9 @@ import {
   planBuildCommand, 
   planLintCommand, 
   planTestCommand, 
-  planDiffCommand 
+  planDiffCommand,
+  planCompareCommand,
+  planSaveCommand
 } from './commands/plan';
 import { replayCommand } from './commands/replay';
 import { logger } from './utils/logger';
@@ -174,7 +176,17 @@ program
 // Plan commands
 const planCmd = program
   .command('plan')
-  .description('Preview and plan project operations');
+  .description('Preview and plan project operations')
+  .option('--compare [planA] [planB]', 'Compare two saved plans (interactive if no plans specified)')
+  .action(async (options) => {
+    if (options.compare !== undefined) {
+      // Handle --compare option at the main plan level
+      await planCompareCommand(options.compare, undefined, { verbose: options.verbose, json: options.json });
+    } else {
+      // Show help if no subcommand or options provided
+      planCmd.outputHelp();
+    }
+  });
 
 planCmd
   .command('compile')
@@ -221,6 +233,19 @@ planCmd
   .option('--verbose', 'Show detailed diff information')
   .option('--json', 'Output comparison in JSON format')
   .action(planDiffCommand);
+
+planCmd
+  .command('save [type]')
+  .description('Save plans to disk for later comparison and auditing')
+  .option('--all', 'Save all plan types (compile, build, lint, test)')
+  .option('--name <filename>', 'Custom filename for the saved plan')
+  .option('--description <desc>', 'Description for the saved plan')
+  .option('--tags <tags>', 'Comma-separated tags for the saved plan')
+  .option('--list', 'List all saved plans')
+  .option('--cleanup [days]', 'Remove plans older than specified days (default: 30)')
+  .option('--verbose', 'Show detailed save information')
+  .option('--json', 'Output plan in JSON format')
+  .action(planSaveCommand);
 
 // Replay command
 program
