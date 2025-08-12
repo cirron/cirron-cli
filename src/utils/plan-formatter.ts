@@ -15,7 +15,7 @@ export class PlanFormatter {
     const sections: string[] = [];
 
     // Header
-    sections.push(colorize('📋 Build Plan Summary:', chalk.bold.blue));
+    sections.push(colorize('Build Plan Summary:', chalk.bold.blue));
     sections.push(colorize(`  • Command: ${plan.command}`, chalk.gray));
     sections.push(colorize(`  • Target: ${plan.architecture}`, chalk.cyan));
     sections.push(colorize(`  • Framework: ${plan.framework}`, chalk.green));
@@ -26,7 +26,7 @@ export class PlanFormatter {
       sections.push('');
       
       // Planned Artifacts
-      sections.push(colorize('📁 Planned Artifacts:', chalk.bold.yellow));
+      sections.push(colorize(' Planned Artifacts:', chalk.bold.yellow));
       if (plan.artifacts.length > 0) {
         for (const artifact of plan.artifacts) {
           const sizeStr = this.formatBytes(artifact.estimatedSize);
@@ -139,7 +139,7 @@ export class PlanFormatter {
       // Build Steps
       if (showDetails) {
         sections.push('');
-        sections.push(colorize('🔨 Build Steps:', chalk.bold.blue));
+        sections.push(colorize(' Build Steps:', chalk.bold.blue));
         for (let i = 0; i < plan.buildSteps.length; i++) {
           const step = plan.buildSteps[i];
           sections.push(colorize(`  ${i + 1}. ${step}`, chalk.blue));
@@ -224,7 +224,7 @@ export class PlanFormatter {
   private static getCategoryIcon(category: string): string {
     const icons: Record<string, string> = {
       'ml-framework': '🧠',
-      'data-processing': '📊',
+      'data-processing': '',
       'utility': '🔧',
       'development': '👨‍💻'
     };

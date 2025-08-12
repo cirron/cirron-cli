@@ -128,7 +128,7 @@ function generateChangelog(version) {
 
 function showInstructions(version) {
   console.log('\n' + '='.repeat(50));
-  console.log('🎉 Release process completed!');
+  console.log('Release process completed!');
   console.log('='.repeat(50));
   console.log();
   console.log(`Version: ${version}`);

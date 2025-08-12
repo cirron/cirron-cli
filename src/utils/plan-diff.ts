@@ -343,7 +343,7 @@ export class PlanDiffAnalyzer {
     const lines: string[] = [];
     
     // Header
-    lines.push(colorize('📊 Plan Comparison', chalk.bold.blue));
+    lines.push(colorize('Plan Comparison', chalk.bold.blue));
     lines.push(colorize(`  Plan A: ${comparison.planA.command} (${new Date(comparison.planA.timestamp).toLocaleString()})`, chalk.gray));
     lines.push(colorize(`  Plan B: ${comparison.planB.command} (${new Date(comparison.planB.timestamp).toLocaleString()})`, chalk.gray));
     lines.push('');
@@ -381,7 +381,7 @@ export class PlanDiffAnalyzer {
         for (const diff of diffs) {
           const impactColor = diff.impact === 'high' ? chalk.red : 
                             diff.impact === 'medium' ? chalk.yellow : chalk.green;
-          const typeIcon = diff.type === 'added' ? '➕' : diff.type === 'removed' ? '➖' : '🔄';
+          const typeIcon = diff.type === 'added' ? '➕' : diff.type === 'removed' ? '➖' : '';
           
           lines.push(colorize(`    ${typeIcon} [${diff.impact.toUpperCase()}] ${diff.description}`, impactColor));
         }
@@ -397,7 +397,7 @@ export class PlanDiffAnalyzer {
   private static getCategoryIcon(category: string): string {
     const icons: Record<string, string> = {
       'dependencies': '📦',
-      'artifacts': '📁',
+      'artifacts': '',
       'model': '🧠',
       'resources': '💾',
       'config': '⚙️'

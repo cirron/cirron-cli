@@ -71,7 +71,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     spinner.succeed(chalk.green('Compilation completed successfully'));
     
     // Display results
-    logger.info('\n🎉 Compilation Results:');
+    logger.info('\n Compilation Results:');
     logger.info(`  • Architecture: ${chalk.cyan(architecture)}`);
     logger.info(`  • Artifacts: ${chalk.cyan(artifacts.length)} files generated`);
     artifacts.forEach(artifact => {
