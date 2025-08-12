@@ -407,7 +407,7 @@ async function runValidationChecks(
 }
 
 async function simulateCompilation(_projectConfig: ProjectConfig, architecture: string, _indexConfig: any): Promise<void> {
-  logger.info('📋 Compilation simulation:');
+  logger.info('Compilation simulation:');
   
   await new Promise(resolve => setTimeout(resolve, 200));
   logger.info('  ✓ Environment setup simulation');
@@ -426,7 +426,7 @@ async function simulateCompilation(_projectConfig: ProjectConfig, architecture: 
 }
 
 async function simulateMLBuild(_projectConfig: ProjectConfig, architecture: string, _indexConfig: any): Promise<void> {
-  logger.info('📋 Build simulation:');
+  logger.info('Build simulation:');
   
   await new Promise(resolve => setTimeout(resolve, 200));
   logger.info('  ✓ Environment setup simulation');
@@ -563,14 +563,14 @@ function formatLintPlan(lintPlan: any, options: PlanOptions): void {
   const useColors = process.stdout.isTTY;
   const colorize = (text: string, colorFn: (text: string) => string) => useColors ? colorFn(text) : text;
   
-  console.log('\n' + colorize('📋 Lint Plan:', chalk.bold.blue));
+  console.log('\n' + colorize('Lint Plan:', chalk.bold.blue));
   console.log(colorize(`  • Project: ${lintPlan.projectName}`, chalk.gray));
   console.log(colorize(`  • Framework: ${lintPlan.framework}`, chalk.cyan));
   console.log(colorize(`  • Generated: ${new Date(lintPlan.timestamp).toLocaleString()}`, chalk.gray));
   console.log('');
   
   // Files to be checked
-  console.log(colorize('📁 Files to Check:', chalk.bold.yellow));
+  console.log(colorize(' Files to Check:', chalk.bold.yellow));
   for (const [category, files] of Object.entries(lintPlan.files)) {
     if (Array.isArray(files) && files.length > 0) {
       console.log(colorize(`  • ${category}: ${files.length} files`, chalk.green));
@@ -629,7 +629,7 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   // Data paths
   if (Object.keys(testPlan.dataPaths).length > 0) {
     console.log('');
-    console.log(colorize('📊 Data Paths:', chalk.bold.magenta));
+    console.log(colorize('Data Paths:', chalk.bold.magenta));
     for (const [type, path] of Object.entries(testPlan.dataPaths)) {
       console.log(colorize(`  • ${type}: ${path}`, chalk.gray));
     }
@@ -654,7 +654,7 @@ export async function planCompareCommand(planA?: string, planB?: string, options
       spinner.succeed(chalk.green(`Found ${savedPlans.length} saved plans`));
 
       // Interactive plan selection
-      console.log('\n' + chalk.bold.blue('📋 Select Plans to Compare:'));
+      console.log('\n' + chalk.bold.blue('Select Plans to Compare:'));
       
       const planChoices = savedPlans.map((plan, index) => ({
         name: `${plan.plan.command} • ${plan.plan.framework} • ${new Date(plan.metadata.savedAt).toLocaleString()} ${plan.metadata.description ? `• ${plan.metadata.description}` : ''}`,
@@ -736,7 +736,7 @@ export async function planSaveCommand(type?: string, options: PlanSaveOptions = 
         return;
       }
 
-      console.log('\n' + chalk.bold.blue('📋 Saved Plans:'));
+      console.log('\n' + chalk.bold.blue('Saved Plans:'));
       for (const [index, savedPlan] of savedPlans.entries()) {
         const date = new Date(savedPlan.metadata.savedAt).toLocaleString();
         const tags = savedPlan.metadata.tags?.join(', ') || '';
@@ -844,7 +844,7 @@ export async function planSaveCommand(type?: string, options: PlanSaveOptions = 
       spinner.succeed(chalk.green(`Saved ${savedPaths.length} plans successfully`));
       
       if (options.verbose) {
-        console.log('\n' + chalk.bold.blue('📁 Saved Plans:'));
+        console.log('\n' + chalk.bold.blue(' Saved Plans:'));
         for (const savedPath of savedPaths) {
           console.log(`  • ${path.basename(savedPath)}`);
         }
@@ -910,7 +910,7 @@ export async function planSaveCommand(type?: string, options: PlanSaveOptions = 
     spinner.succeed(chalk.green(`${type} plan saved successfully`));
     
     if (options.verbose) {
-      console.log(`\n📁 Saved to: ${savedPath}`);
+      console.log(`\n Saved to: ${savedPath}`);
     }
 
   } catch (error) {

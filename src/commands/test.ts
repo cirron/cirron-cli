@@ -125,7 +125,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     console.log();
     
     if (passedTests === totalTests) {
-      logger.success(`All ${totalTests} test suites passed! 🎉`);
+      logger.success(`All ${totalTests} test suites passed! `);
     } else {
       logger.error(`${totalTests - passedTests} of ${totalTests} test suites failed`);
       process.exit(1);
@@ -561,7 +561,7 @@ async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): P
     if (isRunning) return;
     
     isRunning = true;
-    console.log(chalk.blue('\n📁 Files changed, running tests...'));
+    console.log(chalk.blue('\n Files changed, running tests...'));
     
     try {
       // Run a subset of tests on file changes (faster)

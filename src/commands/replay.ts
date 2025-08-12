@@ -67,7 +67,7 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
     spinner.succeed(chalk.green(`${plan.command} replay completed successfully`));
     
     // Display results
-    logger.info('\n🎉 Replay Results:');
+    logger.info('\n Replay Results:');
     logger.info(`  • Command: ${chalk.cyan(plan.command)}`);
     logger.info(`  • Framework: ${chalk.cyan(plan.framework)}`);
     logger.info(`  • Architecture: ${chalk.cyan(plan.architecture)}`);
@@ -405,7 +405,7 @@ function displayReplayPlan(plan: any, metadata: any, _options: ReplayOptions): v
   const useColors = process.stdout.isTTY;
   const colorize = (text: string, colorFn: (text: string) => string) => useColors ? colorFn(text) : text;
   
-  console.log('\n' + colorize('🔄 Replay Plan:', chalk.bold.blue));
+  console.log('\n' + colorize(' Replay Plan:', chalk.bold.blue));
   console.log(colorize(`  • Command: ${plan.command}`, chalk.cyan));
   console.log(colorize(`  • Framework: ${plan.framework}`, chalk.green));
   console.log(colorize(`  • Architecture: ${plan.architecture}`, chalk.yellow));
@@ -417,13 +417,13 @@ function displayReplayPlan(plan: any, metadata: any, _options: ReplayOptions): v
   }
   
   console.log('');
-  console.log(colorize('📁 Expected Artifacts:', chalk.bold.yellow));
+  console.log(colorize(' Expected Artifacts:', chalk.bold.yellow));
   for (const artifact of plan.artifacts) {
     console.log(colorize(`  • ${artifact.path} (${formatBytes(artifact.estimatedSize)})`, chalk.cyan));
   }
   
   console.log('');
-  console.log(colorize('🔨 Build Steps:', chalk.bold.green));
+  console.log(colorize(' Build Steps:', chalk.bold.green));
   for (let i = 0; i < plan.buildSteps.length; i++) {
     console.log(colorize(`  ${i + 1}. ${plan.buildSteps[i]}`, chalk.gray));
   }

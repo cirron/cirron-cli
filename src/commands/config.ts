@@ -40,7 +40,7 @@ async function listConfig(config: ConfigManager): Promise<void> {
   const currentConfig = config.load();
   
   console.log();
-  logger.info(chalk.bold('📋 Current Configuration'));
+  logger.info(chalk.bold('Current Configuration'));
   console.log();
   
   logger.info(`${chalk.cyan('API URL:')} ${currentConfig.apiUrl}`);

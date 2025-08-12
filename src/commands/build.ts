@@ -111,7 +111,7 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
   spinner.succeed(chalk.green('Build completed successfully'));
   
   // Display results
-  logger.info('\n🎉 Build Results:');
+  logger.info('\nBuild Results:');
   logger.info(`  • Architecture: ${chalk.cyan(architecture)}`);
   logger.info(`  • Artifacts: ${chalk.cyan(artifacts.length)} files generated`);
   artifacts.forEach(artifact => {
@@ -530,13 +530,13 @@ async function analyzeBuild(projectConfig: ProjectConfig, _options: BuildOptions
 
     // Display analysis results
     console.log();
-    logger.info(chalk.bold('📊 Build Analysis'));
+    logger.info(chalk.bold('Build Analysis'));
     logger.info(`Total size: ${chalk.cyan(formatBytes(stats.totalSize))}`);
     logger.info(`File count: ${chalk.cyan(stats.fileCount.toString())}`);
     
     if (analysis.largestFiles.length > 0) {
       console.log();
-      logger.info(chalk.bold('📁 Largest files:'));
+      logger.info(chalk.bold(' Largest files:'));
       analysis.largestFiles.slice(0, 5).forEach(file => {
         logger.info(`  ${file.name}: ${chalk.cyan(formatBytes(file.size))}`);
       });

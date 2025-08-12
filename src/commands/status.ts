@@ -40,11 +40,11 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
     // Display status
     console.log();
-    logger.info(chalk.bold(`📊 Project Status: ${projectConfig.name}`));
+    logger.info(chalk.bold(`Project Status: ${projectConfig.name}`));
     console.log();
 
     // Local status
-    logger.info(chalk.bold('🏠 Local Status'));
+    logger.info(chalk.bold('Local Status'));
     logger.info(`Current branch: ${chalk.cyan(localStatus.currentBranch || 'unknown')}`);
     logger.info(`Git status: ${localStatus.isGitClean ? chalk.green('clean') : chalk.yellow('uncommitted changes')}`);
     
@@ -56,7 +56,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     // Remote status
     if (remoteStatus) {
       console.log();
-      logger.info(chalk.bold('☁️ Remote Status'));
+      logger.info(chalk.bold('Remote Status'));
       
       if (remoteStatus.lastDeployment) {
         const deployment = remoteStatus.lastDeployment;
@@ -77,7 +77,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
     // Environments
     console.log();
-    logger.info(chalk.bold('🌍 Environments'));
+    logger.info(chalk.bold('Environments'));
     Object.keys(projectConfig.environments).forEach(env => {
       const envConfig = projectConfig.environments[env];
       let status = chalk.gray('configured');
