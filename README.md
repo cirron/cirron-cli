@@ -190,6 +190,7 @@ cirron compile --arch gpu            # Compile for GPU (TensorFlow)
 cirron compile --validate            # Run validation checks before compile
 cirron compile --dry-run             # Simulate compilation without execution
 cirron compile --index config.json   # Use custom configuration file
+cirron compile --interactive         # Step-by-step compilation confirmations
 ```
 
 ## Build
@@ -223,6 +224,7 @@ cirron build --validate              # Run comprehensive validation checks
 cirron build --dry-run               # Simulate build without execution
 cirron build --dry-run --validate    # Full validation + build simulation
 cirron build --index manifest.json   # Build with custom manifest file
+cirron build --interactive           # Step-by-step build confirmations
 ```
 
 ### Registry Configuration:
@@ -377,6 +379,12 @@ cirron plan lint --code                # Plan code quality checks only
 # Preview testing strategy
 cirron plan test                       # Plan test execution
 cirron plan test --model               # Plan model testing only
+
+# Interactive mode for all commands
+cirron build --interactive            # Step-by-step build confirmations
+cirron compile --interactive          # Interactive compilation with architecture selection
+cirron test --interactive             # Smart test selection and error handling
+cirron plan build --interactive       # Enhanced planning with save options
 ```
 
 ### Plan Management
@@ -444,4 +452,53 @@ Code Quality: All checks passed
 
 Summary: 1 error, 2 warnings, 0 info
 Run with --fix to automatically resolve fixable issues
+```
+
+## Test
+
+Comprehensive ML project testing with smart selection and interactive modes:
+
+### Basic Test Commands
+```bash
+cirron test                            # Run default test suite (env, requirements, unit, model, data)
+cirron test --interactive             # Smart test selection with presets and custom options
+cirron test --strict                  # Fail fast on any errors (useful for CI)
+cirron test --json                    # Output results in JSON format
+```
+
+### Individual Test Types
+```bash
+cirron test --env                     # Test Python, CUDA, and environment setup
+cirron test --requirements           # Validate Python requirements and dependencies
+cirron test --unit                   # Run pytest/unittest test suites
+cirron test --model                  # Test model loading and instantiation
+cirron test --data                   # Test data loading functionality
+cirron test --inference              # Test model inference pipeline
+cirron test --lint                   # Run code quality checks
+cirron test --build                  # Test Docker container build
+```
+
+### Advanced Testing
+```bash
+cirron test --val -p data/validation  # Run model validation tests on specific data
+cirron test --endpoint http://api.com # Test deployed endpoint performance
+cirron test --pipeline                # End-to-end ML pipeline testing
+cirron test --watch                   # Watch mode for continuous testing
+```
+
+### Interactive Test Selection
+When using `--interactive` mode, you can choose from:
+- **All steps**: Run complete test suite
+- **Essential only (quick)**: Run core tests (env, requirements, model, data)
+- **Custom selection**: Pick individual test types
+- **None (skip all)**: Skip testing entirely
+
+Example interactive flow:
+```bash
+cirron test --interactive
+? How would you like to select steps?
+  ❯ All steps
+    Essential only (quick)
+    Custom selection
+    None (skip all)
 ```
