@@ -351,6 +351,7 @@ program
   .option('--list', 'List available hardware profiles')
   .option('--profile <name>', 'Use specific hardware profile')
   .option('--save [filename]', 'Save hardware configuration to file')
+  .option('--from <path>', 'Load hardware configuration from file')
   .option('--current', 'Use current device specifications')
   .option('--json', 'Output in JSON format')
   .option('--verbose', 'Show detailed information')
