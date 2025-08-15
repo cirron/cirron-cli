@@ -74,7 +74,8 @@ export class InteractiveManager {
         name: 'action',
         message: `Proceed with ${options.stepName}?`,
         choices,
-        default: options.default !== false ? 'yes' : 'no'
+        default: options.default !== false ? 'yes' : 'no',
+        loop: false // Prevent infinite carousel - stop at top and bottom
       }
     ]);
 
@@ -116,6 +117,11 @@ export class InteractiveManager {
 
     if (options.default !== undefined) {
       promptConfig.default = options.default;
+    }
+
+    // Add loop: false for list types to prevent infinite carousel
+    if (options.type === 'list') {
+      promptConfig.loop = false;
     }
 
     const { selection } = await inquirer.prompt([promptConfig]);
@@ -207,7 +213,8 @@ export class InteractiveManager {
           { name: 'Essential only (quick)', value: 'essential' },
           { name: 'Custom selection', value: 'custom' },
           { name: 'None (skip all)', value: 'none' }
-        ]
+        ],
+        loop: false // Prevent infinite carousel - stop at top and bottom
       }
     ]);
 
@@ -238,6 +245,7 @@ export class InteractiveManager {
           value: step.name,
           checked: step.default !== false
         })),
+        loop: false, // Prevent infinite carousel - stop at top and bottom
         validate: (input) => {
           return input.length > 0 ? true : 'Please select at least one step';
         }
@@ -296,7 +304,8 @@ export class InteractiveManager {
             { name: 'Continue with remaining steps', value: 'continue' },
             { name: 'Retry current step', value: 'retry' },
             { name: 'Abort operation', value: 'abort' }
-          ]
+          ],
+          loop: false // Prevent infinite carousel - stop at top and bottom
         }
       ]);
 
