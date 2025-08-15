@@ -5,7 +5,7 @@ import { logger } from './logger';
 export interface InteractiveOptions {
   message: string;
   default?: boolean;
-  type?: 'confirm' | 'select' | 'input';
+  type?: 'confirm' | 'select' | 'input' | 'list';
   choices?: string[] | { name: string; value: any }[];
   description?: string;
   impact?: 'low' | 'medium' | 'high';
@@ -244,7 +244,7 @@ export class InteractiveManager {
     }
 
     // Filter out special values and return actual step names
-    return selectedSteps.filter(step => 
+    return selectedSteps.filter((step: string) => 
       !['all', 'none', 'essential'].includes(step) && 
       availableSteps.some(s => s.name === step)
     );
