@@ -297,7 +297,7 @@ export interface FrameworkCompatibility {
 
 export interface HardwareOptions {
   detect?: boolean;
-  config?: boolean;
+  configure?: boolean;
   list?: boolean;
   profile?: string;
   save?: string;

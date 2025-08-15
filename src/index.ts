@@ -347,7 +347,7 @@ program
   .command('hardware')
   .description('Manage hardware configuration for ML models')
   .option('--detect', 'Detect current device hardware')
-  .option('--config', 'Configure hardware interactively')
+  .option('--configure', 'Configure hardware interactively')
   .option('--list', 'List available hardware profiles')
   .option('--profile <name>', 'Use specific hardware profile')
   .option('--save [filename]', 'Save hardware configuration to file')
