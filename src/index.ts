@@ -10,6 +10,7 @@ import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
 import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
+import { hardwareCommand } from './commands/hardware';
 import { 
   planCompileCommand, 
   planBuildCommand, 
@@ -340,6 +341,20 @@ envCmd
       process.exit(1);
     }
   });
+
+// Hardware command
+program
+  .command('hardware')
+  .description('Manage hardware configuration for ML models')
+  .option('--detect', 'Detect current device hardware')
+  .option('--configure', 'Configure hardware interactively')
+  .option('--list', 'List available hardware profiles')
+  .option('--profile <name>', 'Use specific hardware profile')
+  .option('--save [filename]', 'Save hardware configuration to file')
+  .option('--current', 'Use current device specifications')
+  .option('--json', 'Output in JSON format')
+  .option('--verbose', 'Show detailed information')
+  .action(hardwareCommand);
 
 // Parse command line arguments
 program.parse();
