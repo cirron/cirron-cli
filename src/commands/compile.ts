@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { executePythonScript, handleExecutionResult, formatExecutionError } from '../utils/execution';
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
 import { HardwareDetector } from '../utils/hardware';
+import { createInteractiveManager } from '../utils/interactive';
 import type { ProjectConfig, HardwareConfig } from '../types';
 
 interface CompileOptions {
@@ -15,11 +16,13 @@ interface CompileOptions {
   validate?: boolean;
   strict?: boolean;
   verbose?: boolean;
+  interactive?: boolean;
 }
 
 export async function compileCommand(options: CompileOptions): Promise<void> {
   const spinner = ora('Preparing compilation...').start();
   const strictMode = options.strict || false;
+  const interactive = createInteractiveManager(options.interactive || false);
 
   try {
     // Load project configuration
@@ -36,8 +39,47 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
     
+    // Interactive confirmation for compilation start
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldProceed = await interactive.confirmStep({
+        stepName: 'Model Compilation',
+        description: `Compile ${projectConfig.framework || 'custom'} model with optimization`,
+        impact: 'medium',
+        estimatedTime: '1-3 minutes',
+        dependencies: ['Model source files', 'Python environment', 'Framework libraries']
+      });
+      
+      if (!shouldProceed) {
+        logger.info('Compilation cancelled by user');
+        return;
+      }
+      spinner.start();
+    }
+    
     // Determine architecture from hardware config or options
     const architecture = options.arch || await determineArchitectureFromHardware(projectConfig);
+    
+    // Interactive architecture confirmation
+    if (interactive.isInteractive() && !options.arch) {
+      spinner.stop();
+      const confirmedArch = await interactive.selectOption({
+        message: 'Select target architecture for compilation',
+        type: 'list',
+        choices: [
+          { name: `${architecture} (detected/default)`, value: architecture },
+          { name: 'cpu (CPU optimized)', value: 'cpu' },
+          { name: 'cuda (NVIDIA GPU)', value: 'cuda' },
+          { name: 'gpu (General GPU)', value: 'gpu' }
+        ],
+        description: 'Architecture affects model optimization and runtime performance'
+      });
+      
+      if (confirmedArch !== architecture) {
+        logger.info(`Architecture changed from ${architecture} to ${confirmedArch}`);
+      }
+      spinner.start();
+    }
     
     spinner.text = `Compiling for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -55,9 +97,30 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     // Pre-compilation validation
     if (options.validate) {
-      spinner.text = 'Running validation checks...';
-      await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
-      logger.success('✓ Validation checks passed');
+      if (interactive.isInteractive()) {
+        spinner.stop();
+        const shouldValidate = await interactive.confirmStep({
+          stepName: 'Pre-compilation Validation',
+          description: 'Verify model files, dependencies, and environment setup',
+          impact: 'low',
+          estimatedTime: '30-60 seconds',
+          dependencies: ['Model files', 'Python environment', 'Framework libraries']
+        });
+        
+        if (!shouldValidate) {
+          logger.warn('Skipping validation checks');
+          spinner.start();
+        } else {
+          spinner.start();
+          spinner.text = 'Running validation checks...';
+          await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
+          logger.success('✓ Validation checks passed');
+        }
+      } else {
+        spinner.text = 'Running validation checks...';
+        await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
+        logger.success('✓ Validation checks passed');
+      }
     }
 
     // Validate hardware compatibility if hardware config exists
@@ -69,12 +132,48 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
 
     // Actual compilation
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldCompile = await interactive.confirmStep({
+        stepName: 'Model Compilation',
+        description: `Generate optimized model artifacts for ${architecture} architecture`,
+        impact: 'medium',
+        estimatedTime: '1-3 minutes',
+        dependencies: ['Validated model files', 'Target architecture', 'Framework']
+      });
+      
+      if (!shouldCompile) {
+        logger.warn('Compilation skipped by user');
+        return;
+      }
+      spinner.start();
+    }
+    
     spinner.text = 'Compiling model...';
     const artifacts = await performCompilation(projectConfig, architecture, indexConfig);
     
     // Post-compilation tests
-    spinner.text = 'Running integrity tests...';
-    await runIntegrityTests(projectConfig, artifacts);
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldTest = await interactive.confirmStep({
+        stepName: 'Integrity Tests',
+        description: 'Verify compiled artifacts can be loaded and used',
+        impact: 'low',
+        estimatedTime: '15-30 seconds',
+        dependencies: ['Compiled artifacts', 'Framework libraries']
+      });
+      
+      if (!shouldTest) {
+        logger.warn('Skipping integrity tests');
+      } else {
+        spinner.start();
+        spinner.text = 'Running integrity tests...';
+        await runIntegrityTests(projectConfig, artifacts);
+      }
+    } else {
+      spinner.text = 'Running integrity tests...';
+      await runIntegrityTests(projectConfig, artifacts);
+    }
     
     spinner.succeed(chalk.green('Compilation completed successfully'));
     

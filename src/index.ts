@@ -101,6 +101,7 @@ program
   .option('-w, --watch', 'Watch for changes and re-run tests')
   .option('--json', 'Output results in JSON format')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(testCommand);
 
 // Compile command
@@ -111,6 +112,7 @@ program
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(compileCommand);
 
 // Build command
@@ -128,6 +130,7 @@ program
   .option('--validate', 'Run data/model integrity checks')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
   .option('-f, --force', 'Force build despite validation errors and warnings')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(buildCommand);
 
 // Deploy command
@@ -199,6 +202,7 @@ planCmd
   .option('--save [filename]', 'Save plan to file')
   .option('--verbose', 'Show detailed planning information')
   .option('--json', 'Output plan in JSON format')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(planCompileCommand);
 
 planCmd
@@ -210,6 +214,7 @@ planCmd
   .option('--save [filename]', 'Save plan to file')
   .option('--verbose', 'Show detailed planning information')
   .option('--json', 'Output plan in JSON format')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(planBuildCommand);
 
 planCmd
@@ -218,6 +223,7 @@ planCmd
   .option('--save [filename]', 'Save plan to file')
   .option('--verbose', 'Show detailed planning information')
   .option('--json', 'Output plan in JSON format')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(planLintCommand);
 
 planCmd
@@ -226,6 +232,7 @@ planCmd
   .option('--save [filename]', 'Save plan to file')
   .option('--verbose', 'Show detailed planning information')
   .option('--json', 'Output plan in JSON format')
+  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
   .action(planTestCommand);
 
 planCmd

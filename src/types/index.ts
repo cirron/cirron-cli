@@ -91,6 +91,7 @@ export interface BuildOptions {
   strict?: boolean;
   verbose?: boolean;
   force?: boolean;
+  interactive?: boolean;
 }
 
 export interface DeployOptions {
@@ -179,6 +180,7 @@ export interface PlanOptions {
   arch?: string;
   index?: string;
   validate?: boolean;
+  interactive?: boolean;
 }
 
 export interface PlanDiff {

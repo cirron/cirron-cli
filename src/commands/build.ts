@@ -9,6 +9,7 @@ import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
 import { executePythonScript, formatExecutionError } from '../utils/execution';
 import { HardwareDetector } from '../utils/hardware';
+import { createInteractiveManager } from '../utils/interactive';
 import type { BuildOptions, ProjectConfig, HardwareConfig } from '../types';
 
 interface ValidationResult {
@@ -168,13 +169,54 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
 }
 
 async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ora.Ora): Promise<void> {
+  const interactive = createInteractiveManager(options.interactive || false);
+  
   // Log force flag usage for traceability
   if (options.force) {
     logger.info(chalk.yellow('Build running with --force flag'));
   }
 
+  // Interactive confirmation for build start
+  if (interactive.isInteractive()) {
+    spinner.stop();
+    const shouldProceed = await interactive.confirmStep({
+      stepName: 'ML Model Build',
+      description: `Build ML model for ${projectConfig.framework || 'custom'} framework`,
+      impact: 'high',
+      estimatedTime: '3-8 minutes',
+      dependencies: ['Model files', 'Requirements', 'Docker (if containerizing)']
+    });
+    
+    if (!shouldProceed) {
+      logger.info('Build cancelled by user');
+      return;
+    }
+    spinner.start();
+  }
+
   // Determine architecture from hardware config or options
   const architecture = options.arch || await determineArchitectureFromHardware(projectConfig);
+  
+  // Interactive architecture confirmation
+  if (interactive.isInteractive() && !options.arch) {
+    spinner.stop();
+    const confirmedArch = await interactive.selectOption({
+      message: 'Confirm target architecture',
+      type: 'list',
+      choices: [
+        { name: `${architecture} (detected)`, value: architecture },
+        { name: 'cpu', value: 'cpu' },
+        { name: 'cuda', value: 'cuda' },
+        { name: 'gpu', value: 'gpu' }
+      ],
+      description: 'The architecture determines optimization targets and hardware compatibility'
+    });
+    
+    if (confirmedArch !== architecture) {
+      logger.info(`Architecture changed from ${architecture} to ${confirmedArch}`);
+    }
+    spinner.start();
+  }
   
   spinner.text = `Building ML model for architecture: ${architecture}`;
   logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -213,9 +255,30 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
 
   // Pre-build validation (always run if validate is enabled, force logic is handled inside)
   if (options.validate) {
-    spinner.text = 'Running validation checks...';
-    await runValidationChecks(projectConfig, indexConfig, architecture, options);
-    logger.success('✓ Validation checks passed');
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldValidate = await interactive.confirmStep({
+        stepName: 'Pre-build Validation',
+        description: 'Verify model files, dependencies, and hardware compatibility',
+        impact: 'medium',
+        estimatedTime: '30-60 seconds',
+        dependencies: ['Model files', 'Requirements.txt', 'Python environment']
+      });
+      
+      if (!shouldValidate) {
+        logger.warn('Skipping validation checks');
+        spinner.start();
+      } else {
+        spinner.start();
+        spinner.text = 'Running validation checks...';
+        await runValidationChecks(projectConfig, indexConfig, architecture, options);
+        logger.success('✓ Validation checks passed');
+      }
+    } else {
+      spinner.text = 'Running validation checks...';
+      await runValidationChecks(projectConfig, indexConfig, architecture, options);
+      logger.success('✓ Validation checks passed');
+    }
   }
 
 
@@ -229,19 +292,71 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
   
   // Container build if Docker is present
   if (fs.existsSync('Dockerfile')) {
-    spinner.text = 'Building container...';
-    const imageName = generateImageName(projectConfig, options);
-    try {
-      await buildDockerImage(imageName, options, spinner);
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldBuildContainer = await interactive.confirmStep({
+        stepName: 'Container Build',
+        description: 'Build Docker container with compiled model',
+        impact: 'high',
+        estimatedTime: '2-5 minutes',
+        dependencies: ['Dockerfile', 'Docker daemon', 'Compiled artifacts']
+      });
       
-      if (options.push) {
-        await pushImage(imageName, spinner);
-      }
-    } catch (error) {
-      if (options.force) {
-        logger.warn(`Docker build failed (continuing with --force): ${error instanceof Error ? error.message : error}`);
+      if (!shouldBuildContainer) {
+        logger.warn('Skipping container build');
       } else {
-        throw error;
+        spinner.start();
+        spinner.text = 'Building container...';
+        const imageName = generateImageName(projectConfig, options);
+        try {
+          await buildDockerImage(imageName, options, spinner);
+          
+          if (options.push) {
+            if (interactive.isInteractive()) {
+              spinner.stop();
+              const shouldPush = await interactive.confirmCriticalOperation(
+                'Push to Registry',
+                [
+                  `Push image ${imageName} to registry`,
+                  'Make image available for deployment',
+                  'Upload potentially large image data'
+                ],
+                'This will upload your image to the configured registry'
+              );
+              
+              if (shouldPush) {
+                spinner.start();
+                await pushImage(imageName, spinner);
+              } else {
+                logger.warn('Skipping image push');
+              }
+            } else {
+              await pushImage(imageName, spinner);
+            }
+          }
+        } catch (error) {
+          if (options.force) {
+            logger.warn(`Docker build failed (continuing with --force): ${error instanceof Error ? error.message : error}`);
+          } else {
+            throw error;
+          }
+        }
+      }
+    } else {
+      spinner.text = 'Building container...';
+      const imageName = generateImageName(projectConfig, options);
+      try {
+        await buildDockerImage(imageName, options, spinner);
+        
+        if (options.push) {
+          await pushImage(imageName, spinner);
+        }
+      } catch (error) {
+        if (options.force) {
+          logger.warn(`Docker build failed (continuing with --force): ${error instanceof Error ? error.message : error}`);
+        } else {
+          throw error;
+        }
       }
     }
   }
