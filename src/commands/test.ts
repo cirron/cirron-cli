@@ -190,7 +190,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     // Show results
     spinner.stop();
     console.log();
-    logger.info(chalk.bold('🧪 Test Results'));
+    logger.info(chalk.bold('Test Results'));
     console.log();
 
     results.forEach(result => {

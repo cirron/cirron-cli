@@ -730,7 +730,7 @@ function formatLintPlan(lintPlan: any, options: PlanOptions): void {
   console.log('');
   
   // Rules that will be applied
-  console.log(colorize('📏 Lint Rules:', chalk.bold.magenta));
+  console.log(colorize('Lint Rules:', chalk.bold.magenta));
   for (const [category, rules] of Object.entries(lintPlan.rules)) {
     console.log(colorize(`  • ${category}:`, chalk.cyan));
     if (Array.isArray(rules)) {
@@ -745,14 +745,14 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   const useColors = process.stdout.isTTY;
   const colorize = (text: string, colorFn: (text: string) => string) => useColors ? colorFn(text) : text;
   
-  console.log('\n' + colorize('🧪 Test Plan:', chalk.bold.blue));
+  console.log('\n' + colorize('Test Plan:', chalk.bold.blue));
   console.log(colorize(`  • Project: ${testPlan.projectName}`, chalk.gray));
   console.log(colorize(`  • Framework: ${testPlan.framework}`, chalk.cyan));
   console.log(colorize(`  • Estimated time: ${testPlan.estimatedTime}`, chalk.yellow));
   console.log('');
   
   // Test types
-  console.log(colorize('🔍 Test Types:', chalk.bold.green));
+  console.log(colorize('Test Types:', chalk.bold.green));
   for (const [type, config] of Object.entries(testPlan.testTypes)) {
     const status = (config as any).enabled ? '✓' : '⚬';
     const statusColor = (config as any).enabled ? chalk.green : chalk.gray;
@@ -767,7 +767,7 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   console.log('');
   
   // Environment
-  console.log(colorize('🐍 Test Environment:', chalk.bold.cyan));
+  console.log(colorize('Test Environment:', chalk.bold.cyan));
   console.log(colorize(`  • Python: ${testPlan.environment.pythonVersion}`, chalk.gray));
   console.log(colorize(`  • Framework: ${testPlan.environment.framework}`, chalk.gray));
   console.log(colorize(`  • GPU Required: ${testPlan.environment.gpuRequired ? 'Yes' : 'No'}`, chalk.gray));
@@ -1075,7 +1075,7 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
   const depChanges = comparison.differences.filter((diff: any) => diff.category === 'dependencies');
   
   if (depChanges.length > 0) {
-    console.log('\n' + colorize('📦 Dependencies Changed:', chalk.bold.blue));
+    console.log('\n' + colorize('Dependencies Changed:', chalk.bold.blue));
     
     for (const change of depChanges) {
       if (change.type === 'changed') {
@@ -1098,7 +1098,7 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
   );
   
   if (modelChanges.length > 0) {
-    console.log('\n' + colorize('🧠 Model Params:', chalk.bold.magenta));
+    console.log('\n' + colorize('Model Params:', chalk.bold.magenta));
     
     for (const change of modelChanges) {
       if (change.type === 'changed' && typeof change.oldValue === 'number' && typeof change.newValue === 'number') {

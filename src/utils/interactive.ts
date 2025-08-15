@@ -44,22 +44,22 @@ export class InteractiveManager {
     }
 
     // Display step information
-    console.log('\n' + chalk.bold.blue(`🔄 ${options.stepName}`));
+    console.log('\n' + chalk.bold.blue(`${options.stepName}`));
     console.log(chalk.gray(`   ${options.description}`));
     
     if (options.estimatedTime) {
-      console.log(chalk.gray(`   ⏱️  Estimated time: ${options.estimatedTime}`));
+      console.log(chalk.gray(`   Estimated time: ${options.estimatedTime}`));
     }
 
     if (options.impact) {
       const impactColor = options.impact === 'high' ? chalk.red : 
                          options.impact === 'medium' ? chalk.yellow : 
                          chalk.green;
-      console.log(chalk.gray(`   📊 Impact: ${impactColor(options.impact)}`));
+      console.log(chalk.gray(`   Impact: ${impactColor(options.impact)}`));
     }
 
     if (options.dependencies && options.dependencies.length > 0) {
-      console.log(chalk.gray(`   📋 Dependencies: ${options.dependencies.join(', ')}`));
+      console.log(chalk.gray(`   Dependencies: ${options.dependencies.join(', ')}`));
     }
 
     const choices = [
@@ -158,7 +158,7 @@ export class InteractiveManager {
       return true;
     }
 
-    console.log('\n' + chalk.bold.yellow(`⚠️  ${operationName}`));
+    console.log('\n' + chalk.bold.yellow(`${operationName}`));
     
     if (details.length > 0) {
       console.log(chalk.gray('This operation will:'));
@@ -168,7 +168,7 @@ export class InteractiveManager {
     }
 
     if (warning) {
-      console.log('\n' + chalk.red(`⚠️  Warning: ${warning}`));
+      console.log('\n' + chalk.red(`Warning: ${warning}`));
     }
 
     const { confirmed } = await inquirer.prompt([
@@ -188,7 +188,7 @@ export class InteractiveManager {
    */
   async selectSteps(
     availableSteps: { name: string; description: string; default?: boolean }[],
-    message: string = 'Which steps would you like to run?'
+    _message: string = 'Which steps would you like to run?'
   ): Promise<string[]> {
     if (!this.interactive) {
       // Return all steps that are default true, or all if none specified
@@ -196,58 +196,55 @@ export class InteractiveManager {
       return defaultSteps.length > 0 ? defaultSteps.map(s => s.name) : availableSteps.map(s => s.name);
     }
 
-    const choices = [
-      { name: 'All steps', value: 'all' },
-      new inquirer.Separator('--- Individual Steps ---'),
-      ...availableSteps.map(step => ({
-        name: `${step.name} - ${step.description}`,
-        value: step.name,
-        checked: step.default !== false
-      })),
-      new inquirer.Separator('--- Presets ---'),
-      { name: 'Essential only (quick)', value: 'essential' },
-      { name: 'None (skip all)', value: 'none' }
-    ];
-
-    const { selectedSteps } = await inquirer.prompt([
+    // First, let the user choose a preset or custom selection
+    const { selectionType } = await inquirer.prompt([
       {
-        type: 'checkbox',
-        name: 'selectedSteps',
-        message,
-        choices,
-        validate: (input) => {
-          if (input.includes('all')) {
-            return true;
-          }
-          if (input.includes('none')) {
-            return input.length === 1 ? true : 'Cannot select "None" with other options';
-          }
-          return input.length > 0 ? true : 'Please select at least one step';
-        }
+        type: 'list',
+        name: 'selectionType',
+        message: 'How would you like to select steps?',
+        choices: [
+          { name: 'All steps', value: 'all' },
+          { name: 'Essential only (quick)', value: 'essential' },
+          { name: 'Custom selection', value: 'custom' },
+          { name: 'None (skip all)', value: 'none' }
+        ]
       }
     ]);
 
-    // Handle special selections
-    if (selectedSteps.includes('all')) {
+    // Handle preset selections
+    if (selectionType === 'all') {
       return availableSteps.map(s => s.name);
     }
     
-    if (selectedSteps.includes('none')) {
+    if (selectionType === 'none') {
       return [];
     }
 
-    if (selectedSteps.includes('essential')) {
+    if (selectionType === 'essential') {
       // Return essential steps (those marked as default or critical)
       return availableSteps
         .filter(step => step.default !== false)
         .map(s => s.name);
     }
 
-    // Filter out special values and return actual step names
-    return selectedSteps.filter((step: string) => 
-      !['all', 'none', 'essential'].includes(step) && 
-      availableSteps.some(s => s.name === step)
-    );
+    // Custom selection - show individual checkboxes
+    const { selectedSteps } = await inquirer.prompt([
+      {
+        type: 'checkbox',
+        name: 'selectedSteps',
+        message: 'Select individual steps to run:',
+        choices: availableSteps.map(step => ({
+          name: `${step.name} - ${step.description}`,
+          value: step.name,
+          checked: step.default !== false
+        })),
+        validate: (input) => {
+          return input.length > 0 ? true : 'Please select at least one step';
+        }
+      }
+    ]);
+
+    return selectedSteps;
   }
 
   /**
@@ -263,11 +260,11 @@ export class InteractiveManager {
       return true;
     }
 
-    console.log('\n' + chalk.bold.blue('📊 Progress Update'));
+    console.log('\n' + chalk.bold.blue('Progress Update'));
     
     // Show completed steps
     if (completedSteps.length > 0) {
-      console.log(chalk.green('✅ Completed:'));
+      console.log(chalk.green('Completed:'));
       completedSteps.forEach(step => {
         console.log(chalk.green(`  ✓ ${step}`));
       });
@@ -275,15 +272,15 @@ export class InteractiveManager {
 
     // Show current step
     if (error) {
-      console.log(chalk.red(`❌ Failed: ${currentStep}`));
+      console.log(chalk.red(`Failed: ${currentStep}`));
       console.log(chalk.red(`   Error: ${error}`));
     } else {
-      console.log(chalk.blue(`🔄 Current: ${currentStep}`));
+      console.log(chalk.blue(`Current: ${currentStep}`));
     }
 
     // Show remaining steps
     if (remainingSteps.length > 0) {
-      console.log(chalk.gray('⏳ Remaining:'));
+      console.log(chalk.gray('Remaining:'));
       remainingSteps.forEach(step => {
         console.log(chalk.gray(`  ○ ${step}`));
       });
