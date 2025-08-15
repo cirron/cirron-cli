@@ -89,6 +89,7 @@ export interface BuildOptions {
   push?: boolean;
   strict?: boolean;
   verbose?: boolean;
+  force?: boolean;
 }
 
 export interface DeployOptions {

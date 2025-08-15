@@ -126,6 +126,7 @@ program
   .option('--index <file>', 'Path to index/manifest file')
   .option('--validate', 'Run data/model integrity checks')
   .option('--strict', 'Enable strict mode - fail fast on any errors (useful for CI)')
+  .option('-f, --force', 'Force build despite validation errors and warnings')
   .action(buildCommand);
 
 // Deploy command
