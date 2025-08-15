@@ -164,7 +164,7 @@ async function configCommand(_options: HardwareOptions): Promise<void> {
   logger.info(chalk.bold('Hardware Configuration Setup'));
   console.log();
 
-  const answers = await inquirer.prompt([
+  const configAnswers = await inquirer.prompt([
     {
       type: 'list',
       name: 'configType',
@@ -179,7 +179,7 @@ async function configCommand(_options: HardwareOptions): Promise<void> {
 
   let hardwareConfig: HardwareConfig;
 
-  switch (answers.configType) {
+  switch (configAnswers.configType) {
     case 'current':
       hardwareConfig = await configureCurrentDevice();
       break;
@@ -224,13 +224,13 @@ async function configCommand(_options: HardwareOptions): Promise<void> {
     default: false
   });
 
-  const answers = await inquirer.prompt(questions);
+  const saveAnswers = await inquirer.prompt(questions);
 
-  if (answers.shouldApplyToProject) {
+  if (saveAnswers.shouldApplyToProject) {
     await applyToProject(hardwareConfig);
   }
 
-  if (answers.shouldSaveToFile) {
+  if (saveAnswers.shouldSaveToFile) {
     const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
     logger.info(`${chalk.green('✓')} Hardware configuration saved to ${chalk.cyan(configPath)}`);
   }
