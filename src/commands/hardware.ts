@@ -204,42 +204,35 @@ async function configCommand(_options: HardwareOptions): Promise<void> {
   // Display configuration summary
   displayConfigSummary(hardwareConfig);
 
-  // Apply to project by default if cirron.json exists
+  // Ask what to do with the hardware configuration
   const isProjectDirectory = fs.existsSync('cirron.json');
-  
+  const questions: any[] = [];
+
   if (isProjectDirectory) {
-    // Always apply to project when in a project directory
+    questions.push({
+      type: 'confirm',
+      name: 'shouldApplyToProject',
+      message: 'Apply this hardware configuration to current project (cirron.json)?',
+      default: true
+    });
+  }
+
+  questions.push({
+    type: 'confirm',
+    name: 'shouldSaveToFile',
+    message: isProjectDirectory ? 'Also save hardware configuration to separate file?' : 'Save hardware configuration to file?',
+    default: false
+  });
+
+  const answers = await inquirer.prompt(questions);
+
+  if (answers.shouldApplyToProject) {
     await applyToProject(hardwareConfig);
-    
-    // Ask if they also want to save to separate file
-    const { shouldSave } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldSave',
-        message: 'Also save hardware configuration to separate file?',
-        default: false
-      }
-    ]);
+  }
 
-    if (shouldSave) {
-      const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
-      logger.info(`${chalk.green('✓')} Hardware configuration also saved to ${chalk.cyan(configPath)}`);
-    }
-  } else {
-    // Not in a project directory, just save to file
-    const { shouldSave } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldSave',
-        message: 'Save hardware configuration to file?',
-        default: true
-      }
-    ]);
-
-    if (shouldSave) {
-      const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
-      logger.info(`${chalk.green('✓')} Hardware configuration saved to ${chalk.cyan(configPath)}`);
-    }
+  if (answers.shouldSaveToFile) {
+    const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
+    logger.info(`${chalk.green('✓')} Hardware configuration saved to ${chalk.cyan(configPath)}`);
   }
 }
 
