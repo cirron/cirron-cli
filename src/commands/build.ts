@@ -8,7 +8,8 @@ import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
 import { executePythonScript, formatExecutionError } from '../utils/execution';
-import type { BuildOptions, ProjectConfig } from '../types';
+import { HardwareDetector } from '../utils/hardware';
+import type { BuildOptions, ProjectConfig, HardwareConfig } from '../types';
 
 interface ValidationResult {
   critical: string[];
@@ -172,8 +173,8 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
     logger.info(chalk.yellow('Build running with --force flag'));
   }
 
-  // Determine architecture
-  const architecture = options.arch || await determineDefaultArchitecture(projectConfig);
+  // Determine architecture from hardware config or options
+  const architecture = options.arch || await determineArchitectureFromHardware(projectConfig);
   
   spinner.text = `Building ML model for architecture: ${architecture}`;
   logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -191,6 +192,22 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
     } else {
       indexConfig = await loadIndexFile(options.index);
       logger.info(`Using index file: ${chalk.cyan(options.index)}`);
+    }
+  }
+
+  // Validate hardware compatibility if hardware config exists
+  if (projectConfig.hardware && !options.force) {
+    spinner.text = 'Validating hardware compatibility...';
+    try {
+      await validateHardwareCompatibility(projectConfig.hardware, architecture, projectConfig.framework);
+      logger.success('✓ Hardware compatibility validated');
+    } catch (error) {
+      if (options.force) {
+        logger.warn(`Hardware validation failed but continuing with --force: ${error}`);
+      } else {
+        spinner.fail('Hardware validation failed');
+        throw error;
+      }
     }
   }
 
@@ -826,6 +843,25 @@ function formatBytes(bytes: number): string {
 }
 
 // ML-specific build functions
+async function determineArchitectureFromHardware(projectConfig: ProjectConfig): Promise<string> {
+  // First check if hardware configuration exists in project
+  if (projectConfig.hardware) {
+    const hardwareType = projectConfig.hardware.type;
+    
+    // Map hardware type to architecture based on framework
+    if (projectConfig.framework === 'pytorch') {
+      return hardwareType === 'cuda' ? 'cuda' : (hardwareType === 'gpu' ? 'cuda' : 'cpu');
+    } else if (projectConfig.framework === 'tensorflow') {
+      return hardwareType === 'cuda' || hardwareType === 'gpu' ? 'gpu' : 'cpu';
+    } else {
+      return 'cpu'; // sklearn and custom default to CPU
+    }
+  }
+
+  // Fallback to legacy logic
+  return await determineDefaultArchitecture(projectConfig);
+}
+
 async function determineDefaultArchitecture(projectConfig: ProjectConfig): Promise<string> {
   if (projectConfig.framework === 'pytorch') {
     return projectConfig.gpuRequired ? 'cuda' : 'cpu';
@@ -835,6 +871,48 @@ async function determineDefaultArchitecture(projectConfig: ProjectConfig): Promi
     return 'cpu';
   }
   return 'cpu';
+}
+
+async function validateHardwareCompatibility(
+  hardwareConfig: HardwareConfig,
+  targetArch: string,
+  framework?: string
+): Promise<void> {
+  const validationErrors: string[] = [];
+
+  // Validate hardware configuration
+  const validation = HardwareDetector.validateHardwareConfig(hardwareConfig);
+  if (!validation.valid) {
+    validationErrors.push(...validation.errors);
+  }
+
+  // Check architecture compatibility
+  if (targetArch === 'cuda' && hardwareConfig.type !== 'cuda') {
+    validationErrors.push('CUDA architecture selected but hardware configuration is not CUDA-capable');
+  }
+
+  if (targetArch === 'gpu' && hardwareConfig.type === 'cpu') {
+    validationErrors.push('GPU architecture selected but hardware configuration is CPU-only');
+  }
+
+  // Framework-specific validation
+  if (framework) {
+    const frameworkCompatible = hardwareConfig.compatibility[framework as keyof typeof hardwareConfig.compatibility];
+    if (typeof frameworkCompatible === 'boolean' && !frameworkCompatible) {
+      validationErrors.push(`Hardware not compatible with ${framework} framework`);
+    }
+  }
+
+  // Check for compatibility warnings
+  if (hardwareConfig.compatibility.warnings && hardwareConfig.compatibility.warnings.length > 0) {
+    hardwareConfig.compatibility.warnings.forEach(warning => {
+      logger.warn(`Hardware warning: ${warning}`);
+    });
+  }
+
+  if (validationErrors.length > 0) {
+    throw new Error(`Hardware compatibility validation failed:\n${validationErrors.map(err => `  • ${err}`).join('\n')}`);
+  }
 }
 
 async function loadIndexFile(indexPath: string): Promise<any> {

@@ -21,6 +21,7 @@ export interface ProjectConfig {
   modelType?: string;
   pythonVersion?: string;
   gpuRequired?: boolean;
+  hardware?: HardwareConfig;
   environments: Record<string, EnvironmentConfig>;
   build?: BuildConfig;
   deploy?: DeployConfig;
@@ -243,4 +244,73 @@ export interface PlanSaveOptions {
   cleanup?: number;
   verbose?: boolean;
   json?: boolean;
+}
+
+// Hardware configuration interfaces
+export interface HardwareConfig {
+  type: 'cpu' | 'gpu' | 'cuda' | 'custom';
+  architecture: string;
+  specifications: HardwareSpecs;
+  compatibility: FrameworkCompatibility;
+  detectedAt?: string;
+  isCurrentDevice?: boolean;
+}
+
+export interface HardwareSpecs {
+  cpu?: {
+    cores: number;
+    model: string;
+    architecture: string;
+  };
+  gpu?: {
+    model: string;
+    memory: string;
+    computeCapability?: string;
+    drivers?: string;
+  };
+  memory?: {
+    total: string;
+    available: string;
+  };
+  cuda?: {
+    version: string;
+    available: boolean;
+    devices: CudaDevice[];
+  };
+  custom?: Record<string, any>;
+}
+
+export interface CudaDevice {
+  id: number;
+  name: string;
+  memory: string;
+  computeCapability: string;
+}
+
+export interface FrameworkCompatibility {
+  pytorch: boolean;
+  tensorflow: boolean;
+  sklearn: boolean;
+  requirements?: string[];
+  warnings?: string[];
+}
+
+export interface HardwareOptions {
+  detect?: boolean;
+  configure?: boolean;
+  list?: boolean;
+  profile?: string;
+  save?: string;
+  current?: boolean;
+  interactive?: boolean;
+  json?: boolean;
+  verbose?: boolean;
+}
+
+export interface HardwareProfile {
+  name: string;
+  description: string;
+  config: HardwareConfig;
+  frameworks: string[];
+  recommended: boolean;
 }
