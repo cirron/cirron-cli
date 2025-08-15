@@ -143,10 +143,14 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
 
     if (options.save) {
       const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig, options.save);
-      logger.info(`\n${chalk.green('✓')} Hardware configuration saved to ${chalk.cyan(configPath)}`);
+      logger.info(`\n${chalk.green('✓')} Hardware profile saved to ${chalk.cyan(configPath)}`);
+      logger.info('To apply this profile to a project, run:');
+      logger.info(`  ${chalk.cyan(`cirron hardware --configure --from ${configPath}`)}`);
     } else if (answers.shouldSave) {
       const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
-      logger.info(`${chalk.green('✓')} Hardware configuration saved to ${chalk.cyan(configPath)}`);
+      logger.info(`${chalk.green('✓')} Hardware profile saved to ${chalk.cyan(configPath)}`);
+      logger.info('To apply this profile to a project, run:');
+      logger.info(`  ${chalk.cyan(`cirron hardware --configure --from ${configPath}`)}`);
     }
 
     if (answers.shouldApplyToProject) {
@@ -159,38 +163,54 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
   }
 }
 
-async function configCommand(_options: HardwareOptions): Promise<void> {
+async function configCommand(options: HardwareOptions): Promise<void> {
   console.log();
   logger.info(chalk.bold('Hardware Configuration Setup'));
   console.log();
 
-  const configAnswers = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'configType',
-      message: 'How would you like to configure hardware?',
-      choices: [
-        { name: 'Use current device (auto-detect)', value: 'current' },
-        { name: 'Select from preset profiles', value: 'preset' },
-        { name: 'Manual configuration', value: 'manual' }
-      ]
-    }
-  ]);
-
   let hardwareConfig: HardwareConfig;
 
-  switch (configAnswers.configType) {
-    case 'current':
-      hardwareConfig = await configureCurrentDevice();
-      break;
-    case 'preset':
-      hardwareConfig = await configureFromPreset();
-      break;
-    case 'manual':
-      hardwareConfig = await configureManually();
-      break;
-    default:
-      throw new Error('Invalid configuration type');
+  // Handle --from flag to load configuration from file
+  if (options.from) {
+    try {
+      const loadedConfig = await HardwareDetector.loadHardwareConfig(options.from);
+      if (!loadedConfig) {
+        logger.error(`Hardware configuration file not found: ${options.from}`);
+        process.exit(1);
+      }
+      hardwareConfig = loadedConfig;
+      logger.info(`${chalk.green('✓')} Hardware configuration loaded from ${chalk.cyan(options.from)}`);
+    } catch (error) {
+      logger.error(`Failed to load hardware configuration from ${options.from}:`, error);
+      process.exit(1);
+    }
+  } else {
+    const configAnswers = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'configType',
+        message: 'How would you like to configure hardware?',
+        choices: [
+          { name: 'Use current device (auto-detect)', value: 'current' },
+          { name: 'Select from preset profiles', value: 'preset' },
+          { name: 'Manual configuration', value: 'manual' }
+        ]
+      }
+    ]);
+
+    switch (configAnswers.configType) {
+      case 'current':
+        hardwareConfig = await configureCurrentDevice();
+        break;
+      case 'preset':
+        hardwareConfig = await configureFromPreset();
+        break;
+      case 'manual':
+        hardwareConfig = await configureManually();
+        break;
+      default:
+        throw new Error('Invalid configuration type');
+    }
   }
 
   // Validate configuration
@@ -217,12 +237,15 @@ async function configCommand(_options: HardwareOptions): Promise<void> {
     });
   }
 
-  questions.push({
-    type: 'confirm',
-    name: 'shouldSaveToFile',
-    message: isProjectDirectory ? 'Also save hardware configuration to separate file?' : 'Save hardware configuration to file?',
-    default: false
-  });
+  // Only ask about saving to file if not loading from --from flag
+  if (!options.from) {
+    questions.push({
+      type: 'confirm',
+      name: 'shouldSaveToFile',
+      message: isProjectDirectory ? 'Also save hardware configuration to separate file?' : 'Save hardware configuration to file?',
+      default: false
+    });
+  }
 
   const saveAnswers = await inquirer.prompt(questions);
 
@@ -232,7 +255,9 @@ async function configCommand(_options: HardwareOptions): Promise<void> {
 
   if (saveAnswers.shouldSaveToFile) {
     const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
-    logger.info(`${chalk.green('✓')} Hardware configuration saved to ${chalk.cyan(configPath)}`);
+    logger.info(`${chalk.green('✓')} Hardware profile saved to ${chalk.cyan(configPath)}`);
+    logger.info('To apply this profile to a project, run:');
+    logger.info(`  ${chalk.cyan(`cirron hardware --configure --from ${configPath}`)}`);
   }
 }
 

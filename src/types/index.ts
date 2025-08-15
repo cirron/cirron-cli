@@ -301,6 +301,7 @@ export interface HardwareOptions {
   list?: boolean;
   profile?: string;
   save?: string;
+  from?: string;
   current?: boolean;
   interactive?: boolean;
   json?: boolean;
