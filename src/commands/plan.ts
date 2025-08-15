@@ -10,6 +10,7 @@ import { PlanStorage } from '../utils/plan-storage';
 import { PlanDiffAnalyzer } from '../utils/plan-diff';
 import { executePythonScript, handleExecutionResult } from '../utils/execution';
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
+import { createInteractiveManager } from '../utils/interactive';
 import type { ProjectConfig, PlanOptions, PlanCompareOptions, PlanSaveOptions } from '../types';
 import inquirer from 'inquirer';
 
@@ -17,6 +18,7 @@ import inquirer from 'inquirer';
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const spinner = ora('Generating compilation plan...').start();
   const strictMode = false; // Plans don't use strict mode
+  const interactive = createInteractiveManager(options.interactive || false);
 
   try {
     // Load project configuration
@@ -30,8 +32,43 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
 
     const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
     
+    // Interactive plan configuration
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldProceed = await interactive.confirmStep({
+        stepName: 'Compilation Plan Generation',
+        description: `Create detailed plan for ${projectConfig.framework || 'custom'} model compilation`,
+        impact: 'low',
+        estimatedTime: '10-20 seconds',
+        dependencies: ['Project configuration', 'Model files']
+      });
+      
+      if (!shouldProceed) {
+        logger.info('Plan generation cancelled by user');
+        return;
+      }
+      spinner.start();
+    }
+    
     // Determine architecture
-    const architecture = options.arch || await determineDefaultArchitecture(projectConfig);
+    let architecture = options.arch || await determineDefaultArchitecture(projectConfig);
+    
+    // Interactive architecture selection
+    if (interactive.isInteractive() && !options.arch) {
+      spinner.stop();
+      architecture = await interactive.selectOption({
+        message: 'Select target architecture for compilation planning',
+        type: 'list',
+        choices: [
+          { name: `${architecture} (default for this project)`, value: architecture },
+          { name: 'cpu (CPU optimized)', value: 'cpu' },
+          { name: 'cuda (NVIDIA GPU)', value: 'cuda' },
+          { name: 'gpu (General GPU)', value: 'gpu' }
+        ],
+        description: 'This affects the planned optimization strategy and resource requirements'
+      });
+      spinner.start();
+    }
     
     spinner.text = `Planning compilation for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -49,9 +86,30 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
 
     // Pre-compilation validation if requested
     if (options.validate) {
-      spinner.text = 'Running validation checks...';
-      await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
-      logger.success('✓ Validation checks passed');
+      if (interactive.isInteractive()) {
+        spinner.stop();
+        const shouldValidate = await interactive.confirmStep({
+          stepName: 'Plan Validation',
+          description: 'Validate project setup and dependencies during planning',
+          impact: 'low',
+          estimatedTime: '15-30 seconds',
+          dependencies: ['Model files', 'Python environment']
+        });
+        
+        if (shouldValidate) {
+          spinner.start();
+          spinner.text = 'Running validation checks...';
+          await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
+          logger.success('✓ Validation checks passed');
+        } else {
+          logger.warn('Skipping validation during planning');
+          spinner.start();
+        }
+      } else {
+        spinner.text = 'Running validation checks...';
+        await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
+        logger.success('✓ Validation checks passed');
+      }
     }
 
     // Generate comprehensive compilation plan
@@ -63,8 +121,34 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
     
     spinner.succeed(chalk.green('Compilation plan generated successfully'));
     
-    // Save plan if requested
-    if (options.save) {
+    // Interactive save options
+    if (interactive.isInteractive() && !options.save) {
+      spinner.stop();
+      const shouldSave = await interactive.confirmStep({
+        stepName: 'Save Plan',
+        description: 'Save this compilation plan for future reference or comparison',
+        impact: 'low',
+        estimatedTime: '5 seconds',
+        dependencies: ['Generated plan']
+      });
+      
+      if (shouldSave) {
+        const filename = await interactive.getInput(
+          'Enter filename for saved plan (optional):',
+          undefined,
+          'Leave empty for auto-generated filename'
+        );
+        
+        const saveOptions: { filename?: string; description?: string; tags?: string[] } = {};
+        if (filename.trim()) {
+          saveOptions.filename = filename.trim();
+        }
+        
+        await PlanStorage.savePlan(plan, saveOptions);
+        logger.success('Plan saved successfully');
+      }
+      spinner.start();
+    } else if (options.save) {
       const filename = typeof options.save === 'string' ? options.save : undefined;
       const saveOptions: { filename?: string; description?: string; tags?: string[] } = {};
       if (filename) {
@@ -115,6 +199,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
 // Plan build subcommand
 export async function planBuildCommand(options: PlanOptions): Promise<void> {
   const spinner = ora('Generating build plan...').start();
+  const interactive = createInteractiveManager(options.interactive || false);
 
   try {
     // Load project configuration
@@ -137,8 +222,43 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
       process.exit(1);
     }
     
+    // Interactive plan configuration
+    if (interactive.isInteractive()) {
+      spinner.stop();
+      const shouldProceed = await interactive.confirmStep({
+        stepName: 'Build Plan Generation',
+        description: `Create comprehensive build plan for ${projectConfig.framework} ML project`,
+        impact: 'low',
+        estimatedTime: '15-30 seconds',
+        dependencies: ['Project configuration', 'Docker setup', 'Model files']
+      });
+      
+      if (!shouldProceed) {
+        logger.info('Build plan generation cancelled by user');
+        return;
+      }
+      spinner.start();
+    }
+    
     // Determine architecture
-    const architecture = options.arch || await determineDefaultArchitecture(projectConfig);
+    let architecture = options.arch || await determineDefaultArchitecture(projectConfig);
+    
+    // Interactive architecture selection
+    if (interactive.isInteractive() && !options.arch) {
+      spinner.stop();
+      architecture = await interactive.selectOption({
+        message: 'Select target architecture for build planning',
+        type: 'list',
+        choices: [
+          { name: `${architecture} (default for this project)`, value: architecture },
+          { name: 'cpu (CPU optimized)', value: 'cpu' },
+          { name: 'cuda (NVIDIA GPU)', value: 'cuda' },
+          { name: 'gpu (General GPU)', value: 'gpu' }
+        ],
+        description: 'This affects containerization strategy and resource allocation planning'
+      });
+      spinner.start();
+    }
     
     spinner.text = `Planning build for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -170,8 +290,34 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
     
     spinner.succeed(chalk.green('Build plan generated successfully'));
     
-    // Save plan if requested
-    if (options.save) {
+    // Interactive save options
+    if (interactive.isInteractive() && !options.save) {
+      spinner.stop();
+      const shouldSave = await interactive.confirmStep({
+        stepName: 'Save Build Plan',
+        description: 'Save this build plan for future reference, comparison, or replay',
+        impact: 'low',
+        estimatedTime: '5 seconds',
+        dependencies: ['Generated build plan']
+      });
+      
+      if (shouldSave) {
+        const filename = await interactive.getInput(
+          'Enter filename for saved build plan (optional):',
+          undefined,
+          'Leave empty for auto-generated filename'
+        );
+        
+        const saveOptions: { filename?: string; description?: string; tags?: string[] } = {};
+        if (filename.trim()) {
+          saveOptions.filename = filename.trim();
+        }
+        
+        await PlanStorage.savePlan(plan, saveOptions);
+        logger.success('Build plan saved successfully');
+      }
+      spinner.start();
+    } else if (options.save) {
       const filename = typeof options.save === 'string' ? options.save : undefined;
       const saveOptions: { filename?: string; description?: string; tags?: string[] } = {};
       if (filename) {
@@ -584,7 +730,7 @@ function formatLintPlan(lintPlan: any, options: PlanOptions): void {
   console.log('');
   
   // Rules that will be applied
-  console.log(colorize('📏 Lint Rules:', chalk.bold.magenta));
+  console.log(colorize('Lint Rules:', chalk.bold.magenta));
   for (const [category, rules] of Object.entries(lintPlan.rules)) {
     console.log(colorize(`  • ${category}:`, chalk.cyan));
     if (Array.isArray(rules)) {
@@ -599,14 +745,14 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   const useColors = process.stdout.isTTY;
   const colorize = (text: string, colorFn: (text: string) => string) => useColors ? colorFn(text) : text;
   
-  console.log('\n' + colorize('🧪 Test Plan:', chalk.bold.blue));
+  console.log('\n' + colorize('Test Plan:', chalk.bold.blue));
   console.log(colorize(`  • Project: ${testPlan.projectName}`, chalk.gray));
   console.log(colorize(`  • Framework: ${testPlan.framework}`, chalk.cyan));
   console.log(colorize(`  • Estimated time: ${testPlan.estimatedTime}`, chalk.yellow));
   console.log('');
   
   // Test types
-  console.log(colorize('🔍 Test Types:', chalk.bold.green));
+  console.log(colorize('Test Types:', chalk.bold.green));
   for (const [type, config] of Object.entries(testPlan.testTypes)) {
     const status = (config as any).enabled ? '✓' : '⚬';
     const statusColor = (config as any).enabled ? chalk.green : chalk.gray;
@@ -621,7 +767,7 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   console.log('');
   
   // Environment
-  console.log(colorize('🐍 Test Environment:', chalk.bold.cyan));
+  console.log(colorize('Test Environment:', chalk.bold.cyan));
   console.log(colorize(`  • Python: ${testPlan.environment.pythonVersion}`, chalk.gray));
   console.log(colorize(`  • Framework: ${testPlan.environment.framework}`, chalk.gray));
   console.log(colorize(`  • GPU Required: ${testPlan.environment.gpuRequired ? 'Yes' : 'No'}`, chalk.gray));
@@ -929,7 +1075,7 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
   const depChanges = comparison.differences.filter((diff: any) => diff.category === 'dependencies');
   
   if (depChanges.length > 0) {
-    console.log('\n' + colorize('📦 Dependencies Changed:', chalk.bold.blue));
+    console.log('\n' + colorize('Dependencies Changed:', chalk.bold.blue));
     
     for (const change of depChanges) {
       if (change.type === 'changed') {
@@ -952,7 +1098,7 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
   );
   
   if (modelChanges.length > 0) {
-    console.log('\n' + colorize('🧠 Model Params:', chalk.bold.magenta));
+    console.log('\n' + colorize('Model Params:', chalk.bold.magenta));
     
     for (const change of modelChanges) {
       if (change.type === 'changed' && typeof change.oldValue === 'number' && typeof change.newValue === 'number') {
