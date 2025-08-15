@@ -10,6 +10,112 @@ import { CirronIgnore } from '../utils/ignore';
 import { executePythonScript, formatExecutionError } from '../utils/execution';
 import type { BuildOptions, ProjectConfig } from '../types';
 
+interface ValidationResult {
+  critical: string[];
+  nonCritical: string[];
+}
+
+interface MetadataMismatch {
+  field: string;
+  storedValue?: string;
+  detectedValue: string;
+  description: string;
+  severity: 'critical' | 'warning' | 'info';
+}
+
+function categorizeValidationErrors(errors: string[]): ValidationResult {
+  const critical: string[] = [];
+  const nonCritical: string[] = [];
+
+  for (const error of errors) {
+    // Critical errors that always cause build failure
+    if (error.includes('Required file missing') ||
+        error.includes('Invalid cirron.json') ||
+        error.includes('No cirron.json found') ||
+        error.includes('Project configuration invalid')) {
+      critical.push(error);
+    } else {
+      // Non-critical errors that can be bypassed with --force
+      nonCritical.push(error);
+    }
+  }
+
+  return { critical, nonCritical };
+}
+
+function displayForceWarnings(
+  nonCriticalErrors: string[], 
+  metadataMismatches: MetadataMismatch[],
+  options: BuildOptions
+): void {
+  if (nonCriticalErrors.length === 0 && metadataMismatches.length === 0) {
+    return;
+  }
+
+  console.log();
+  console.log(chalk.bold.yellow('Build Warnings (proceeding with --force)'));
+  console.log(chalk.gray('─'.repeat(50)));
+
+  // Display non-critical validation errors
+  if (nonCriticalErrors.length > 0) {
+    console.log(chalk.bold('Validation Issues:'));
+    for (const error of nonCriticalErrors) {
+      console.log(`  ${chalk.yellow('⚠')} ${error}`);
+    }
+    console.log();
+  }
+
+  // Display metadata mismatches
+  if (metadataMismatches.length > 0) {
+    console.log(chalk.bold('Metadata Mismatches:'));
+    for (const mismatch of metadataMismatches) {
+      const severityIcon = mismatch.severity === 'critical' ? chalk.red('●') : chalk.yellow('⚠');
+      console.log(`  ${severityIcon} ${mismatch.description}`);
+    }
+    console.log();
+    console.log(chalk.gray('Run ') + chalk.cyan('cirron info --update metadata') + chalk.gray(' to refresh metadata.'));
+    console.log();
+  }
+
+  if (options.force) {
+    console.log(chalk.yellow('Continuing build with --force flag. Build traceability maintained.'));
+  }
+  console.log();
+}
+
+async function checkMetadataMismatches(projectConfig: ProjectConfig): Promise<MetadataMismatch[]> {
+  // This is a simplified version of metadata checking
+  // In a full implementation, we would import and use the analysis from info.ts
+  const mismatches: MetadataMismatch[] = [];
+  
+  try {
+    const modelPath = path.join(process.cwd(), 'src', 'model.py');
+    if (fs.existsSync(modelPath) && projectConfig.metadata) {
+      // Simple git commit check
+      try {
+        const currentCommit = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+        if (projectConfig.metadata.gitCommitHash && 
+            currentCommit !== projectConfig.metadata.gitCommitHash) {
+          mismatches.push({
+            field: 'gitCommitHash',
+            storedValue: projectConfig.metadata.gitCommitHash,
+            detectedValue: currentCommit,
+            description: `Git commit changed: ${projectConfig.metadata.gitCommitHash} → ${currentCommit}`,
+            severity: 'warning'
+          });
+        }
+      } catch (error) {
+        // Git not available or not a git repo - not critical
+      }
+    }
+  } catch (error) {
+    // Metadata checking failed - not critical for build
+    logger.debug('Metadata mismatch check failed:', error);
+  }
+
+  return mismatches;
+}
+
 export async function buildCommand(options: BuildOptions): Promise<void> {
   const spinner = ora('Preparing build...').start();
 
@@ -61,6 +167,11 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
 }
 
 async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ora.Ora): Promise<void> {
+  // Log force flag usage for traceability
+  if (options.force) {
+    logger.info(chalk.yellow('Build running with --force flag'));
+  }
+
   // Determine architecture
   const architecture = options.arch || await determineDefaultArchitecture(projectConfig);
   
@@ -71,17 +182,22 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
   let indexConfig: any = null;
   if (options.index) {
     if (!fs.existsSync(options.index)) {
-      spinner.fail(chalk.red(`Index file not found: ${options.index}`));
-      process.exit(1);
+      if (options.force) {
+        logger.warn(`Index file not found: ${options.index} (continuing with --force)`);
+      } else {
+        spinner.fail(chalk.red(`Index file not found: ${options.index}`));
+        process.exit(1);
+      }
+    } else {
+      indexConfig = await loadIndexFile(options.index);
+      logger.info(`Using index file: ${chalk.cyan(options.index)}`);
     }
-    indexConfig = await loadIndexFile(options.index);
-    logger.info(`Using index file: ${chalk.cyan(options.index)}`);
   }
 
-  // Pre-build validation
+  // Pre-build validation (always run if validate is enabled, force logic is handled inside)
   if (options.validate) {
     spinner.text = 'Running validation checks...';
-    await runValidationChecks(projectConfig, indexConfig, architecture);
+    await runValidationChecks(projectConfig, indexConfig, architecture, options);
     logger.success('✓ Validation checks passed');
   }
 
@@ -98,10 +214,18 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
   if (fs.existsSync('Dockerfile')) {
     spinner.text = 'Building container...';
     const imageName = generateImageName(projectConfig, options);
-    await buildDockerImage(imageName, options, spinner);
-    
-    if (options.push) {
-      await pushImage(imageName, spinner);
+    try {
+      await buildDockerImage(imageName, options, spinner);
+      
+      if (options.push) {
+        await pushImage(imageName, spinner);
+      }
+    } catch (error) {
+      if (options.force) {
+        logger.warn(`Docker build failed (continuing with --force): ${error instanceof Error ? error.message : error}`);
+      } else {
+        throw error;
+      }
     }
   }
   
@@ -122,12 +246,22 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
 }
 
 async function handleTraditionalBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ora.Ora): Promise<void> {
+  // Log force flag usage for traceability
+  if (options.force) {
+    logger.info(chalk.yellow('Build running with --force flag'));
+  }
+
   const buildConfig = projectConfig.build;
 
   if (!buildConfig) {
-    spinner.fail(chalk.red('No build configuration found'));
-    logger.error('Add build configuration to cirron.json');
-    process.exit(1);
+    if (options.force) {
+      logger.warn('No build configuration found in cirron.json (continuing with --force)');
+      return; // Skip traditional build if no config and force is used
+    } else {
+      spinner.fail(chalk.red('No build configuration found'));
+      logger.error('Add build configuration to cirron.json');
+      process.exit(1);
+    }
   }
 
   spinner.text = `Building for ${options.env} environment...`;
@@ -166,8 +300,12 @@ async function handleTraditionalBuild(projectConfig: ProjectConfig, options: Bui
           cwd: process.cwd()
         });
       } catch (error) {
-        spinner.fail(chalk.red(`Pre-build command failed: ${command}`));
-        throw error;
+        if (options.force) {
+          logger.warn(`Pre-build command failed: ${command} (continuing with --force)`);
+        } else {
+          spinner.fail(chalk.red(`Pre-build command failed: ${command}`));
+          throw error;
+        }
       }
     }
   }
@@ -196,8 +334,12 @@ async function handleTraditionalBuild(projectConfig: ProjectConfig, options: Bui
             cwd: process.cwd()
           });
         } catch (error) {
-          spinner.fail(chalk.red(`Post-build command failed: ${command}`));
-          throw error;
+          if (options.force) {
+            logger.warn(`Post-build command failed: ${command} (continuing with --force)`);
+          } else {
+            spinner.fail(chalk.red(`Post-build command failed: ${command}`));
+            throw error;
+          }
         }
       }
     }
@@ -283,13 +425,11 @@ async function buildDockerImage(
       cwd: process.cwd()
     });
 
-    let output = '';
     let errorOutput = '';
 
     if (child.stdout) {
       child.stdout.on('data', (data) => {
         const text = data.toString();
-        output += text;
         
         // Update spinner with build progress
         const lines = text.split('\n');
@@ -407,7 +547,7 @@ async function pushImage(imageName: string, spinner: ora.Ora): Promise<void> {
   });
 }
 
-async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Ora): Promise<void> {
+async function runBuild(command: string, env: Record<string, string>, spinner: ora.Ora): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
     
@@ -423,12 +563,10 @@ async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Or
       shell: true
     });
 
-    let output = '';
     let errorOutput = '';
 
     if (child.stdout) {
       child.stdout.on('data', (data) => {
-        output += data.toString();
         if (process.env['CIRRON_VERBOSE']) {
           process.stdout.write(data);
         }
@@ -463,7 +601,7 @@ async function runBuild(command: string, env: NodeJS.ProcessEnv, spinner: ora.Or
   });
 }
 
-async function runBuildWatch(command: string, env: NodeJS.ProcessEnv): Promise<void> {
+async function runBuildWatch(command: string, env: Record<string, string>): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
     
@@ -652,13 +790,24 @@ async function reportBuildStatus(
 
     const api = new CirronApi(currentConfig);
     
-    await api.reportBuild({
+    const buildReport: any = {
       projectName: projectConfig.name,
       environment: options.env,
       status,
       timestamp: new Date().toISOString(),
-      error: error ? error.message : undefined
-    });
+      error: error ? error.message : undefined,
+      forceUsed: options.force || false,
+      metadata: {
+        buildFlags: {
+          force: options.force || false,
+          validate: options.validate || false,
+          clean: options.clean || false,
+          analyze: options.analyze || false
+        }
+      }
+    };
+
+    await api.reportBuild(buildReport);
 
   } catch (apiError) {
     // Don't fail the build if API reporting fails
@@ -709,7 +858,8 @@ async function loadIndexFile(indexPath: string): Promise<any> {
 async function runValidationChecks(
   projectConfig: ProjectConfig, 
   indexConfig: any, 
-  architecture: string
+  architecture: string,
+  options: BuildOptions
 ): Promise<void> {
   const validationErrors: string[] = [];
 
@@ -782,8 +932,38 @@ async function runValidationChecks(
     validationErrors.push('Model creation failed during validation');
   }
 
-  if (validationErrors.length > 0) {
-    throw new Error(`Validation failed:\n${validationErrors.map(err => `  • ${err}`).join('\n')}`);
+  // Categorize validation errors
+  const { critical, nonCritical } = categorizeValidationErrors(validationErrors);
+
+  // Check for metadata mismatches
+  const metadataMismatches = await checkMetadataMismatches(projectConfig);
+
+  // Always fail on critical errors
+  if (critical.length > 0) {
+    throw new Error(`Critical validation errors:\n${critical.map(err => `  • ${err}`).join('\n')}`);
+  }
+
+  // Handle non-critical errors based on force flag
+  if (nonCritical.length > 0 || metadataMismatches.length > 0) {
+    if (!options.force) {
+      // Show message about force option for metadata mismatches
+      if (metadataMismatches.length > 0) {
+        console.log();
+        console.log(chalk.yellow('Metadata mismatch detected. Use --force to continue or run:'));
+        console.log(chalk.cyan('cirron info --update metadata'));
+        console.log();
+      }
+      
+      const allErrors = [...nonCritical];
+      if (metadataMismatches.length > 0) {
+        allErrors.push(...metadataMismatches.map(m => m.description));
+      }
+      
+      throw new Error(`Validation failed:\n${allErrors.map(err => `  • ${err}`).join('\n')}\n\nUse --force to proceed despite these warnings.`);
+    } else {
+      // Force mode: show warnings and continue
+      displayForceWarnings(nonCritical, metadataMismatches, options);
+    }
   }
 }
 
