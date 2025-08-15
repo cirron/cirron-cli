@@ -6,6 +6,7 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
 import { executePythonFile, formatExecutionError, executeScript } from '../utils/execution';
+import { createInteractiveManager } from '../utils/interactive';
 import type { ProjectConfig } from '../types';
 
 interface TestOptions {
@@ -23,10 +24,12 @@ interface TestOptions {
   pipeline?: boolean;
   watch?: boolean;
   strict?: boolean;
+  interactive?: boolean;
 }
 
 export async function testCommand(options: TestOptions): Promise<void> {
   const spinner = ora('Preparing tests...').start();
+  const interactive = createInteractiveManager(options.interactive || false);
 
   try {
     // Load project configuration
@@ -41,11 +44,38 @@ export async function testCommand(options: TestOptions): Promise<void> {
     const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
     
     // Determine which tests to run
-    const testsToRun = determineTests(options);
+    let testsToRun = determineTests(options);
     
     if (testsToRun.length === 0) {
-      // Run all basic tests by default (not validation, endpoint, or pipeline)
-      testsToRun.push('env', 'requirements', 'unit', 'model', 'data');
+      // Interactive test selection when no specific tests are requested
+      if (interactive.isInteractive()) {
+        spinner.stop();
+        const availableTests = [
+          { name: 'env', description: 'Environment setup validation (Python, CUDA)', default: true },
+          { name: 'requirements', description: 'Python requirements and dependencies', default: true },
+          { name: 'unit', description: 'Unit tests with pytest/unittest', default: fs.existsSync('tests') || fs.existsSync('test') },
+          { name: 'model', description: 'Model loading and instantiation', default: true },
+          { name: 'data', description: 'Data loading functionality', default: fs.existsSync('src/data_loader.py') },
+          { name: 'inference', description: 'Model inference pipeline', default: false },
+          { name: 'val', description: 'Model validation and accuracy tests', default: false },
+          { name: 'pipeline', description: 'End-to-end ML pipeline testing', default: false }
+        ];
+
+        testsToRun = await interactive.selectSteps(
+          availableTests,
+          'Select which test types to run:'
+        );
+        
+        if (testsToRun.length === 0) {
+          logger.info('No tests selected. Exiting.');
+          return;
+        }
+        
+        spinner.start();
+      } else {
+        // Run all basic tests by default (not validation, endpoint, or pipeline)
+        testsToRun.push('env', 'requirements', 'unit', 'model', 'data');
+      }
     }
 
     spinner.text = 'Running tests...';
@@ -56,6 +86,38 @@ export async function testCommand(options: TestOptions): Promise<void> {
 
     for (const test of testsToRun) {
       try {
+        // Interactive confirmation for potentially long-running tests
+        if (interactive.isInteractive() && ['val', 'endpoint', 'pipeline', 'build'].includes(test)) {
+          spinner.stop();
+          const testDescriptions = {
+            'val': 'Model validation tests (accuracy, performance metrics)',
+            'endpoint': 'Endpoint performance testing (multiple requests)',
+            'pipeline': 'End-to-end ML pipeline testing (comprehensive)',
+            'build': 'Docker container build testing'
+          };
+          
+          const estimatedTimes = {
+            'val': '1-3 minutes',
+            'endpoint': '30-60 seconds',
+            'pipeline': '3-5 minutes',
+            'build': '2-4 minutes'
+          };
+          
+          const shouldRun = await interactive.confirmStep({
+            stepName: `${test.charAt(0).toUpperCase() + test.slice(1)} Tests`,
+            description: testDescriptions[test as keyof typeof testDescriptions] || `Run ${test} tests`,
+            impact: 'medium',
+            estimatedTime: estimatedTimes[test as keyof typeof estimatedTimes] || '30-60 seconds',
+            dependencies: test === 'endpoint' ? ['Deployed endpoint'] : ['Test data', 'Model files']
+          });
+          
+          if (!shouldRun) {
+            logger.warn(`Skipping ${test} tests`);
+            continue;
+          }
+          spinner.start();
+        }
+        
         spinner.text = `Running ${test} tests...`;
         
         switch (test) {
@@ -98,11 +160,30 @@ export async function testCommand(options: TestOptions): Promise<void> {
         passedTests++;
         
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         results.push({ 
           test, 
           status: 'fail', 
-          message: error instanceof Error ? error.message : 'Unknown error' 
+          message: errorMessage
         });
+        
+        // Interactive error handling
+        if (interactive.isInteractive() && testsToRun.indexOf(test) < testsToRun.length - 1) {
+          spinner.stop();
+          const remainingTests = testsToRun.slice(testsToRun.indexOf(test) + 1);
+          const shouldContinue = await interactive.showProgressAndConfirm(
+            results.filter(r => r.status === 'pass').map(r => r.test),
+            test,
+            remainingTests,
+            errorMessage
+          );
+          
+          if (!shouldContinue) {
+            logger.info('Testing stopped by user');
+            break;
+          }
+          spinner.start();
+        }
       }
     }
 
