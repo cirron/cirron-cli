@@ -109,8 +109,9 @@ async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promi
     });
     
     // 3. Open browser (fix URL if server returns null)
+    const baseUrl = currentConfig.apiUrl.replace('/api', '').replace(/\/$/, ''); // Remove trailing slash
     const verificationUrl = deviceAuth.verificationUrl.startsWith('null/') 
-      ? deviceAuth.verificationUrl.replace('null/', `${currentConfig.apiUrl.replace('/api', '')}/`)
+      ? deviceAuth.verificationUrl.replace('null/', `${baseUrl}/`)
       : deviceAuth.verificationUrl;
     
     console.log(`\nOpening ${verificationUrl} in your browser...`);
