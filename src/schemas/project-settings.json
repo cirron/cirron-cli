@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cirron.com/schemas/project-settings.json",
+  "title": "Cirron Project Settings",
+  "description": "Schema for Cirron CLI project-specific settings",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Settings schema version"
+    },
+    "general": {
+      "type": "object",
+      "properties": {
+        "autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save configuration changes"
+        },
+        "buildOnChange": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically build when files change"
+        },
+        "testOnBuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run tests after successful builds"
+        }
+      },
+      "required": ["autoSave", "buildOnChange", "testOnBuild"],
+      "additionalProperties": false
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "defaultArch": {
+          "type": "string",
+          "enum": ["cpu", "cuda", "gpu", "transformer", "xgboost", "resnet", "lstm", "autoencoder"],
+          "default": "cpu",
+          "description": "Default target architecture for builds"
+        },
+        "enableCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable build caching"
+        },
+        "pushOnBuild": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically push images after successful builds"
+        },
+        "validateBeforeBuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run validation checks before building"
+        }
+      },
+      "required": ["defaultArch", "enableCache", "pushOnBuild", "validateBeforeBuild"],
+      "additionalProperties": false
+    },
+    "test": {
+      "type": "object",
+      "properties": {
+        "runParallel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run tests in parallel when possible"
+        },
+        "failFast": {
+          "type": "boolean",
+          "default": false,
+          "description": "Stop testing on first failure"
+        },
+        "coverageThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 80,
+          "description": "Minimum code coverage percentage required"
+        },
+        "includeBenchmarks": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include performance benchmarks in test runs"
+        }
+      },
+      "required": ["runParallel", "failFast", "coverageThreshold", "includeBenchmarks"],
+      "additionalProperties": false
+    },
+    "deployment": {
+      "type": "object",
+      "properties": {
+        "defaultEnvironment": {
+          "type": "string",
+          "enum": ["development", "staging", "production"],
+          "default": "development",
+          "description": "Default deployment environment"
+        },
+        "autoRollback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically rollback failed deployments"
+        },
+        "healthCheckTimeout": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 300,
+          "default": 60,
+          "description": "Health check timeout in seconds"
+        }
+      },
+      "required": ["defaultEnvironment", "autoRollback", "healthCheckTimeout"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["version", "general", "build", "test", "deployment"],
+  "additionalProperties": false
+}
