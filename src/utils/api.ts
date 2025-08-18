@@ -6,7 +6,10 @@ import type {
   ApiResponse, 
   AuthInfo, 
   DeploymentInfo,
-  LogEntry 
+  LogEntry,
+  DeviceCodeResponse,
+  DeviceTokenResponse,
+  DeviceAuthStatus
 } from '../types';
 
 export class CirronApi {
@@ -18,6 +21,30 @@ export class CirronApi {
 
   async verifyAuth(): Promise<AuthInfo> {
     const response = await this.request('/auth/verify');
+    return response.data;
+  }
+
+  // Device Flow Authentication Methods
+  async requestDeviceCode(): Promise<DeviceCodeResponse> {
+    const response = await this.request('/cli/auth/device', { method: 'POST' });
+    return response.data;
+  }
+
+  async pollDeviceAuthorization(deviceCode: string): Promise<DeviceAuthStatus> {
+    const response = await this.request(`/cli/auth/device?device_code=${deviceCode}`);
+    return response.data;
+  }
+
+  async refreshToken(refreshToken: string): Promise<DeviceTokenResponse> {
+    const response = await this.request('/cli/auth/refresh', {
+      method: 'POST',
+      body: { refresh_token: refreshToken }
+    });
+    return response.data;
+  }
+
+  async validateAuth(): Promise<{ valid: boolean; user?: any }> {
+    const response = await this.request('/cli/status');
     return response.data;
   }
 
@@ -170,6 +197,55 @@ export class CirronApi {
     });
   }
 
+  private getAuthHeader(): string | undefined {
+    // Try JWT token first
+    if (this.config.auth?.accessToken) {
+      return `Bearer ${this.config.auth.accessToken}`;
+    }
+    // Fallback to legacy sk-* token
+    if (this.config.token) {
+      return `Bearer ${this.config.token}`;
+    }
+    return undefined;
+  }
+
+  private async ensureValidToken(): Promise<void> {
+    if (!this.config.auth?.expiresAt || !this.config.auth?.refreshToken) {
+      return; // No JWT auth or refresh token available
+    }
+    
+    const expiresAt = new Date(this.config.auth.expiresAt);
+    const now = new Date();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    // Refresh if expires within 5 minutes
+    if (expiresAt.getTime() - now.getTime() < fiveMinutes) {
+      try {
+        const newTokens = await this.refreshToken(this.config.auth.refreshToken);
+        
+        // Update config with new tokens
+        const { ConfigManager } = await import('./config');
+        const configManager = new ConfigManager();
+        const currentConfig = configManager.load();
+        
+        const expiresAt = new Date(Date.now() + newTokens.expires_in * 1000).toISOString();
+        currentConfig.auth = {
+          accessToken: newTokens.access_token,
+          refreshToken: newTokens.refresh_token,
+          expiresAt
+        };
+        
+        configManager.save(currentConfig);
+        
+        // Update this instance's config
+        this.config = currentConfig;
+      } catch (error) {
+        // If refresh fails, continue with existing token and let the API request fail
+        console.warn('Failed to refresh token automatically:', error);
+      }
+    }
+  }
+
   private async request(
     endpoint: string,
     options: {
@@ -179,6 +255,9 @@ export class CirronApi {
       isFormData?: boolean;
     } = {}
   ): Promise<ApiResponse> {
+    // Ensure token is valid before making request
+    await this.ensureValidToken();
+    
     const url = new URL(endpoint, this.config.apiUrl);
     const method = options.method || 'GET';
     
@@ -187,8 +266,10 @@ export class CirronApi {
       ...options.headers
     };
 
-    if (this.config.token) {
-      headers['Authorization'] = `Bearer ${this.config.token}`;
+    // Support both JWT and legacy token authentication
+    const authHeader = this.getAuthHeader();
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
     }
 
     let body: any = undefined;

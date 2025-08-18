@@ -1,7 +1,12 @@
 export interface CirronConfig {
   version?: number;
   apiUrl: string;
-  token?: string;
+  token?: string;           // Keep for backward compatibility with sk-* tokens
+  auth?: {                  // New JWT auth structure
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: string;
+  };
   defaultEnv: string;
   timeout: number;
   retries: number;
@@ -180,6 +185,28 @@ export interface AuthInfo {
   };
   token?: string;
   expiresAt?: string;
+}
+
+export interface DeviceCodeResponse {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  expires_in: number;
+  interval: number;
+}
+
+export interface DeviceTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+}
+
+export interface DeviceAuthStatus {
+  status: 'pending' | 'authorized' | 'expired' | 'denied';
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
 }
 
 export interface DeploymentInfo {
