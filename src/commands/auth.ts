@@ -157,6 +157,7 @@ async function pollForAuthorization(
       
       // Check if we got tokens (success case)
       if (response.accessToken && response.refreshToken) {
+        console.log('DEBUG: Received tokens from server');
         return {
           access_token: response.accessToken,
           refresh_token: response.refreshToken,
@@ -183,15 +184,27 @@ async function pollForAuthorization(
 }
 
 async function saveTokens(tokens: DeviceTokenResponse, currentConfig: any, config: ConfigManager): Promise<void> {
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-  
-  currentConfig.auth = {
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token,
-    expiresAt
-  };
-  
-  config.save(currentConfig);
+  try {
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+    
+    console.log('DEBUG: Saving tokens...', {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      expiresIn: tokens.expires_in
+    });
+    
+    currentConfig.auth = {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiresAt
+    };
+    
+    config.save(currentConfig);
+    console.log('DEBUG: Tokens saved successfully');
+  } catch (error) {
+    console.error('DEBUG: Error saving tokens:', error);
+    throw error;
+  }
 }
 
 export async function logoutCommand(): Promise<void> {
@@ -224,6 +237,12 @@ export async function authCommand(): Promise<void> {
   try {
     const config = new ConfigManager();
     const currentConfig = config.load();
+
+    console.log('DEBUG: Auth status config check:', {
+      hasLegacyToken: !!currentConfig.token,
+      hasJWTAuth: !!currentConfig.auth,
+      hasAccessToken: !!currentConfig.auth?.accessToken
+    });
 
     if (!currentConfig.token && !currentConfig.auth?.accessToken) {
       logger.info(chalk.yellow('Not authenticated'));
