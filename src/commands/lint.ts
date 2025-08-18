@@ -147,7 +147,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     }
 
     // Validate version format
-    if (config.version && !/^\d+\.\d+\.\d+/.test(config.version)) {
+    if (config.projectVersion && !/^\d+\.\d+\.\d+/.test(config.projectVersion)) {
       addResult(summary, {
         category: 'config',
         severity: 'warning',
