@@ -26,17 +26,17 @@ export class CirronApi {
 
   // Device Flow Authentication Methods
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
-    const response = await this.request('/cli/auth/device', { method: 'POST' });
+    const response = await this.request('/api/cli/auth/device', { method: 'POST' });
     return response.data;
   }
 
   async pollDeviceAuthorization(deviceCode: string): Promise<DeviceAuthStatus> {
-    const response = await this.request(`/cli/auth/device?device_code=${deviceCode}`);
+    const response = await this.request(`/api/cli/auth/device?device_code=${deviceCode}`);
     return response.data;
   }
 
   async refreshToken(refreshToken: string): Promise<DeviceTokenResponse> {
-    const response = await this.request('/cli/auth/refresh', {
+    const response = await this.request('/api/cli/auth/refresh', {
       method: 'POST',
       body: { refresh_token: refreshToken }
     });
@@ -44,7 +44,7 @@ export class CirronApi {
   }
 
   async validateAuth(): Promise<{ valid: boolean; user?: any }> {
-    const response = await this.request('/cli/status');
+    const response = await this.request('/api/cli/status');
     return response.data;
   }
 
