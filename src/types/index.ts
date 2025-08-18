@@ -1,9 +1,69 @@
 export interface CirronConfig {
+  version?: number;
   apiUrl: string;
   token?: string;
   defaultEnv: string;
   timeout: number;
   retries: number;
+}
+
+export interface GlobalSettings {
+  version: number;
+  general: {
+    defaultTemplate: string;
+    autoUpdate: boolean;
+    telemetry: boolean;
+    verboseLogging: boolean;
+  };
+  ui: {
+    colorOutput: boolean;
+    progressBars: boolean;
+    confirmPrompts: boolean;
+    interactiveMode: boolean;
+  };
+  development: {
+    defaultPythonVersion: string;
+    preferredIDE: 'vscode' | 'pycharm' | 'jupyter' | 'none';
+    autoLint: boolean;
+    autoFormat: boolean;
+  };
+  cloud: {
+    syncSettings: boolean;
+    defaultRegion?: string;
+    preferredProvider?: 'aws' | 'azure' | 'gcp';
+  };
+  api: {
+    url: string;
+    timeout: number;
+    retries: number;
+    token?: string;
+  };
+}
+
+export interface ProjectSettings {
+  version: number;
+  general: {
+    autoSave: boolean;
+    buildOnChange: boolean;
+    testOnBuild: boolean;
+  };
+  build: {
+    defaultArch: string;
+    enableCache: boolean;
+    pushOnBuild: boolean;
+    validateBeforeBuild: boolean;
+  };
+  test: {
+    runParallel: boolean;
+    failFast: boolean;
+    coverageThreshold: number;
+    includeBenchmarks: boolean;
+  };
+  deployment: {
+    defaultEnvironment: string;
+    autoRollback: boolean;
+    healthCheckTimeout: number;
+  };
 }
 
 export interface ApiResponse<T = any> {
@@ -14,8 +74,9 @@ export interface ApiResponse<T = any> {
 }
 
 export interface ProjectConfig {
+  version?: number;
   name: string;
-  version: string;
+  projectVersion: string;
   template: string;
   framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
   modelType?: string;
@@ -28,6 +89,7 @@ export interface ProjectConfig {
   artifacts?: ArtifactsConfig;
   test?: TestConfig;
   metadata?: ModelMetadata;
+  settings?: ProjectSettings;
 }
 
 export interface ArtifactsConfig {
@@ -316,4 +378,64 @@ export interface HardwareProfile {
   config: HardwareConfig;
   frameworks: string[];
   recommended: boolean;
+}
+
+// Settings management interfaces
+export interface SettingsOptions {
+  global?: boolean;
+  project?: boolean;
+  list?: boolean;
+  get?: string;
+  set?: string;
+  delete?: string;
+  edit?: boolean;
+  export?: string;
+  import?: string;
+  template?: string;
+  explain?: string;
+  reset?: boolean;
+  verbose?: boolean;
+  json?: boolean;
+}
+
+export interface SettingsSource {
+  type: 'default' | 'global' | 'project' | 'cli';
+  file?: string;
+  value: any;
+}
+
+export interface SettingsResolution {
+  key: string;
+  value: any;
+  source: SettingsSource;
+  overriddenBy?: SettingsSource[];
+}
+
+export interface SettingsTemplate {
+  name: string;
+  description: string;
+  category: 'ml' | 'web' | 'api' | 'general';
+  globalSettings?: Partial<GlobalSettings>;
+  projectSettings?: Partial<ProjectSettings>;
+  tags?: string[];
+}
+
+export interface SettingsExport {
+  version: number;
+  timestamp: string;
+  type: 'global' | 'project' | 'combined';
+  globalSettings?: GlobalSettings;
+  projectSettings?: ProjectSettings;
+  metadata?: {
+    exportedBy?: string;
+    description?: string;
+    tags?: string[];
+  };
+}
+
+export interface SettingsValidationError {
+  path: string;
+  message: string;
+  value: any;
+  schema?: any;
 }

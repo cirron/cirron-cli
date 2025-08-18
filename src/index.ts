@@ -8,6 +8,7 @@ import { deployCommand } from './commands/deploy';
 import { initCommand } from './commands/init';
 import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
+import { settingsCommand } from './commands/settings';
 import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
 import { hardwareCommand } from './commands/hardware';
@@ -144,16 +145,36 @@ program
   .option('-m, --message <message>', 'Deployment message')
   .action(deployCommand);
 
-// Config command
+// Config command (CLI configuration: API URL, timeout, retries, etc.)
 program
   .command('config')
-  .description('Manage configuration')
+  .description('Manage CLI configuration (API URL, timeout, retries, etc.)')
   .option('-l, --list', 'List all configuration')
   .option('-g, --get <key>', 'Get configuration value')
   .option('-s, --set <key=value>', 'Set configuration value')
   .option('-d, --delete <key>', 'Delete configuration key')
   .option('--reset', 'Reset configuration to defaults')
   .action(configCommand);
+
+// Settings command (user preferences and project behavior)
+program
+  .command('settings')
+  .description('Manage user preferences and settings')
+  .option('-g, --global', 'Manage global settings')
+  .option('-p, --project', 'Manage project settings')
+  .option('-l, --list', 'List all settings')
+  .option('--get <key>', 'Get setting value')
+  .option('--set <key=value>', 'Set setting value')
+  .option('--delete <key>', 'Delete setting key')
+  .option('-e, --edit', 'Interactive settings editor')
+  .option('--export <file>', 'Export settings to file')
+  .option('--import <file>', 'Import settings from file')
+  .option('-t, --template <name>', 'Apply settings template')
+  .option('--explain <key>', 'Show setting resolution chain')
+  .option('--reset', 'Reset settings to defaults')
+  .option('-v, --verbose', 'Verbose output')
+  .option('--json', 'Output in JSON format')
+  .action(settingsCommand);
 
 // Info command
 program
