@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cirron.com/schemas/global-settings.json",
+  "title": "Cirron Global Settings",
+  "description": "Schema for Cirron CLI global user settings",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Settings schema version"
+    },
+    "general": {
+      "type": "object",
+      "properties": {
+        "defaultTemplate": {
+          "type": "string",
+          "enum": ["pytorch", "pytorch-train", "tensorflow", "tensorflow-train", "sklearn", "sklearn-pipeline", "custom"],
+          "default": "pytorch",
+          "description": "Default project template for new projects"
+        },
+        "autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically check for CLI updates"
+        },
+        "telemetry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable anonymous usage telemetry"
+        },
+        "verboseLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose logging by default"
+        }
+      },
+      "required": ["defaultTemplate", "autoUpdate", "telemetry", "verboseLogging"],
+      "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "colorOutput": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable colored console output"
+        },
+        "progressBars": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show progress bars for long operations"
+        },
+        "confirmPrompts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show confirmation prompts for destructive operations"
+        },
+        "interactiveMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable interactive mode by default"
+        }
+      },
+      "required": ["colorOutput", "progressBars", "confirmPrompts", "interactiveMode"],
+      "additionalProperties": false
+    },
+    "development": {
+      "type": "object",
+      "properties": {
+        "defaultPythonVersion": {
+          "type": "string",
+          "pattern": "^3\\.(8|9|10|11|12)$",
+          "default": "3.9",
+          "description": "Default Python version for new projects"
+        },
+        "preferredIDE": {
+          "type": "string",
+          "enum": ["vscode", "pycharm", "jupyter", "none"],
+          "default": "vscode",
+          "description": "Preferred IDE for project integration"
+        },
+        "autoLint": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically run linting after builds"
+        },
+        "autoFormat": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically format code on save"
+        }
+      },
+      "required": ["defaultPythonVersion", "preferredIDE", "autoLint", "autoFormat"],
+      "additionalProperties": false
+    },
+    "cloud": {
+      "type": "object",
+      "properties": {
+        "syncSettings": {
+          "type": "boolean",
+          "default": false,
+          "description": "Sync settings across devices (requires authentication)"
+        },
+        "defaultRegion": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Default cloud region for deployments"
+        },
+        "preferredProvider": {
+          "type": "string",
+          "enum": ["aws", "azure", "gcp"],
+          "description": "Preferred cloud provider"
+        }
+      },
+      "required": ["syncSettings"],
+      "additionalProperties": false
+    },
+    "api": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "default": "https://api.cirron.com",
+          "description": "Cirron API base URL"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 300000,
+          "default": 30000,
+          "description": "API request timeout in milliseconds"
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "Number of API request retries"
+        },
+        "token": {
+          "type": "string",
+          "description": "Authentication token (automatically managed)"
+        }
+      },
+      "required": ["url", "timeout", "retries"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["version", "general", "ui", "development", "cloud", "api"],
+  "additionalProperties": false
+}
