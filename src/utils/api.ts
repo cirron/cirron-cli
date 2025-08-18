@@ -20,8 +20,8 @@ export class CirronApi {
   }
 
   async verifyAuth(): Promise<AuthInfo> {
-    const response = await this.request('/auth/verify');
-    return response.data;
+    const response = await this.request('/api/cli/status');
+    return response as any;
   }
 
   // Device Flow Authentication Methods
