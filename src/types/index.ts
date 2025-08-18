@@ -177,14 +177,23 @@ export interface InitOptions {
 }
 
 export interface AuthInfo {
-  authenticated: boolean;
+  valid: boolean;
+  token?: {
+    id: string;
+    name: string;
+    expiresAt: string;
+    scopes: string[];
+  };
   user?: {
     id: string;
     email: string;
     name?: string;
   };
-  token?: string;
-  expiresAt?: string;
+  organization?: {
+    id: string;
+    name: string;
+    type?: string;
+  };
 }
 
 export interface DeviceCodeResponse {
