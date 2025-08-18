@@ -377,7 +377,7 @@ async function createProjectFiles(
   // Create cirron.json
   const projectConfig: ProjectConfig = {
     name: projectName,
-    version: '1.0.0',
+    projectVersion: '1.0.0',
     template,
     framework: template.includes('pytorch') ? 'pytorch' : 
                template.includes('tensorflow') ? 'tensorflow' :
