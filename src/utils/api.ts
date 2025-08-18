@@ -32,7 +32,7 @@ export class CirronApi {
 
   async pollDeviceAuthorization(deviceCode: string): Promise<DeviceAuthStatus> {
     const response = await this.request(`/api/cli/auth/device?device_code=${deviceCode}`);
-    return response.data;
+    return response as any;
   }
 
   async refreshToken(refreshToken: string): Promise<DeviceTokenResponse> {
