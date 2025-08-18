@@ -93,9 +93,9 @@ async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promi
     
     // 2. Display user code and instructions
     console.log();
-    console.log(chalk.bold('First copy your one-time code: ') + chalk.cyan(deviceAuth.user_code));
+    console.log(chalk.bold('First copy your one-time code: ') + chalk.cyan(deviceAuth.userCode));
     console.log();
-    console.log(`Press ${chalk.bold('Enter')} to open ${deviceAuth.verification_uri} in your browser...`);
+    console.log(`Press ${chalk.bold('Enter')} to open ${deviceAuth.verificationUrl} in your browser...`);
     
     // Wait for user to press Enter
     await new Promise(resolve => {
@@ -103,11 +103,11 @@ async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promi
     });
     
     // 3. Open browser
-    await open(deviceAuth.verification_uri);
+    await open(deviceAuth.verificationUrl);
     
     // 4. Poll for authorization
     spinner.start('Waiting for authorization...');
-    const result = await pollForAuthorization(api, deviceAuth.device_code, deviceAuth.interval);
+    const result = await pollForAuthorization(api, deviceAuth.deviceCode, deviceAuth.interval);
     
     // 5. Store tokens and verify
     await saveTokens(result, currentConfig, config);
