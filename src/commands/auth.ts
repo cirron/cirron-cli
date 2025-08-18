@@ -153,22 +153,24 @@ async function pollForAuthorization(
     await new Promise(resolve => setTimeout(resolve, interval * 1000));
     
     try {
-      const status = await api.pollDeviceAuthorization(deviceCode);
+      const response = await api.pollDeviceAuthorization(deviceCode);
       
-      if (status.status === 'authorized') {
+      // Check if we got tokens (success case)
+      if (response.accessToken && response.refreshToken) {
         return {
-          access_token: status.access_token!,
-          refresh_token: status.refresh_token!,
-          expires_in: status.expires_in!,
+          access_token: response.accessToken,
+          refresh_token: response.refreshToken,
+          expires_in: response.expiresIn || 604800,
           token_type: 'bearer'
         };
       }
       
-      if (status.status === 'expired' || status.status === 'denied') {
-        throw new Error(`Authorization ${status.status}`);
+      // Check for explicit status responses
+      if (response.status === 'expired' || response.status === 'denied') {
+        throw new Error(`Authorization ${response.status}`);
       }
       
-      // Continue polling for 'pending' status
+      // Continue polling for 'pending' status or no tokens yet
       attempts++;
       
     } catch (error) {

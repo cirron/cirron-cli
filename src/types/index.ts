@@ -204,9 +204,9 @@ export interface DeviceTokenResponse {
 
 export interface DeviceAuthStatus {
   status: 'pending' | 'authorized' | 'expired' | 'denied';
-  access_token?: string;
-  refresh_token?: string;
-  expires_in?: number;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
 }
 
 export interface DeploymentInfo {
