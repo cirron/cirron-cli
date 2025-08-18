@@ -27,7 +27,7 @@ export class CirronApi {
   // Device Flow Authentication Methods
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
     const response = await this.request('/api/cli/auth/device', { method: 'POST' });
-    return response.data;
+    return response as any;
   }
 
   async pollDeviceAuthorization(deviceCode: string): Promise<DeviceAuthStatus> {

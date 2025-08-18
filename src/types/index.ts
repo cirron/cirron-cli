@@ -188,10 +188,10 @@ export interface AuthInfo {
 }
 
 export interface DeviceCodeResponse {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_in: number;
+  deviceCode: string;
+  userCode: string;
+  verificationUrl: string;
+  expiresIn: number;
   interval: number;
 }
 
