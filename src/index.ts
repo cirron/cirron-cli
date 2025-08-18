@@ -159,7 +159,7 @@ program
 // Settings command (user preferences and project behavior)
 program
   .command('settings')
-  .description('Manage user preferences and cli settings')
+  .description('Manage user preferences and settings')
   .option('-g, --global', 'Manage global settings')
   .option('-p, --project', 'Manage project settings')
   .option('-l, --list', 'List all settings')
