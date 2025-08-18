@@ -89,7 +89,7 @@ async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promi
     // 1. Request device code
     const deviceAuth = await api.requestDeviceCode();
     
-    spinner.stop();
+    spinner.succeed('Device code received');
     
     // 2. Display user code and instructions
     console.log();
@@ -99,11 +99,22 @@ async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promi
     
     // Wait for user to press Enter
     await new Promise(resolve => {
-      process.stdin.once('data', resolve);
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.once('data', () => {
+        process.stdin.setRawMode(false);
+        process.stdin.pause();
+        resolve(undefined);
+      });
     });
     
-    // 3. Open browser
-    await open(deviceAuth.verificationUrl);
+    // 3. Open browser (fix URL if server returns null)
+    const verificationUrl = deviceAuth.verificationUrl.startsWith('null/') 
+      ? deviceAuth.verificationUrl.replace('null/', `${currentConfig.apiUrl.replace('/api', '')}/`)
+      : deviceAuth.verificationUrl;
+    
+    console.log(`\nOpening ${verificationUrl} in your browser...`);
+    await open(verificationUrl);
     
     // 4. Poll for authorization
     spinner.start('Waiting for authorization...');
