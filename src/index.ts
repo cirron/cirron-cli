@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { authCommand, loginCommand, logoutCommand } from './commands/auth';
+import { authCommand, loginCommand, logoutCommand, refreshCommand } from './commands/auth';
 import { buildCommand } from './commands/build';
 import { compileCommand } from './commands/compile';
 import { deployCommand } from './commands/deploy';
@@ -71,6 +71,11 @@ authCmd
   .command('status')
   .description('Show authentication status')
   .action(authCommand);
+
+authCmd
+  .command('refresh')
+  .description('Refresh authentication token')
+  .action(refreshCommand);
 
 // Init command
 program
