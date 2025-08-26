@@ -12,6 +12,7 @@ import { settingsCommand } from './commands/settings';
 import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
 import { hardwareCommand } from './commands/hardware';
+import { diagnosticsCommand } from './commands/diagnostics';
 import { 
   planCompileCommand, 
   planBuildCommand, 
@@ -389,6 +390,14 @@ program
   .option('--json', 'Output in JSON format')
   .option('--verbose', 'Show detailed information')
   .action(hardwareCommand);
+
+// Diagnostics command
+program
+  .command('diagnostics')
+  .description('Run diagnostic checks on configuration and connectivity')
+  .option('--json', 'Output results in JSON format')
+  .option('--verbose', 'Show detailed diagnostic information')
+  .action(diagnosticsCommand);
 
 // Parse command line arguments
 program.parse();
