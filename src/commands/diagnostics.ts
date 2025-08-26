@@ -230,8 +230,11 @@ async function testConnectivity(config: CirronConfig): Promise<any> {
   const spinner = ora('Testing API connectivity...').start();
   
   try {
-    const api = new CirronApi(config);
-    const authInfo = await api.verifyAuth();
+    // Set a shorter timeout for diagnostics to avoid hanging
+    const diagConfig = { ...config, timeout: 10000 }; // 10 second timeout
+    const diagApi = new CirronApi(diagConfig);
+    
+    const authInfo = await diagApi.verifyAuth();
     
     spinner.stop();
     
@@ -265,15 +268,20 @@ async function testConnectivity(config: CirronConfig): Promise<any> {
   } catch (error) {
     spinner.stop();
     
+    // Check if it's a token refresh error (indicating expired/invalid token)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isAuthError = errorMessage.includes('refresh token') || errorMessage.includes('token') || errorMessage.includes('401') || errorMessage.includes('403');
+    
     return {
       status: {
-        status: 'warning' as const,
-        message: 'API connection failed - running in local-only mode'
+        status: isAuthError ? 'warning' : 'warning',
+        message: isAuthError ? 'Authentication token invalid or expired' : 'API connection failed - running in local-only mode'
       },
       mode: 'offline' as const,
       details: {
         apiUrl: config.apiUrl,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage,
+        authRelated: isAuthError
       }
     };
   }
