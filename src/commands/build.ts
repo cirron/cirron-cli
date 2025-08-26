@@ -10,6 +10,7 @@ import { CirronIgnore } from '../utils/ignore';
 import { executePythonScript, formatExecutionError } from '../utils/execution';
 import { HardwareDetector } from '../utils/hardware';
 import { createInteractiveManager } from '../utils/interactive';
+import { ModelConfigManager } from '../utils/model-config';
 import type { BuildOptions, ProjectConfig, HardwareConfig } from '../types';
 
 interface ValidationResult {
@@ -171,6 +172,17 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
 async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ora.Ora): Promise<void> {
   const interactive = createInteractiveManager(options.interactive || false);
   
+  // Load model configuration
+  const modelConfigManager = new ModelConfigManager();
+  const modelConfig = await modelConfigManager.loadModelConfig();
+  
+  if (modelConfig) {
+    logger.info(chalk.blue(`Found model configuration: ${modelConfig.name || 'unnamed model'}`));
+    if (modelConfig.architecture) {
+      logger.info(chalk.gray(`Architecture: ${modelConfig.architecture}`));
+    }
+  }
+  
   // Log force flag usage for traceability
   if (options.force) {
     logger.info(chalk.yellow('Build running with --force flag'));
@@ -194,8 +206,10 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
     spinner.start();
   }
 
-  // Determine architecture from hardware config or options
-  const architecture = options.arch || await determineArchitectureFromHardware(projectConfig);
+  // Determine architecture from options, model config, or hardware detection
+  const architecture = options.arch || 
+    modelConfig?.inference?.device || 
+    await determineArchitectureFromHardware(projectConfig);
   
   // Interactive architecture confirmation
   if (interactive.isInteractive() && !options.arch) {

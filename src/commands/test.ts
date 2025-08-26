@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
 import { executePythonFile, formatExecutionError, executeScript } from '../utils/execution';
 import { createInteractiveManager } from '../utils/interactive';
+import { ModelConfigManager } from '../utils/model-config';
 import type { ProjectConfig } from '../types';
 
 interface TestOptions {
@@ -42,6 +43,14 @@ export async function testCommand(options: TestOptions): Promise<void> {
     }
 
     const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    
+    // Load model configuration
+    const modelConfigManager = new ModelConfigManager();
+    const modelConfig = await modelConfigManager.loadModelConfig();
+    
+    if (modelConfig) {
+      logger.info(chalk.blue(`Using model configuration for testing: ${modelConfig.name || 'unnamed model'}`));
+    }
     
     // Determine which tests to run
     let testsToRun = determineTests(options);
