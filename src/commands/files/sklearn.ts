@@ -14,6 +14,59 @@ scipy>=1.4.1,<1.12.0
 `;
   
     await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
+    
+    // Create model.yaml configuration
+    const modelConfig = `# Model Configuration for Scikit-learn
+version: 1
+name: "${options.modelType || 'sklearn'}_model"
+architecture: "${options.modelType === 'classification' ? 'RandomForestClassifier' : options.modelType === 'regression' ? 'RandomForestRegressor' : 'Pipeline'}"
+framework: sklearn
+modelType: "${options.modelType || 'classification'}"
+
+parameters:
+  total: 5000  # Estimated tree parameters
+  trainable: 5000
+  nonTrainable: 0
+
+inputShape: "(samples, features)"
+outputShape: "${options.modelType === 'regression' ? '(samples,)' : '(samples, num_classes)'}"
+
+training:
+  n_estimators: 100
+  max_depth: 10
+  random_state: 42
+  test_size: 0.2
+  cross_validation: 5
+
+inference:
+  device: "cpu"
+  precision: "fp64"
+  batchSize: 1000
+
+data:
+  inputFormat: "dataframe"
+  outputFormat: "${options.modelType === 'regression' ? 'predictions' : 'probabilities'}"
+  preprocessing:
+    - "standardize"
+    - "handle_missing"
+
+metadata:
+  description: "Scikit-learn ${options.modelType || 'classification'} model"
+  created: "${new Date().toISOString()}"
+  tags:
+    - "sklearn"
+    - "${options.modelType || 'classification'}"
+    - "ensemble"
+
+dependencies:
+  python: ">=3.8"
+  packages:
+    scikit-learn: ">=1.3.0"
+    numpy: ">=1.21.0"
+    pandas: ">=1.5.0"
+`;
+
+    await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
     await fs.ensureDir(path.join(projectPath, 'src'));
   
     const modelCode = getModelCode('sklearn', options.modelType);
