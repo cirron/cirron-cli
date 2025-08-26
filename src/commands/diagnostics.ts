@@ -288,6 +288,9 @@ async function testConnectivity(config: CirronConfig): Promise<any> {
         authRelated: isAuthError
       }
     };
+  } finally {
+    // Restore original console.warn
+    console.warn = originalWarn;
   }
 }
 
