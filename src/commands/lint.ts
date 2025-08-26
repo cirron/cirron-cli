@@ -6,6 +6,7 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
 import { executeScript } from '../utils/execution';
+import { ModelConfigManager } from '../utils/model-config';
 import type { ProjectConfig } from '../types';
 
 interface LintOptions {
@@ -207,6 +208,39 @@ async function lintProjectStructure(summary: LintSummary, _options: LintOptions)
         file: file.path
       });
     }
+  }
+
+  // Check for model configuration files
+  const modelConfigManager = new ModelConfigManager();
+  const modelConfigFile = await modelConfigManager.findModelConfigFile();
+  
+  if (modelConfigFile) {
+    try {
+      const modelConfig = await modelConfigManager.loadModelConfig();
+      if (modelConfig) {
+        addResult(summary, {
+          category: 'structure',
+          severity: 'info',
+          message: `Found model configuration: ${path.basename(modelConfigFile)}`,
+          file: path.basename(modelConfigFile)
+        });
+      }
+    } catch (error) {
+      addResult(summary, {
+        category: 'structure',
+        severity: 'warning',
+        message: `Invalid model configuration: ${path.basename(modelConfigFile)}`,
+        file: path.basename(modelConfigFile),
+        suggestion: 'Check YAML/JSON syntax and schema compliance'
+      });
+    }
+  } else {
+    addResult(summary, {
+      category: 'structure',
+      severity: 'info',
+      message: 'No model configuration file found (model.yaml, model.yml, or model.json)',
+      suggestion: 'Consider creating a model.yaml file for better configuration management'
+    });
   }
 
   // Check for ML-specific directories
