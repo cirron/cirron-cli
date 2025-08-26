@@ -479,6 +479,7 @@ function displaySummary(report: DiagnosticsReport): void {
 }
 
 function displayVerboseInfo(report: DiagnosticsReport): void {
+  console.log(); // Add spacing
   logger.info(chalk.cyan('Detailed Information:'));
   
   if (report.configuration.tokenStatus.details) {
@@ -486,6 +487,9 @@ function displayVerboseInfo(report: DiagnosticsReport): void {
     logger.info(`    Type: ${report.configuration.tokenStatus.details.type}`);
     if (report.configuration.tokenStatus.details.expiresAt) {
       logger.info(`    Expires: ${new Date(report.configuration.tokenStatus.details.expiresAt).toLocaleString()}`);
+    }
+    if (report.configuration.tokenStatus.details.hasRefreshToken !== undefined) {
+      logger.info(`    Has Refresh Token: ${report.configuration.tokenStatus.details.hasRefreshToken ? 'Yes' : 'No'}`);
     }
   }
   
