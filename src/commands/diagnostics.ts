@@ -173,6 +173,23 @@ function analyzeSettings() {
   // Create effective settings by merging global and project
   const effectiveSettings = createEffectiveSettings(globalSettings, projectSettings || undefined);
   
+  const projectResult: {
+    status: DiagnosticResult;
+    settings?: ProjectSettings;
+  } = {
+    status: projectSettings ? {
+      status: 'ok' as const,
+      message: 'Project settings loaded successfully'
+    } : {
+      status: 'warning' as const,
+      message: 'No project settings found (not in a project directory)'
+    }
+  };
+  
+  if (projectSettings) {
+    projectResult.settings = projectSettings;
+  }
+  
   return {
     global: {
       status: {
@@ -181,16 +198,7 @@ function analyzeSettings() {
       },
       settings: globalSettings
     },
-    project: {
-      status: projectSettings ? {
-        status: 'ok' as const,
-        message: 'Project settings loaded successfully'
-      } : {
-        status: 'warning' as const,
-        message: 'No project settings found (not in a project directory)'
-      },
-      settings: projectSettings ? projectSettings : undefined
-    },
+    project: projectResult,
     effective: effectiveSettings
   };
 }
