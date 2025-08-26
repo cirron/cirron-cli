@@ -11,6 +11,54 @@ export async function createCustomFiles(projectPath: string, _projectName: strin
   `;
   
     await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
+    
+    // Create model.yaml configuration
+    const modelConfig = `# Model Configuration for Custom Framework
+version: 1
+name: "custom_model"
+architecture: "CustomModel"
+framework: custom
+modelType: "${options.modelType || 'custom'}"
+
+parameters:
+  total: 1000  # Update based on your model
+  trainable: 1000
+  nonTrainable: 0
+
+inputShape: "(samples, features)"  # Update based on your input
+outputShape: "(samples, outputs)"  # Update based on your output
+
+training:
+  epochs: 10
+  batchSize: 32
+  learningRate: 0.001
+
+inference:
+  device: "cpu"
+  precision: "fp32"
+  batchSize: 1
+
+data:
+  inputFormat: "custom"
+  outputFormat: "custom"
+  preprocessing:
+    - "custom_preprocessing"
+
+metadata:
+  description: "Custom model implementation - modify as needed"
+  created: "${new Date().toISOString()}"
+  tags:
+    - "custom"
+    - "${options.modelType || 'custom'}"
+
+dependencies:
+  python: ">=3.8"
+  packages:
+    numpy: ">=1.21.0"
+    pandas: ">=1.5.0"
+`;
+
+    await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
     await fs.ensureDir(path.join(projectPath, 'src'));
   
     const modelCode = `"""
