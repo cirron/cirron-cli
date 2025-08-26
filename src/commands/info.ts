@@ -3,7 +3,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import { logger } from '../utils/logger';
 import { getRepositoryInfo, getShortCommitHash } from '../utils/git';
-import type { ProjectConfig } from '../types';
+import { ModelConfigManager } from '../utils/model-config';
+import type { ProjectConfig, ModelConfig } from '../types';
 
 interface ModelInfo {
   modelType: string;
@@ -52,6 +53,10 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
     // Load project configuration
     const projectConfig: ProjectConfig = await fs.readJSON(cirronJsonPath);
     
+    // Load model configuration
+    const modelConfigManager = new ModelConfigManager();
+    const modelConfig = await modelConfigManager.loadModelConfig();
+    
     // Analyze model.py if it exists
     const modelPyPath = path.join(process.cwd(), 'src', 'model.py');
     let modelAnalysis: ModelAnalysis | null = null;
@@ -80,6 +85,11 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
     
     // Display the information
     displayModelInfo(projectConfig.name, modelInfo);
+    
+    // Display model configuration if available
+    if (modelConfig) {
+      displayModelConfigInfo(modelConfig);
+    }
     
     // Display mismatch warnings after the main info
     if (mismatches.length > 0) {
@@ -404,6 +414,34 @@ function extractDependencies(imports: string[]): string[] {
   }
   
   return dependencies;
+}
+
+function displayModelConfigInfo(modelConfig: ModelConfig): void {
+  console.log(chalk.bold('Model Configuration (YAML/JSON)'));
+  console.log(`  ${chalk.yellow('Name:')} ${modelConfig.name || 'Not specified'}`);
+  console.log(`  ${chalk.yellow('Architecture:')} ${modelConfig.architecture || 'Not specified'}`);
+  console.log(`  ${chalk.yellow('Framework:')} ${modelConfig.framework || 'Not specified'}`);
+  
+  if (modelConfig.parameters) {
+    console.log(`  ${chalk.yellow('Total Parameters:')} ${modelConfig.parameters.total?.toLocaleString() || 'Unknown'}`);
+  }
+  
+  if (modelConfig.inputShape) {
+    const inputShape = typeof modelConfig.inputShape === 'string' 
+      ? modelConfig.inputShape 
+      : JSON.stringify(modelConfig.inputShape);
+    console.log(`  ${chalk.yellow('Input Shape:')} ${inputShape}`);
+  }
+  
+  if (modelConfig.inference?.device) {
+    console.log(`  ${chalk.yellow('Target Device:')} ${modelConfig.inference.device}`);
+  }
+  
+  if (modelConfig.metadata?.description) {
+    console.log(`  ${chalk.yellow('Description:')} ${modelConfig.metadata.description}`);
+  }
+  
+  console.log();
 }
 
 function displayModelInfo(projectName: string, info: ModelInfo): void {

@@ -8,6 +8,7 @@ import { executePythonScript, handleExecutionResult, formatExecutionError } from
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
 import { HardwareDetector } from '../utils/hardware';
 import { createInteractiveManager } from '../utils/interactive';
+import { ModelConfigManager } from '../utils/model-config';
 import type { ProjectConfig, HardwareConfig } from '../types';
 
 interface CompileOptions {
@@ -39,6 +40,17 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
     
+    // Load model configuration
+    const modelConfigManager = new ModelConfigManager();
+    const modelConfig = await modelConfigManager.loadModelConfig();
+    
+    if (modelConfig) {
+      logger.info(chalk.blue(`Using model configuration: ${modelConfig.name || 'unnamed model'}`));
+      if (modelConfig.framework && modelConfig.framework !== projectConfig.framework) {
+        logger.warn(chalk.yellow(`Framework mismatch: model.yaml (${modelConfig.framework}) vs cirron.json (${projectConfig.framework})`));
+      }
+    }
+    
     // Interactive confirmation for compilation start
     if (interactive.isInteractive()) {
       spinner.stop();
@@ -57,8 +69,10 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       spinner.start();
     }
     
-    // Determine architecture from hardware config or options
-    const architecture = options.arch || await determineArchitectureFromHardware(projectConfig);
+    // Determine architecture from options, model config, or hardware detection
+    const architecture = options.arch || 
+      modelConfig?.inference?.device || 
+      await determineArchitectureFromHardware(projectConfig);
     
     // Interactive architecture confirmation
     if (interactive.isInteractive() && !options.arch) {

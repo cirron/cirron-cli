@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { executePythonScript } from './execution';
+import { ModelConfigManager } from './model-config';
 
 export interface ModelAnalysis {
   architecture: string;
@@ -53,6 +54,41 @@ export class ModelAnalyzer {
       framework: this.framework,
       warnings: []
     };
+
+    // Try to load model configuration to enhance analysis
+    try {
+      const modelConfigManager = new ModelConfigManager(this.projectPath);
+      const modelConfig = await modelConfigManager.loadModelConfig();
+      
+      if (modelConfig) {
+        // Use model config to override/enhance analysis
+        if (modelConfig.architecture) {
+          analysis.architecture = modelConfig.architecture;
+        }
+        if (modelConfig.parameters?.total) {
+          analysis.totalParameters = modelConfig.parameters.total;
+        }
+        if (modelConfig.parameters?.trainable) {
+          analysis.trainableParameters = modelConfig.parameters.trainable;
+        }
+        if (modelConfig.parameters?.nonTrainable) {
+          analysis.nonTrainableParameters = modelConfig.parameters.nonTrainable;
+        }
+        if (modelConfig.inputShape) {
+          analysis.inputShape = typeof modelConfig.inputShape === 'string' 
+            ? modelConfig.inputShape 
+            : JSON.stringify(modelConfig.inputShape);
+        }
+        if (modelConfig.outputShape) {
+          analysis.outputShape = typeof modelConfig.outputShape === 'string' 
+            ? modelConfig.outputShape 
+            : JSON.stringify(modelConfig.outputShape);
+        }
+      }
+    } catch (error) {
+      // Model config loading is optional, continue with code analysis
+      analysis.warnings.push('Could not load model configuration file');
+    }
 
     try {
       // Analyze model code statically

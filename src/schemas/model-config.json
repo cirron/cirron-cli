@@ -1,0 +1,230 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Model Configuration Schema",
+  "description": "Schema for model.yaml and model.json configuration files",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Configuration schema version"
+    },
+    "name": {
+      "type": "string",
+      "description": "Model name"
+    },
+    "architecture": {
+      "type": "string",
+      "description": "Model architecture (e.g., 'ResNet', 'Transformer', 'CNN')"
+    },
+    "framework": {
+      "type": "string",
+      "enum": ["pytorch", "tensorflow", "sklearn", "custom"],
+      "description": "ML framework used"
+    },
+    "modelType": {
+      "type": "string",
+      "enum": ["classification", "regression", "nlp", "computer_vision", "time_series", "custom"],
+      "description": "Type of ML model"
+    },
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of parameters"
+        },
+        "trainable": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of trainable parameters"
+        },
+        "nonTrainable": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of non-trainable parameters"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inputShape": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Input shape as string (e.g., '(batch, 784)')"
+        },
+        {
+          "type": "object",
+          "description": "Input shape as key-value pairs",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "outputShape": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Output shape as string (e.g., '(batch, 10)')"
+        },
+        {
+          "type": "object",
+          "description": "Output shape as key-value pairs",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "training": {
+      "type": "object",
+      "properties": {
+        "epochs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of training epochs"
+        },
+        "batchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Training batch size"
+        },
+        "learningRate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Learning rate"
+        },
+        "optimizer": {
+          "type": "string",
+          "description": "Optimizer used (e.g., 'adam', 'sgd')"
+        },
+        "loss": {
+          "type": "string",
+          "description": "Loss function used"
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Training metrics"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inference": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string",
+          "enum": ["cpu", "gpu", "cuda"],
+          "default": "cpu",
+          "description": "Device for inference"
+        },
+        "precision": {
+          "type": "string",
+          "enum": ["fp32", "fp16", "int8"],
+          "default": "fp32",
+          "description": "Numerical precision"
+        },
+        "batchSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Inference batch size"
+        }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "inputFormat": {
+          "type": "string",
+          "description": "Expected input data format"
+        },
+        "outputFormat": {
+          "type": "string", 
+          "description": "Output data format"
+        },
+        "preprocessing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Preprocessing steps"
+        },
+        "postprocessing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Postprocessing steps"
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string",
+          "description": "Model author"
+        },
+        "description": {
+          "type": "string",
+          "description": "Model description"
+        },
+        "version": {
+          "type": "string",
+          "description": "Model version"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last updated timestamp"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Model tags"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "python": {
+          "type": "string",
+          "description": "Python version requirement"
+        },
+        "packages": {
+          "type": "object",
+          "description": "Package dependencies",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional requirements"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
