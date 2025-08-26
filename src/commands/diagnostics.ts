@@ -229,6 +229,10 @@ function createEffectiveSettings(global: GlobalSettings, project?: ProjectSettin
 async function testConnectivity(config: CirronConfig): Promise<any> {
   const spinner = ora('Testing API connectivity...').start();
   
+  // Temporarily suppress console warnings during API test
+  const originalWarn = console.warn;
+  console.warn = () => {}; // Suppress warnings during diagnostics
+  
   try {
     // Set a shorter timeout for diagnostics to avoid hanging
     const diagConfig = { ...config, timeout: 10000 }; // 10 second timeout
