@@ -1,8 +1,10 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { GlobalSettings, ProjectSettings, SettingsValidationError } from '../types';
+import { ModelConfig } from './model-config';
 import globalSettingsSchema from '../schemas/global-settings.json';
 import projectSettingsSchema from '../schemas/project-settings.json';
+import modelConfigSchema from '../schemas/model-config.json';
 
 export class SchemaValidator {
   private ajv: Ajv;
@@ -19,6 +21,7 @@ export class SchemaValidator {
     // Add schemas
     this.ajv.addSchema(globalSettingsSchema, 'global-settings');
     this.ajv.addSchema(projectSettingsSchema, 'project-settings');
+    this.ajv.addSchema(modelConfigSchema, 'model-config');
   }
 
   validateGlobalSettings(settings: unknown): { valid: boolean; errors: SettingsValidationError[]; data?: GlobalSettings } {
@@ -58,6 +61,29 @@ export class SchemaValidator {
         valid: true,
         errors,
         data: settings as ProjectSettings
+      };
+    } else {
+      return {
+        valid: false,
+        errors
+      };
+    }
+  }
+
+  validateModelConfig(config: unknown): { valid: boolean; errors: SettingsValidationError[]; data?: ModelConfig } {
+    const validate = this.ajv.getSchema('model-config');
+    if (!validate) {
+      throw new Error('Model config schema not found');
+    }
+
+    const valid = validate(config);
+    const errors = this.formatErrors(validate.errors || []);
+    
+    if (valid) {
+      return {
+        valid: true,
+        errors,
+        data: config as ModelConfig
       };
     } else {
       return {
