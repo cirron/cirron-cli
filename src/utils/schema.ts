@@ -1,7 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { GlobalSettings, ProjectSettings, SettingsValidationError } from '../types';
-import { ModelConfig } from './model-config';
+import { GlobalSettings, ProjectSettings, SettingsValidationError, ModelConfig } from '../types';
 import globalSettingsSchema from '../schemas/global-settings.json';
 import projectSettingsSchema from '../schemas/project-settings.json';
 import modelConfigSchema from '../schemas/model-config.json';
