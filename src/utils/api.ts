@@ -241,7 +241,7 @@ export class CirronApi {
         this.config = currentConfig;
       } catch (error) {
         // If refresh fails, continue with existing token and let the API request fail
-        console.warn('Failed to refresh token automatically:', error);
+        // Don't log refresh errors automatically - let calling code handle them
       }
     }
   }
