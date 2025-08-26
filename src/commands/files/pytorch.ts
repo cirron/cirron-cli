@@ -16,6 +16,62 @@ requests>=2.28.0
   `;
   
     await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
+    
+    // Create model.yaml configuration
+    const modelConfig = `# Model Configuration for PyTorch
+version: 1
+name: "${options.modelType || 'pytorch'}_model"
+architecture: "${getModelClassName(options.modelType)}"
+framework: pytorch
+modelType: "${options.modelType || 'classification'}"
+
+parameters:
+  total: 50000  # Estimated, will be updated after training
+  trainable: 50000
+  nonTrainable: 0
+
+inputShape: "(batch, channels, height, width)"
+outputShape: "${options.modelType === 'regression' ? '(batch, 1)' : '(batch, num_classes)'}"
+
+training:
+  epochs: 10
+  batchSize: 32
+  learningRate: 0.001
+  optimizer: "adam"
+  loss: "${options.modelType === 'regression' ? 'mse' : 'cross_entropy'}"
+  metrics: 
+    - "accuracy"
+    - "loss"
+
+inference:
+  device: "cpu"
+  precision: "fp32"
+  batchSize: 1
+
+data:
+  inputFormat: "tensor"
+  outputFormat: "probabilities"
+  preprocessing:
+    - "resize"
+    - "normalize"
+    - "to_tensor"
+
+metadata:
+  description: "PyTorch ${options.modelType || 'classification'} model"
+  created: "${new Date().toISOString()}"
+  tags:
+    - "pytorch"
+    - "${options.modelType || 'classification'}"
+
+dependencies:
+  python: ">=3.8"
+  packages:
+    torch: ">=2.0.0"
+    torchvision: ">=0.15.0"
+    numpy: ">=1.21.0"
+`;
+
+    await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
   
     // Create src structure
     await fs.ensureDir(path.join(projectPath, 'src'));

@@ -13,6 +13,60 @@ requests>=2.28.0
 `;
 
   await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
+  
+  // Create model.yaml configuration
+  const modelConfig = `# Model Configuration for TensorFlow
+version: 1
+name: "${options.modelType || 'tensorflow'}_model"
+architecture: "Sequential"
+framework: tensorflow
+modelType: "${options.modelType || 'classification'}"
+
+parameters:
+  total: 25000  # Estimated, will be updated after training
+  trainable: 25000
+  nonTrainable: 0
+
+inputShape: "${options.modelType === 'computer_vision' ? '(batch, 224, 224, 3)' : '(batch, features)'}"
+outputShape: "${options.modelType === 'regression' ? '(batch, 1)' : '(batch, num_classes)'}"
+
+training:
+  epochs: 10
+  batchSize: 32
+  learningRate: 0.001
+  optimizer: "adam"
+  loss: "${options.modelType === 'regression' ? 'mse' : 'sparse_categorical_crossentropy'}"
+  metrics: 
+    - "accuracy"
+    - "loss"
+
+inference:
+  device: "cpu"
+  precision: "fp32"
+  batchSize: 1
+
+data:
+  inputFormat: "tensor"
+  outputFormat: "probabilities"
+  preprocessing:
+    - "resize"
+    - "normalize"
+
+metadata:
+  description: "TensorFlow ${options.modelType || 'classification'} model"
+  created: "${new Date().toISOString()}"
+  tags:
+    - "tensorflow"
+    - "${options.modelType || 'classification'}"
+
+dependencies:
+  python: ">=3.8"
+  packages:
+    tensorflow: ">=2.12.0"
+    numpy: ">=1.21.0"
+`;
+
+  await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
   await fs.ensureDir(path.join(projectPath, 'src'));
 
   const modelCode = getModelCode('tensorflow', options.modelType);
