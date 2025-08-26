@@ -396,8 +396,8 @@ program
   .command('diagnostics')
   .description('Run diagnostic checks on configuration and connectivity')
   .option('--json', 'Output results in JSON format')
-  .option('--verbose', 'Show detailed diagnostic information')
-  .action(diagnosticsCommand);
+  .option('--detailed', 'Show detailed diagnostic information')
+  .action((options) => diagnosticsCommand({ ...options, verbose: options.detailed }));
 
 // Parse command line arguments
 program.parse();
