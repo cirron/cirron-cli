@@ -2,53 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import yaml from 'js-yaml';
 import { schemaValidator } from './schema';
-
-export interface ModelConfig {
-  version?: number;
-  name?: string;
-  architecture?: string;
-  framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
-  modelType?: string;
-  parameters?: {
-    total?: number;
-    trainable?: number;
-    nonTrainable?: number;
-  };
-  inputShape?: string | Record<string, string>;
-  outputShape?: string | Record<string, string>;
-  training?: {
-    epochs?: number;
-    batchSize?: number;
-    learningRate?: number;
-    optimizer?: string;
-    loss?: string;
-    metrics?: string[];
-  };
-  inference?: {
-    device?: 'cpu' | 'gpu' | 'cuda';
-    precision?: 'fp32' | 'fp16' | 'int8';
-    batchSize?: number;
-  };
-  data?: {
-    inputFormat?: string;
-    outputFormat?: string;
-    preprocessing?: string[];
-    postprocessing?: string[];
-  };
-  metadata?: {
-    author?: string;
-    description?: string;
-    version?: string;
-    created?: string;
-    updated?: string;
-    tags?: string[];
-  };
-  dependencies?: {
-    python?: string;
-    packages?: Record<string, string>;
-    requirements?: string[];
-  };
-}
+import { ModelConfig } from '../types';
 
 export class ModelConfigManager {
   private projectPath: string;
