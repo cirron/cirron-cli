@@ -36,7 +36,7 @@ export class CirronApi {
   }
 
   async refreshToken(refreshToken: string): Promise<DeviceTokenResponse> {
-    const response = await this.request('/api/cli/auth/refresh', {
+    const response = await this.requestRaw('/api/cli/auth/refresh', {
       method: 'POST',
       body: { refresh_token: refreshToken }
     });
@@ -241,7 +241,7 @@ export class CirronApi {
         this.config = currentConfig;
       } catch (error) {
         // If refresh fails, continue with existing token and let the API request fail
-        console.warn('Failed to refresh token automatically:', error);
+        // Don't log refresh errors automatically - let calling code handle them
       }
     }
   }
@@ -258,6 +258,18 @@ export class CirronApi {
     // Ensure token is valid before making request
     await this.ensureValidToken();
     
+    return this.requestRaw(endpoint, options);
+  }
+
+  private async requestRaw(
+    endpoint: string,
+    options: {
+      method?: string;
+      body?: any;
+      headers?: Record<string, string>;
+      isFormData?: boolean;
+    } = {}
+  ): Promise<ApiResponse> {
     const url = new URL(endpoint, this.config.apiUrl);
     const method = options.method || 'GET';
     
