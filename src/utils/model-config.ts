@@ -161,7 +161,7 @@ export class ModelConfigManager {
     };
 
     return {
-      ...defaults[framework] || defaults.pytorch,
+      ...defaults[framework] || defaults['pytorch'],
       metadata: {
         created: new Date().toISOString(),
         updated: new Date().toISOString()
