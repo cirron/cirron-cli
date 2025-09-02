@@ -270,6 +270,55 @@ export interface ModelMetadata {
   detectedPatterns?: string[];
 }
 
+// List command types
+export interface BuildInfo {
+  id: string;
+  projectName?: string;
+  status: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS' | 'PENDING';
+  createdAt: string;
+  completedAt?: string;
+  duration?: number;
+  error?: string;
+}
+
+export interface ModelInstance {
+  id: string;
+  name: string;
+  version: string;
+  type?: string;
+  status?: 'ACTIVE' | 'DEPLOYING' | 'FAILED' | 'INACTIVE';
+  endpoint?: string;
+  modelInstance?: {
+    name: string;
+    version: string;
+    model?: {
+      type: string;
+    };
+  };
+}
+
+export interface ModelImage {
+  id: string;
+  name?: string;
+  repository?: string;
+  tag?: string;
+  size?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface RegistryArtifact {
+  id: string;
+  name: string;
+  type: string;
+  version?: string;
+  pipeline?: {
+    id: string;
+    name: string;
+  };
+  createdAt: string;
+}
+
 // Plan command interfaces
 export interface PlanOptions {
   verbose?: boolean;

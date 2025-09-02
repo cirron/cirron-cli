@@ -13,6 +13,7 @@ import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
 import { hardwareCommand } from './commands/hardware';
 import { diagnosticsCommand } from './commands/diagnostics';
+import { listCommand } from './commands/list';
 import { 
   planCompileCommand, 
   planBuildCommand, 
@@ -293,6 +294,16 @@ program
   .option('--verbose', 'Show detailed execution information')
   .option('--force', 'Force execution despite compatibility warnings')
   .action(replayCommand);
+
+// List command
+program
+  .command('list <resource>')
+  .description('List resources (deployments, builds, models, images, registry)')
+  .option('--json', 'Output in JSON format')
+  .option('-l, --limit <number>', 'Number of items to show', '20')
+  .option('-f, --filter <filter>', 'Filter resources')
+  .option('--all', 'Show all items (no limit)')
+  .action(listCommand);
 
 // Status command
 program
