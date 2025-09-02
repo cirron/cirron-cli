@@ -197,6 +197,77 @@ export class CirronApi {
     });
   }
 
+  // List command methods
+  async getBuilds(options: {
+    limit?: number;
+    status?: string;
+    projectId?: string;
+  } = {}): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.status) params.append('status', options.status);
+    if (options.projectId) params.append('projectId', options.projectId);
+
+    const response = await this.request(`/api/builds?${params}`);
+    return response.data || [];
+  }
+
+  async getModelInstances(options: {
+    limit?: number;
+    modelId?: string;
+  } = {}): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.modelId) params.append('modelId', options.modelId);
+
+    const response = await this.request(`/api/serving/endpoints?${params}`);
+    return response.data || response || [];
+  }
+
+  async getModelImages(options: {
+    limit?: number;
+    modelId?: string;
+  } = {}): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.modelId) params.append('modelId', options.modelId);
+
+    const response = await this.request(`/api/model-images?${params}`);
+    return response.data || [];
+  }
+
+  async getRegistryArtifacts(options: {
+    limit?: number;
+    type?: string;
+    pipelineId?: string;
+    nodeId?: string;
+    latest?: boolean;
+  } = {}): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.type) params.append('type', options.type);
+    if (options.pipelineId) params.append('pipelineId', options.pipelineId);
+    if (options.nodeId) params.append('nodeId', options.nodeId);
+    if (options.latest) params.append('latest', 'true');
+
+    const response = await this.request(`/api/registry/artifacts?${params}`);
+    return response.data?.artifacts || response.data || [];
+  }
+
+  async getDeploymentExecutions(options: {
+    limit?: number;
+    modelInstanceId?: string;
+    modelId?: string;
+  } = {}): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.modelInstanceId) params.append('modelInstanceId', options.modelInstanceId);
+    if (options.modelId) params.append('modelId', options.modelId);
+
+    const response = await this.request(`/api/serving/versions?${params}`);
+    return response.data || response || [];
+  }
+
   private getAuthHeader(): string | undefined {
     // Try JWT token first
     if (this.config.auth?.accessToken) {
