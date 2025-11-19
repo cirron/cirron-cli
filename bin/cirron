@@ -12,10 +12,27 @@ const entryPoint = isDev
 if (isDev) {
   // Use ts-node for development
   try {
-    require('ts-node/register');
+    // Add the CLI's node_modules to the module search path
+    const Module = require('module');
+    const cliNodeModules = path.join(__dirname, '..', 'node_modules');
+    const originalPaths = Module._nodeModulePaths(process.cwd());
+    Module._nodeModulePaths = function() {
+      return [cliNodeModules, ...originalPaths];
+    };
+
+    // Register ts-node with proper configuration
+    require('ts-node').register({
+      project: path.join(__dirname, '..', 'tsconfig.json'),
+      transpileOnly: true,
+      compilerOptions: {
+        module: 'commonjs'
+      }
+    });
+
     require(entryPoint);
   } catch (error) {
     console.error('Development mode requires ts-node. Run: npm install -g ts-node');
+    console.error('Error details:', error.message);
     process.exit(1);
   }
 } else {
