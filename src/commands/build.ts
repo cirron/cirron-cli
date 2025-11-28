@@ -169,7 +169,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
   }
 }
 
-async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ora.Ora): Promise<void> {
+async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ReturnType<typeof ora>): Promise<void> {
   const interactive = createInteractiveManager(options.interactive || false);
   
   // Load model configuration
@@ -391,7 +391,7 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
   logger.success('ML model build completed successfully!');
 }
 
-async function handleTraditionalBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ora.Ora): Promise<void> {
+async function handleTraditionalBuild(projectConfig: ProjectConfig, options: BuildOptions, spinner: ReturnType<typeof ora>): Promise<void> {
   // Log force flag usage for traceability
   if (options.force) {
     logger.info(chalk.yellow('Build running with --force flag'));
@@ -422,8 +422,10 @@ async function handleTraditionalBuild(projectConfig: ProjectConfig, options: Bui
   }
 
   // Set environment variables
-  const env = {
-    ...process.env,
+  const env: Record<string, string> = {
+    ...Object.fromEntries(
+      Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+    ),
     NODE_ENV: options.env === 'production' ? 'production' : 'development',
     CIRRON_ENV: options.env
   };
@@ -541,7 +543,7 @@ function generateImageName(projectConfig: ProjectConfig, _options: BuildOptions)
 async function buildDockerImage(
   imageName: string, 
   options: BuildOptions, 
-  spinner: ora.Ora
+  spinner: ReturnType<typeof ora>
 ): Promise<void> {
   let tempDockerIgnore: string | null = null;
   
@@ -636,7 +638,7 @@ async function buildDockerImage(
   }
 }
 
-async function pushImage(imageName: string, spinner: ora.Ora): Promise<void> {
+async function pushImage(imageName: string, spinner: ReturnType<typeof ora>): Promise<void> {
   spinner.text = `Pushing image to registry: ${imageName}...`;
   
   return new Promise((resolve, reject) => {
@@ -693,7 +695,7 @@ async function pushImage(imageName: string, spinner: ora.Ora): Promise<void> {
   });
 }
 
-async function runBuild(command: string, env: Record<string, string>, spinner: ora.Ora): Promise<void> {
+async function runBuild(command: string, env: Record<string, string>, spinner: ReturnType<typeof ora>): Promise<void> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = command.split(' ');
     

@@ -215,7 +215,7 @@ async function handleRollback(
   api: CirronApi, 
   projectConfig: ProjectConfig, 
   options: DeployOptions,
-  spinner: ora.Ora
+  spinner: ReturnType<typeof ora>
 ): Promise<void> {
   try {
     spinner.text = 'Finding previous deployment...';
@@ -296,7 +296,7 @@ async function uploadBuildArtifacts(
   api: CirronApi, 
   deploymentId: string, 
   outputDir: string,
-  spinner: ora.Ora
+  spinner: ReturnType<typeof ora>
 ): Promise<void> {
   const outputPath = path.resolve(process.cwd(), outputDir);
   
@@ -380,7 +380,7 @@ function shouldSkipFile(filename: string): boolean {
 async function monitorDeployment(
   api: CirronApi, 
   deploymentId: string,
-  spinner: ora.Ora
+  spinner: ReturnType<typeof ora>
 ): Promise<DeploymentInfo> {
   const maxAttempts = 60; // 5 minutes with 5-second intervals
   let attempts = 0;
