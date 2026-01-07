@@ -53,7 +53,7 @@ export class CirronApi {
     template: string;
     path: string;
   }): Promise<any> {
-    const response = await this.request('/projects', {
+    const response = await this.request('/api/cli/models', {
       method: 'POST',
       body: projectData
     });
@@ -68,7 +68,7 @@ export class CirronApi {
     deployConfig: any;
     envConfig: any;
   }): Promise<DeploymentInfo> {
-    const response = await this.request('/deployments', {
+    const response = await this.request('/api/cli/deployments', {
       method: 'POST',
       body: deploymentData
     });
@@ -76,13 +76,13 @@ export class CirronApi {
   }
 
   async startDeployment(deploymentId: string): Promise<void> {
-    await this.request(`/deployments/${deploymentId}/start`, {
+    await this.request(`/api/cli/deployments/${deploymentId}/start`, {
       method: 'POST'
     });
   }
 
   async getDeployment(deploymentId: string): Promise<DeploymentInfo> {
-    const response = await this.request(`/deployments/${deploymentId}`);
+    const response = await this.request(`/api/cli/deployments/${deploymentId}`);
     return response.data;
   }
 
@@ -99,7 +99,7 @@ export class CirronApi {
     if (options.status) params.append('status', options.status);
     if (options.limit) params.append('limit', options.limit.toString());
 
-    const response = await this.request(`/projects/${projectName}/deployments?${params}`);
+    const response = await this.request(`/api/cli/models/${projectName}/deployments?${params}`);
     return response.data;
   }
 
@@ -108,7 +108,7 @@ export class CirronApi {
     environment: string,
     deploymentId: string
   ): Promise<DeploymentInfo> {
-    const response = await this.request(`/projects/${projectName}/rollback`, {
+    const response = await this.request(`/api/cli/models/${projectName}/rollback`, {
       method: 'POST',
       body: {
         environment,
@@ -127,7 +127,7 @@ export class CirronApi {
     formData.append('file', fs.createReadStream(filePath));
     formData.append('path', relativePath);
 
-    await this.request(`/deployments/${deploymentId}/files`, {
+    await this.request(`/api/cli/deployments/${deploymentId}/files`, {
       method: 'POST',
       body: formData,
       isFormData: true
@@ -141,7 +141,7 @@ export class CirronApi {
     timestamp: string;
     error?: string;
   }): Promise<void> {
-    await this.request('/builds', {
+    await this.request('/api/cli/builds', {
       method: 'POST',
       body: buildData
     });
@@ -160,7 +160,7 @@ export class CirronApi {
     if (options.since) params.append('since', options.since);
 
     const response = await this.request(
-      `/projects/${projectName}/logs/${environment}?${params}`
+      `/api/cli/models/${projectName}/logs/${environment}?${params}`
     );
     return response.data;
   }
@@ -170,7 +170,7 @@ export class CirronApi {
     environment: string
   ): Promise<Record<string, string>> {
     const response = await this.request(
-      `/projects/${projectName}/env/${environment}`
+      `/api/cli/models/${projectName}/env/${environment}`
     );
     return response.data;
   }
@@ -181,7 +181,7 @@ export class CirronApi {
     key: string,
     value: string
   ): Promise<void> {
-    await this.request(`/projects/${projectName}/env/${environment}`, {
+    await this.request(`/api/cli/models/${projectName}/env/${environment}`, {
       method: 'PUT',
       body: { [key]: value }
     });
@@ -192,7 +192,7 @@ export class CirronApi {
     environment: string,
     key: string
   ): Promise<void> {
-    await this.request(`/projects/${projectName}/env/${environment}/${key}`, {
+    await this.request(`/api/cli/models/${projectName}/env/${environment}/${key}`, {
       method: 'DELETE'
     });
   }
@@ -208,7 +208,7 @@ export class CirronApi {
     if (options.status) params.append('status', options.status);
     if (options.projectId) params.append('projectId', options.projectId);
 
-    const response = await this.request(`/api/builds?${params}`);
+    const response = await this.request(`/api/cli/builds?${params}`);
     return response.data || [];
   }
 
@@ -220,7 +220,7 @@ export class CirronApi {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.modelId) params.append('modelId', options.modelId);
 
-    const response = await this.request(`/api/serving/endpoints?${params}`);
+    const response = await this.request(`/api/cli/deployments/endpoints?${params}`);
     return response.data || response || [];
   }
 
@@ -232,7 +232,7 @@ export class CirronApi {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.modelId) params.append('modelId', options.modelId);
 
-    const response = await this.request(`/api/model-images?${params}`);
+    const response = await this.request(`/api/cli/images/models?${params}`);
     return response.data || [];
   }
 
@@ -250,7 +250,7 @@ export class CirronApi {
     if (options.nodeId) params.append('nodeId', options.nodeId);
     if (options.latest) params.append('latest', 'true');
 
-    const response = await this.request(`/api/registry/artifacts?${params}`);
+    const response = await this.request(`/api/cli/registry/artifacts?${params}`);
     return response.data?.artifacts || response.data || [];
   }
 
@@ -264,7 +264,7 @@ export class CirronApi {
     if (options.modelInstanceId) params.append('modelInstanceId', options.modelInstanceId);
     if (options.modelId) params.append('modelId', options.modelId);
 
-    const response = await this.request(`/api/serving/versions?${params}`);
+    const response = await this.request(`/api/cli/deployments/versions?${params}`);
     return response.data || response || [];
   }
 
