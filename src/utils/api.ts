@@ -220,7 +220,7 @@ export class CirronApi {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.modelId) params.append('modelId', options.modelId);
 
-    const response = await this.request(`/api/cli/deployments/endpoints?${params}`);
+    const response = await this.request(`/api/cli/models?${params}`);
     return response.data || response || [];
   }
 
