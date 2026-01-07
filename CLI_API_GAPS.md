@@ -1,20 +1,46 @@
 # CLI to Main App Integration - Gap Analysis
 
-## UPDATE 1/6
+## UPDATE 1/7
 
 ### API Implementation Status - COMPLETE
 
 All CLI API endpoints have been implemented in `apps/app/app/api/cli/`. The endpoints are live and tested.
 
-### Implemented Endpoints
+### CLI API Methods (src/utils/api.ts)
+
+| CLI Method | Endpoint | HTTP Method | Purpose |
+|------------|----------|-------------|---------|
+| `verifyAuth()` | `/api/cli/status` | GET | Verify authentication status |
+| `requestDeviceCode()` | `/api/cli/auth/device` | POST | Request device code for auth |
+| `pollDeviceAuthorization()` | `/api/cli/auth/device` | GET | Poll for device authorization |
+| `refreshToken()` | `/api/cli/auth/refresh` | POST | Refresh access token |
+| `validateAuth()` | `/api/cli/status` | GET | Validate auth token |
+| `createProject()` | `/api/cli/models` | POST | Register model from CLI |
+| `createDeployment()` | `/api/cli/deployments` | POST | Create a deployment |
+| `getDeployment()` | `/api/cli/deployments/[id]` | GET | Get deployment status |
+| `getDeployments()` | `/api/cli/models/[id]/deployments` | GET | List model deployments |
+| `rollbackDeployment()` | `/api/cli/models/[id]/rollback` | POST | Rollback deployment |
+| `reportBuild()` | `/api/cli/builds` | POST | Report build status |
+| `getLogs()` | `/api/cli/models/[id]/logs/[env]` | GET | Get deployment logs |
+| `getEnvironmentVariables()` | `/api/cli/models/[id]/env/[env]` | GET | Get env variables |
+| `setEnvironmentVariable()` | `/api/cli/models/[id]/env/[env]` | PUT | Set env variable |
+| `deleteEnvironmentVariable()` | `/api/cli/models/[id]/env/[env]/[key]` | DELETE | Delete env variable |
+| `getBuilds()` | `/api/cli/builds` | GET | List builds |
+| `getModelInstances()` | `/api/cli/models` | GET | List models |
+| `getModelImages()` | `/api/cli/images/models` | GET | List model images |
+| `getRegistryArtifacts()` | `/api/cli/registry/artifacts` | GET | List registry artifacts |
+| `getDeploymentExecutions()` | `/api/cli/deployments/versions` | GET | List deployment versions |
+
+### Implemented API Endpoints
 
 #### Auth
 | Route | Methods | Status |
 |-------|---------|--------|
-| `/api/cli/auth/device` | POST | Existing |
+| `/api/cli/auth/device` | GET, POST | Existing |
 | `/api/cli/auth/token` | POST | Existing |
 | `/api/cli/auth/refresh` | POST | Fixed (snake_case response) |
 | `/api/cli/auth/authorize` | GET, POST | Existing |
+| `/api/cli/status` | GET | Auth verification |
 
 #### Models
 | Route | Methods | Purpose |
@@ -24,14 +50,14 @@ All CLI API endpoints have been implemented in `apps/app/app/api/cli/`. The endp
 | `/api/cli/models/[id]/deployments` | GET | List model deployments |
 | `/api/cli/models/[id]/rollback` | POST | Rollback to previous deployment |
 | `/api/cli/models/[id]/logs/[env]` | GET | Get deployment logs |
+| `/api/cli/models/[id]/env/[env]` | GET, PUT | Get/set environment variables |
+| `/api/cli/models/[id]/env/[env]/[key]` | DELETE | Delete environment variable |
 
 #### Deployments
 | Route | Methods | Purpose |
 |-------|---------|---------|
 | `/api/cli/deployments` | GET, POST | List/create deployments |
 | `/api/cli/deployments/[id]` | GET | Get deployment status |
-| `/api/cli/deployments/[id]/start` | POST | Start deployment |
-| `/api/cli/deployments/endpoints` | GET | List serving endpoints (ModelEndpoint) |
 | `/api/cli/deployments/versions` | GET | List deployment executions |
 
 #### Builds
@@ -52,11 +78,18 @@ All CLI API endpoints have been implemented in `apps/app/app/api/cli/`. The endp
 |-------|---------|---------|
 | `/api/cli/images/models` | GET | List model images |
 
+#### Registry
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `/api/cli/registry/artifacts` | GET | List registry artifacts |
+
 ### Structure Changes from Original Plan
 
 1. **training-runs → pipelines**: Training runs are now under `/api/cli/pipelines/[id]/executions`
-2. **serving moved under deployments**: `/api/cli/serving/*` → `/api/cli/deployments/endpoints` and `/api/cli/deployments/versions`
+2. **serving moved under deployments**: `/api/cli/serving/*` → `/api/cli/deployments/versions`
 3. **model-images renamed**: `/api/cli/model-images` → `/api/cli/images/models` (for future runtime image support)
+4. **Removed startDeployment**: Deployment start is now handled server-side on creation
+5. **Removed uploadFile**: File uploads are no longer supported via CLI
 
 ### PR #321 Fixes Implemented
 
@@ -83,26 +116,27 @@ All CLI API endpoints have been implemented in `apps/app/app/api/cli/`. The endp
 - The API accepts both `id` and `name` parameters for model lookups
 - Example: `GET /api/cli/models?name=my-model` or `GET /api/cli/models/[id]` both work
 
-### CLI Path Updates Required
+### CLI Path Updates - COMPLETE
 
-Update `src/utils/api.ts` to use new endpoint paths:
+All `src/utils/api.ts` endpoints have been updated to use `/api/cli/` paths:
 
-| Current Path | New Path | Method |
-|--------------|----------|--------|
-| `/projects` | `/api/cli/models` | `createProject()` |
-| `/projects/${name}/deployments` | `/api/cli/models/${id}/deployments` | `getDeployments()` |
-| `/projects/${name}/rollback` | `/api/cli/models/${id}/rollback` | `rollbackDeployment()` |
-| `/projects/${name}/logs/${env}` | `/api/cli/models/${id}/logs/${env}` | `getLogs()` |
-| `/deployments` | `/api/cli/deployments` | `createDeployment()` |
-| `/deployments/${id}` | `/api/cli/deployments/${id}` | `getDeployment()` |
-| `/deployments/${id}/start` | `/api/cli/deployments/${id}/start` | `startDeployment()` |
-| `/builds` | `/api/cli/builds` | `reportBuild()` |
-| `/api/builds` | `/api/cli/builds` | `getBuilds()` |
-| `/api/serving/endpoints` | `/api/cli/deployments/endpoints` | `getModelInstances()` |
-| `/api/serving/versions` | `/api/cli/deployments/versions` | `getDeploymentExecutions()` |
-| `/api/model-images` | `/api/cli/images/models` | `getModelImages()` |
-| `/api/training-runs` | `/api/cli/pipelines` | - |
-| `/api/training-runs/${id}` | `/api/cli/pipelines/${id}/executions` | - |
+| Method | Endpoint |
+|--------|----------|
+| `createProject()` | `/api/cli/models` |
+| `getDeployments()` | `/api/cli/models/${id}/deployments` |
+| `rollbackDeployment()` | `/api/cli/models/${id}/rollback` |
+| `getLogs()` | `/api/cli/models/${id}/logs/${env}` |
+| `getEnvironmentVariables()` | `/api/cli/models/${id}/env/${env}` |
+| `setEnvironmentVariable()` | `/api/cli/models/${id}/env/${env}` |
+| `deleteEnvironmentVariable()` | `/api/cli/models/${id}/env/${env}/${key}` |
+| `createDeployment()` | `/api/cli/deployments` |
+| `getDeployment()` | `/api/cli/deployments/${id}` |
+| `getDeploymentExecutions()` | `/api/cli/deployments/versions` |
+| `reportBuild()` | `/api/cli/builds` |
+| `getBuilds()` | `/api/cli/builds` |
+| `getModelInstances()` | `/api/cli/models` |
+| `getModelImages()` | `/api/cli/images/models` |
+| `getRegistryArtifacts()` | `/api/cli/registry/artifacts` |
 
 **Note:** Model endpoints accept both `id` and `name` parameters. The API will first try to find by ID, then by name.
 
@@ -200,8 +234,7 @@ All routes should go under `apps/app/app/api/cli/` in the main app and use CLI J
 |-------|---------|------------|---------|
 | `/api/cli/deployments` | POST | `createDeployment()` | Create deployment |
 | `/api/cli/deployments/[id]` | GET | `getDeployment()` | Get deployment status |
-| `/api/cli/deployments/[id]/start` | POST | `startDeployment()` | Start deployment |
-| `/api/cli/deployments/[id]/files` | POST | `uploadFile()` | Upload files (FormData) |
+| `/api/cli/deployments/versions` | GET | `getDeploymentExecutions()` | List deployment versions |
 
 ### Builds & Training (NEW)
 
@@ -212,23 +245,23 @@ All routes should go under `apps/app/app/api/cli/` in the main app and use CLI J
 | `/api/cli/training-runs` | GET, POST | - | List/create TrainingRun |
 | `/api/cli/training-runs/[id]` | GET | - | Get training status |
 
-### Serving & Monitoring (NEW)
+### Images & Registry (NEW)
 
 | Route | Methods | CLI Method | Purpose |
 |-------|---------|------------|---------|
-| `/api/cli/serving/endpoints` | GET | `getModelInstances()` | List ModelEndpoint |
-| `/api/cli/serving/versions` | GET | `getDeploymentExecutions()` | List versions |
-| `/api/cli/model-images` | GET | `getModelImages()` | List ModelImage |
+| `/api/cli/images/models` | GET | `getModelImages()` | List model images |
+| `/api/cli/registry/artifacts` | GET | `getRegistryArtifacts()` | List registry artifacts |
 
 ---
 
-## CLI Changes Needed
+## CLI Changes - COMPLETE
 
-| File | Change |
-|------|--------|
-| `src/utils/api.ts` | Change `/projects` → `/api/cli/models` |
-| `src/utils/api.ts` | Fix `refreshToken()` to handle current response format |
-| `src/commands/auth.ts` | Handle HTTP 400 error responses from polling |
+All CLI changes have been implemented:
+
+- All API endpoints updated to use `/api/cli/` prefix
+- `refreshToken()` works with snake_case response format
+- Removed `startDeployment()` method (handled server-side)
+- Removed `uploadFile()` method (no longer supported)
 
 ---
 

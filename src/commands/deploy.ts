@@ -135,17 +135,8 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
     };
 
     const deployment = await api.createDeployment(deploymentData);
-    
-    spinner.text = `Uploading build artifacts... (ID: ${deployment.id})`;
-    
-    // Upload build artifacts
-    if (buildConfig?.outputDir) {
-      await uploadBuildArtifacts(api, deployment.id, buildConfig.outputDir, spinner);
-    }
 
-    // Start deployment
-    spinner.text = 'Starting deployment...';
-    await api.startDeployment(deployment.id);
+    spinner.text = `Deployment created (ID: ${deployment.id})`;
 
     // Monitor deployment progress
     const finalDeployment = await monitorDeployment(api, deployment.id, spinner);
@@ -290,91 +281,6 @@ async function handleRollback(
     spinner.fail(chalk.red('Rollback failed'));
     throw error;
   }
-}
-
-async function uploadBuildArtifacts(
-  api: CirronApi, 
-  deploymentId: string, 
-  outputDir: string,
-  spinner: ReturnType<typeof ora>
-): Promise<void> {
-  const outputPath = path.resolve(process.cwd(), outputDir);
-  
-  // Get list of files to upload
-  const files = await getFilesToUpload(outputPath);
-  
-  if (files.length === 0) {
-    throw new Error('No build artifacts found to upload');
-  }
-
-  let uploadedCount = 0;
-  const totalFiles = files.length;
-  
-  // Upload files in batches
-  const batchSize = 5;
-  for (let i = 0; i < files.length; i += batchSize) {
-    const batch = files.slice(i, i + batchSize);
-    
-    await Promise.all(
-      batch.map(async (file) => {
-        try {
-          await api.uploadFile(deploymentId, file.path, file.relativePath);
-          uploadedCount++;
-          spinner.text = `Uploading build artifacts... (${uploadedCount}/${totalFiles})`;
-        } catch (error) {
-          logger.warn(`Failed to upload ${file.relativePath}:`, error);
-        }
-      })
-    );
-  }
-
-  if (uploadedCount === 0) {
-    throw new Error('Failed to upload any build artifacts');
-  }
-
-  logger.info(`Uploaded ${uploadedCount}/${totalFiles} files`);
-}
-
-async function getFilesToUpload(outputPath: string): Promise<Array<{ path: string; relativePath: string }>> {
-  const files: Array<{ path: string; relativePath: string }> = [];
-  
-  const walk = async (dir: string, relativePath = ''): Promise<void> => {
-    const items = await fs.readdir(dir);
-    
-    for (const item of items) {
-      const itemPath = path.join(dir, item);
-      const stat = await fs.stat(itemPath);
-      const relativeItemPath = path.join(relativePath, item);
-      
-      if (stat.isDirectory()) {
-        await walk(itemPath, relativeItemPath);
-      } else {
-        // Skip certain files
-        if (!shouldSkipFile(item)) {
-          files.push({
-            path: itemPath,
-            relativePath: relativeItemPath
-          });
-        }
-      }
-    }
-  };
-
-  await walk(outputPath);
-  return files;
-}
-
-function shouldSkipFile(filename: string): boolean {
-  const skipPatterns = [
-    /\.DS_Store$/,
-    /Thumbs\.db$/,
-    /\.git/,
-    /node_modules/,
-    /\.env/,
-    /\.log$/
-  ];
-  
-  return skipPatterns.some(pattern => pattern.test(filename));
 }
 
 async function monitorDeployment(
