@@ -99,10 +99,10 @@ export async function envDeleteCommand(key: string, options: EnvOptions): Promis
 
 async function setupCommand(): Promise<{ api: CirronApi; projectConfig: ProjectConfig }> {
   // Load project configuration
-  const projectConfigPath = path.join(process.cwd(), 'cirron.config.json');
+  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
   
   if (!fs.existsSync(projectConfigPath)) {
-    throw new Error('No cirron.config.json found. Run cirron init to initialize a project');
+    throw new Error('No cirron.json found. Run cirron init to initialize a project');
   }
 
   const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
