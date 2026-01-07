@@ -1,6 +1,4 @@
 import fetch from 'node-fetch';
-import fs from 'fs-extra';
-import FormData from 'form-data';
 import type { 
   CirronConfig, 
   ApiResponse, 
@@ -75,12 +73,6 @@ export class CirronApi {
     return response.data;
   }
 
-  async startDeployment(deploymentId: string): Promise<void> {
-    await this.request(`/api/cli/deployments/${deploymentId}/start`, {
-      method: 'POST'
-    });
-  }
-
   async getDeployment(deploymentId: string): Promise<DeploymentInfo> {
     const response = await this.request(`/api/cli/deployments/${deploymentId}`);
     return response.data;
@@ -116,22 +108,6 @@ export class CirronApi {
       }
     });
     return response.data;
-  }
-
-  async uploadFile(
-    deploymentId: string,
-    filePath: string,
-    relativePath: string
-  ): Promise<void> {
-    const formData = new FormData();
-    formData.append('file', fs.createReadStream(filePath));
-    formData.append('path', relativePath);
-
-    await this.request(`/api/cli/deployments/${deploymentId}/files`, {
-      method: 'POST',
-      body: formData,
-      isFormData: true
-    });
   }
 
   async reportBuild(buildData: {
