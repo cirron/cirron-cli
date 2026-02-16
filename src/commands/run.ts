@@ -419,7 +419,9 @@ export async function runCancelCommand(runId: string, options: RunCancelOptions)
   const spinner = ora(`Cancelling run ${runId}...`).start();
 
   try {
-    const run = await api.cancelRun(runId, { force: options.force });
+    const cancelOptions: { force?: boolean } = {};
+    if (options.force) cancelOptions.force = options.force;
+    const run = await api.cancelRun(runId, cancelOptions);
     spinner.succeed(`Run ${runId} cancelled`);
     logger.info(`  Status:   ${getStatusColor(run.status)(run.status)}`);
     if (run.pipeline) {
@@ -469,7 +471,8 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
 
     // Follow mode - poll for new logs
     if (options.follow) {
-      let lastTimestamp: string | undefined = logs.length > 0 ? logs[logs.length - 1].timestamp : undefined;
+      const lastLog = logs.length > 0 ? logs[logs.length - 1] : undefined;
+      let lastTimestamp: string | undefined = lastLog?.timestamp;
 
       logger.info(chalk.gray('\nFollowing logs (Ctrl+C to stop)...'));
 
