@@ -308,7 +308,6 @@ runCmd
   .option('--priority <level>', 'Job priority (low, normal, high, critical)')
   .option('--tag <tags>', 'Comma-separated run tags')
   .option('--dry-run', 'Show what would execute without running')
-  .option('--async', 'Do not wait for completion')
   .option('--watch', 'Stream output and wait for completion')
   .action(runPipelineCommand);
 
@@ -328,7 +327,6 @@ runCmd
   .option('-o, --output <path>', 'Output path')
   .option('--model <name>', 'Model name/version to use')
   .option('--batch-size <n>', 'Batch size override')
-  .option('--async', 'Do not wait for completion')
   .option('--watch', 'Stream output')
   .action(runInferenceCommand);
 
@@ -339,7 +337,6 @@ runCmd
   .option('--trials <n>', 'Number of trials')
   .option('--parallel <n>', 'Max parallel trials')
   .option('--strategy <type>', 'Search strategy (grid, random, bayesian)')
-  .option('--async', 'Do not wait for completion')
   .option('--watch', 'Stream output')
   .action(runSweepCommand);
 
