@@ -31,10 +31,9 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
 
     // Explicit --global or --project scope: delegate to settings handler
     if (scope === 'global' || scope === 'project') {
-      const settingsOpts: SettingsOptions = {
-        global: scope === 'global' || undefined,
-        project: scope === 'project' || undefined,
-      };
+      const settingsOpts: SettingsOptions = {};
+      if (scope === 'global') settingsOpts.global = true;
+      if (scope === 'project') settingsOpts.project = true;
       if (options.list) settingsOpts.list = options.list;
       if (options.get) settingsOpts.get = options.get;
       if (options.set) settingsOpts.set = options.set;
