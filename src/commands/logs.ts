@@ -114,7 +114,7 @@ function displayLogs(logs: LogEntry[]): void {
   });
 }
 
-function getLevelColor(level: string): (text: string) => string {
+export function getLevelColor(level: string): (text: string) => string {
   switch (level.toLowerCase()) {
     case 'error': return chalk.red;
     case 'warn': return chalk.yellow;
