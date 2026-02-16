@@ -527,16 +527,34 @@ Key implementation details:
 
 ### Phase 3: Implement New Commands
 
-- [ ] `run train` — trigger training pipeline via API
-- [ ] `run list` — list runs from API
-- [ ] `run status` — get run status
-- [ ] `run cancel` — cancel running job
-- [ ] `run logs` — stream run logs
+- [x] `run pipeline` — trigger training pipeline via API
+- [x] `run list` — list runs from API
+- [x] `run status` — get run status
+- [x] `run cancel` — cancel running job
+- [x] `run logs` — stream run logs
+- [ ] `run inference` — batch inference (enhanced stub)
+- [ ] `run sweep` — hyperparameter sweep (enhanced stub)
 - [ ] `push` — push artifacts to registry
 - [ ] `pull` — pull artifacts from registry
 - [ ] `sync` — bidirectional sync with conflict resolution
-- [ ] `run inference` — batch inference
-- [ ] `run sweep` — hyperparameter sweep
+
+#### Phase 3 Implementation Notes (run commands)
+
+Completed in branch `CIRRON-608`. Implementation plan: `.claude/plans/ticklish-imagining-valiant.md`
+
+Key implementation details:
+- **Types**: Added `RunStatus`, `RunPriority`, `SweepStrategy`, `RunInfo`, option interfaces for all subcommands (`RunPipelineOptions`, `RunListOptions`, etc.), and `PipelineConfig`/`PipelineStep` to `src/types/index.ts`
+- **`RunStatus` uses DB-sourced values**: `'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'` — matches the database schema as source of truth
+- **API methods**: Added 5 methods to `CirronApi` in `src/utils/api.ts`: `triggerPipelineRun` (POST `/api/cli/pipelines/:id/run`), `getRun` (GET `/api/cli/runs/:id`), `getRuns` (GET `/api/cli/runs`), `cancelRun` (POST `/api/cli/runs/:id/cancel`), `getRunLogs` (GET `/api/cli/runs/:id/logs`)
+- **Backend API routes** created in cirron monorepo (`apps/app/app/api/cli/`) for all 5 endpoints
+- **`run pipeline`**: Full implementation with `--config` file loading (YAML/JSON), `--dry-run` plan display, `--watch` polling mode (mirrors `monitorDeployment` pattern from deploy.ts), comma-separated `--tag` parsing
+- **`run list`**: Full implementation with `--status`/`--last`/`--pipeline` filters, cli-table3 table output, `--json` mode. Also accessible via `cirron list runs` (delegated in index.ts)
+- **`run status`**: Full implementation with formatted detail output, `--json` mode, `--watch` polling for active runs
+- **`run cancel`**: Full implementation with `--force` option, validates cancellable state server-side
+- **`run logs`**: Full implementation with colored log output (level-based coloring), `--lines` limit, `--follow` mode polling every 3s with SIGINT handling
+- **`run job`/`run inference`/`run sweep`**: Enhanced stubs with typed option interfaces that echo back user arguments
+- **Auth pattern**: Shared `checkAuth()` helper using `list.ts` pattern (checks both `token` and `auth?.accessToken`)
+- **`exactOptionalPropertyTypes`**: All API call sites build options objects conditionally to avoid passing `undefined` to optional properties
 
 ### Phase 4: Cleanup
 
