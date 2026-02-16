@@ -20,33 +20,33 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
 
     // Explicit --cli scope: delegate to CLI config handler
     if (scope === 'cli') {
-      return cliConfigHandler({
-        list: options.list,
-        get: options.get,
-        set: options.set,
-        delete: options.delete,
-        reset: options.reset,
-      });
+      const cliOpts: CliConfigOptions = {};
+      if (options.list) cliOpts.list = options.list;
+      if (options.get) cliOpts.get = options.get;
+      if (options.set) cliOpts.set = options.set;
+      if (options.delete) cliOpts.delete = options.delete;
+      if (options.reset) cliOpts.reset = options.reset;
+      return cliConfigHandler(cliOpts);
     }
 
     // Explicit --global or --project scope: delegate to settings handler
     if (scope === 'global' || scope === 'project') {
       const settingsOpts: SettingsOptions = {
-        global: scope === 'global',
-        project: scope === 'project',
-        list: options.list,
-        get: options.get,
-        set: options.set,
-        delete: options.delete,
-        edit: options.edit,
-        export: options.export,
-        import: options.import,
-        template: options.template,
-        explain: options.explain,
-        reset: options.reset,
-        verbose: options.verbose,
-        json: options.json,
+        global: scope === 'global' || undefined,
+        project: scope === 'project' || undefined,
       };
+      if (options.list) settingsOpts.list = options.list;
+      if (options.get) settingsOpts.get = options.get;
+      if (options.set) settingsOpts.set = options.set;
+      if (options.delete) settingsOpts.delete = options.delete;
+      if (options.edit) settingsOpts.edit = options.edit;
+      if (options.export) settingsOpts.export = options.export;
+      if (options.import) settingsOpts.import = options.import;
+      if (options.template) settingsOpts.template = options.template;
+      if (options.explain) settingsOpts.explain = options.explain;
+      if (options.reset) settingsOpts.reset = options.reset;
+      if (options.verbose) settingsOpts.verbose = options.verbose;
+      if (options.json) settingsOpts.json = options.json;
       return settingsCommand(settingsOpts);
     }
 
@@ -60,16 +60,22 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
 
     if (options.get) {
       // Walk resolution chain: project > global > cli
-      return settingsCommand({ explain: options.get, json: options.json });
+      const opts: SettingsOptions = { explain: options.get };
+      if (options.json) opts.json = options.json;
+      return settingsCommand(opts);
     }
 
     if (options.set) {
       // Default to project scope
-      return settingsCommand({ project: true, set: options.set, json: options.json });
+      const opts: SettingsOptions = { project: true, set: options.set };
+      if (options.json) opts.json = options.json;
+      return settingsCommand(opts);
     }
 
     if (options.explain) {
-      return settingsCommand({ explain: options.explain, json: options.json });
+      const opts: SettingsOptions = { explain: options.explain };
+      if (options.json) opts.json = options.json;
+      return settingsCommand(opts);
     }
 
     if (options.edit) {
