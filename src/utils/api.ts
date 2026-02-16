@@ -1,13 +1,14 @@
 import fetch from 'node-fetch';
-import type { 
-  CirronConfig, 
-  ApiResponse, 
-  AuthInfo, 
+import type {
+  CirronConfig,
+  ApiResponse,
+  AuthInfo,
   DeploymentInfo,
   LogEntry,
   DeviceCodeResponse,
   DeviceTokenResponse,
-  DeviceAuthStatus
+  DeviceAuthStatus,
+  RunInfo
 } from '../types';
 
 export class CirronApi {
@@ -242,6 +243,67 @@ export class CirronApi {
 
     const response = await this.request(`/api/cli/deployments/versions?${params}`);
     return response.data || response || [];
+  }
+
+  // Run command methods
+
+  async triggerPipelineRun(pipelineNameOrId: string, options: {
+    config?: Record<string, unknown>;
+    gpu?: string;
+    priority?: string;
+    tags?: string[];
+  } = {}): Promise<RunInfo> {
+    const response = await this.request(`/api/cli/pipelines/${encodeURIComponent(pipelineNameOrId)}/run`, {
+      method: 'POST',
+      body: {
+        gpu: options.gpu,
+        priority: options.priority,
+        tags: options.tags,
+        config: options.config,
+      }
+    });
+    return response.data;
+  }
+
+  async getRun(runId: string): Promise<RunInfo> {
+    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}`);
+    return response.data;
+  }
+
+  async getRuns(options: {
+    status?: string;
+    limit?: number;
+    pipeline?: string;
+  } = {}): Promise<RunInfo[]> {
+    const params = new URLSearchParams();
+    if (options.status) params.append('status', options.status);
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.pipeline) params.append('pipeline', options.pipeline);
+
+    const response = await this.request(`/api/cli/runs?${params}`);
+    return response.data || [];
+  }
+
+  async cancelRun(runId: string, options: {
+    force?: boolean;
+  } = {}): Promise<RunInfo> {
+    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/cancel`, {
+      method: 'POST',
+      body: { force: options.force }
+    });
+    return response.data;
+  }
+
+  async getRunLogs(runId: string, options: {
+    lines?: number;
+    since?: string;
+  } = {}): Promise<LogEntry[]> {
+    const params = new URLSearchParams();
+    if (options.lines) params.append('lines', options.lines.toString());
+    if (options.since) params.append('since', options.since);
+
+    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/logs?${params}`);
+    return response.data || [];
   }
 
   private getAuthHeader(): string | undefined {
