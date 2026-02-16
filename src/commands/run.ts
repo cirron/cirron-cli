@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import Table from 'cli-table3';
+import { getLevelColor } from './logs';
 import type {
   RunInfo,
   RunPipelineOptions,
@@ -45,11 +46,16 @@ async function loadPipelineConfig(configPath: string): Promise<PipelineConfig> {
   const content = await fs.readFile(absolutePath, 'utf8');
   const ext = path.extname(absolutePath).toLowerCase();
 
-  if (ext === '.yaml' || ext === '.yml') {
-    return yaml.load(content) as PipelineConfig;
-  }
+  try {
+    if (ext === '.yaml' || ext === '.yml') {
+      return yaml.load(content) as PipelineConfig;
+    }
 
-  return JSON.parse(content) as PipelineConfig;
+    return JSON.parse(content) as PipelineConfig;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse config file '${configPath}': ${message}`);
+  }
 }
 
 async function monitorRun(
@@ -271,6 +277,10 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
 
   try {
     const limit = options.last ? parseInt(options.last, 10) : 20;
+    if (Number.isNaN(limit)) {
+      spinner.fail('Invalid value for --last: must be a number');
+      return;
+    }
     const runsOptions: { status?: string; limit?: number; pipeline?: string } = { limit };
     if (options.status) runsOptions.status = options.status;
     if (options.pipeline) runsOptions.pipeline = options.pipeline;
@@ -295,8 +305,9 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
     });
 
     runs.forEach((run: RunInfo) => {
+      const displayId = run.id.length > 12 ? run.id.substring(0, 12) + '...' : run.id;
       table.push([
-        run.id.substring(0, 12) + '...',
+        displayId,
         run.type || 'N/A',
         run.pipeline?.name || 'N/A',
         getStatusColor(run.status)(run.status),
@@ -445,7 +456,14 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
 
   try {
     const logOptions: { lines?: number; since?: string } = {};
-    if (options.lines) logOptions.lines = parseInt(options.lines, 10);
+    if (options.lines) {
+      const parsedLines = parseInt(options.lines, 10);
+      if (Number.isNaN(parsedLines)) {
+        spinner.fail('Invalid value for --lines: must be a number');
+        return;
+      }
+      logOptions.lines = parsedLines;
+    }
     const logs = await api.getRunLogs(runId, logOptions);
 
     spinner.succeed(`Logs for run ${runId}`);
@@ -459,13 +477,7 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
     for (const entry of logs) {
       const timestamp = chalk.gray(new Date(entry.timestamp).toLocaleTimeString());
       const source = entry.source ? chalk.gray(`[${entry.source}]`) : '';
-      let levelColor: (text: string) => string;
-      switch (entry.level) {
-        case 'error': levelColor = chalk.red; break;
-        case 'warn': levelColor = chalk.yellow; break;
-        case 'debug': levelColor = chalk.gray; break;
-        default: levelColor = chalk.white; break;
-      }
+      const levelColor = getLevelColor(entry.level);
       console.log(`${timestamp} ${levelColor(entry.level.toUpperCase().padEnd(5))} ${source} ${entry.message}`);
     }
 
@@ -487,20 +499,14 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
 
             const timestamp = chalk.gray(new Date(entry.timestamp).toLocaleTimeString());
             const source = entry.source ? chalk.gray(`[${entry.source}]`) : '';
-            let levelColor: (text: string) => string;
-            switch (entry.level) {
-              case 'error': levelColor = chalk.red; break;
-              case 'warn': levelColor = chalk.yellow; break;
-              case 'debug': levelColor = chalk.gray; break;
-              default: levelColor = chalk.white; break;
-            }
+            const levelColor = getLevelColor(entry.level);
             console.log(`${timestamp} ${levelColor(entry.level.toUpperCase().padEnd(5))} ${source} ${entry.message}`);
             lastTimestamp = entry.timestamp;
           }
-        } catch {
-          // Silently handle poll errors
+        } catch (error) {
+          logger.debug('Error polling run logs:', error);
         }
-      }, 3000);
+      }, 2000);
 
       process.on('SIGINT', () => {
         clearInterval(pollInterval);

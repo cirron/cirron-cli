@@ -625,7 +625,6 @@ export interface RunPipelineOptions {
   priority?: string;
   tag?: string;
   dryRun?: boolean;
-  async?: boolean;
   watch?: boolean;
 }
 
@@ -662,7 +661,6 @@ export interface RunInferenceOptions {
   output?: string;
   model?: string;
   batchSize?: string;
-  async?: boolean;
   watch?: boolean;
 }
 
@@ -671,7 +669,6 @@ export interface RunSweepOptions {
   trials?: string;
   parallel?: string;
   strategy?: string;
-  async?: boolean;
   watch?: boolean;
 }
 
