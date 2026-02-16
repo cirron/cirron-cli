@@ -65,15 +65,15 @@ async function monitorRun(
       const run = await api.getRun(runId);
 
       switch (run.status) {
-        case 'queued':
+        case 'PENDING':
           spinner.text = `Run ${runId} queued...`;
           break;
-        case 'running':
+        case 'RUNNING':
           spinner.text = `Run ${runId} running...`;
           break;
-        case 'completed':
-        case 'failed':
-        case 'cancelled':
+        case 'COMPLETED':
+        case 'FAILED':
+        case 'CANCELLED':
           return run;
       }
 
@@ -121,11 +121,11 @@ function formatDuration(run: RunInfo): string {
 
 function getStatusColor(status: string): (text: string) => string {
   switch (status) {
-    case 'completed': return chalk.green;
-    case 'running': return chalk.yellow;
-    case 'queued': return chalk.blue;
-    case 'failed': return chalk.red;
-    case 'cancelled': return chalk.gray;
+    case 'COMPLETED': return chalk.green;
+    case 'RUNNING': return chalk.yellow;
+    case 'PENDING': return chalk.blue;
+    case 'FAILED': return chalk.red;
+    case 'CANCELLED': return chalk.gray;
     default: return chalk.white;
   }
 }
@@ -229,17 +229,17 @@ export async function runPipelineCommand(
       try {
         const finalRun = await monitorRun(api, run.id, watchSpinner);
 
-        if (finalRun.status === 'completed') {
+        if (finalRun.status === 'COMPLETED') {
           watchSpinner.succeed(chalk.green(`Run ${run.id} completed successfully`));
           logger.info(`  Duration: ${chalk.cyan(formatDuration(finalRun))}`);
-        } else if (finalRun.status === 'failed') {
+        } else if (finalRun.status === 'FAILED') {
           watchSpinner.fail(chalk.red(`Run ${run.id} failed`));
           if (finalRun.error) {
             logger.error(finalRun.error);
           }
           logger.info(`View logs: ${chalk.cyan(`cirron run logs ${run.id}`)}`);
           process.exit(1);
-        } else if (finalRun.status === 'cancelled') {
+        } else if (finalRun.status === 'CANCELLED') {
           watchSpinner.warn(`Run ${run.id} was cancelled`);
         }
       } catch (error) {
@@ -350,25 +350,167 @@ export async function runSweepCommand(options: RunSweepOptions): Promise<void> {
 }
 
 export async function runStatusCommand(runId: string, options: RunStatusOptions): Promise<void> {
-  logger.info(`${chalk.yellow('run status')} is not yet implemented.`);
-  logger.info(`This command will show status for run: ${runId}`);
-  if (options.watch) {
-    logger.info('Watch mode requested.');
+  const auth = checkAuth();
+  if (!auth) return;
+  const { api } = auth;
+
+  const spinner = ora(`Fetching status for run ${runId}...`).start();
+
+  try {
+    const run = await api.getRun(runId);
+    spinner.succeed('Run status retrieved');
+
+    if (options.json) {
+      console.log(JSON.stringify(run, null, 2));
+      return;
+    }
+
+    console.log();
+    logger.info(`  Run ID:    ${chalk.cyan(run.id)}`);
+    logger.info(`  Type:      ${run.type}`);
+    logger.info(`  Status:    ${getStatusColor(run.status)(run.status)}`);
+    if (run.pipeline) {
+      logger.info(`  Pipeline:  ${chalk.cyan(run.pipeline.name)} (${run.pipeline.id})`);
+    }
+    if (run.gpu) logger.info(`  GPU:       ${chalk.cyan(run.gpu)}`);
+    if (run.priority) logger.info(`  Priority:  ${chalk.cyan(run.priority)}`);
+    if (run.tags && run.tags.length > 0) {
+      logger.info(`  Tags:      ${chalk.cyan(run.tags.join(', '))}`);
+    }
+    logger.info(`  Created:   ${new Date(run.createdAt).toLocaleString()}`);
+    if (run.startedAt) logger.info(`  Started:   ${new Date(run.startedAt).toLocaleString()}`);
+    if (run.completedAt) logger.info(`  Completed: ${new Date(run.completedAt).toLocaleString()}`);
+    logger.info(`  Duration:  ${formatDuration(run)}`);
+    if (run.error) logger.error(`  Error:     ${run.error}`);
+
+    // Watch mode - poll for updates if run is still active
+    if (options.watch && (run.status === 'PENDING' || run.status === 'RUNNING')) {
+      console.log();
+      const watchSpinner = ora(`Watching run ${runId}...`).start();
+      try {
+        const finalRun = await monitorRun(api, runId, watchSpinner);
+        if (finalRun.status === 'COMPLETED') {
+          watchSpinner.succeed(chalk.green(`Run ${runId} completed successfully`));
+          logger.info(`  Duration: ${chalk.cyan(formatDuration(finalRun))}`);
+        } else if (finalRun.status === 'FAILED') {
+          watchSpinner.fail(chalk.red(`Run ${runId} failed`));
+          if (finalRun.error) logger.error(finalRun.error);
+        } else if (finalRun.status === 'CANCELLED') {
+          watchSpinner.warn(`Run ${runId} was cancelled`);
+        }
+      } catch {
+        watchSpinner.fail('Watch timed out');
+      }
+    }
+  } catch (error) {
+    spinner.fail('Failed to fetch run status');
+    if (error instanceof Error) {
+      logger.error(error.message);
+    }
+    process.exit(1);
   }
 }
 
 export async function runCancelCommand(runId: string, options: RunCancelOptions): Promise<void> {
-  logger.info(`${chalk.yellow('run cancel')} is not yet implemented.`);
-  logger.info(`This command will cancel run: ${runId}`);
-  if (options.force) {
-    logger.info('Force cancel requested.');
+  const auth = checkAuth();
+  if (!auth) return;
+  const { api } = auth;
+
+  const spinner = ora(`Cancelling run ${runId}...`).start();
+
+  try {
+    const run = await api.cancelRun(runId, { force: options.force });
+    spinner.succeed(`Run ${runId} cancelled`);
+    logger.info(`  Status:   ${getStatusColor(run.status)(run.status)}`);
+    if (run.pipeline) {
+      logger.info(`  Pipeline: ${chalk.cyan(run.pipeline.name)}`);
+    }
+  } catch (error) {
+    spinner.fail('Failed to cancel run');
+    if (error instanceof Error) {
+      logger.error(error.message);
+    }
+    process.exit(1);
   }
 }
 
 export async function runLogsCommand(runId: string, options: RunLogsOptions): Promise<void> {
-  logger.info(`${chalk.yellow('run logs')} is not yet implemented.`);
-  logger.info(`This command will stream logs for run: ${runId}`);
-  if (options.follow) {
-    logger.info('Follow mode requested.');
+  const auth = checkAuth();
+  if (!auth) return;
+  const { api } = auth;
+
+  const spinner = ora(`Fetching logs for run ${runId}...`).start();
+
+  try {
+    const lines = options.lines ? parseInt(options.lines, 10) : undefined;
+    const logs = await api.getRunLogs(runId, { lines });
+
+    spinner.succeed(`Logs for run ${runId}`);
+    console.log();
+
+    if (!logs || logs.length === 0) {
+      logger.info('No logs available for this run.');
+      return;
+    }
+
+    for (const entry of logs) {
+      const timestamp = chalk.gray(new Date(entry.timestamp).toLocaleTimeString());
+      const source = entry.source ? chalk.gray(`[${entry.source}]`) : '';
+      let levelColor: (text: string) => string;
+      switch (entry.level) {
+        case 'error': levelColor = chalk.red; break;
+        case 'warn': levelColor = chalk.yellow; break;
+        case 'debug': levelColor = chalk.gray; break;
+        default: levelColor = chalk.white; break;
+      }
+      console.log(`${timestamp} ${levelColor(entry.level.toUpperCase().padEnd(5))} ${source} ${entry.message}`);
+    }
+
+    // Follow mode - poll for new logs
+    if (options.follow) {
+      let lastTimestamp = logs.length > 0 ? logs[logs.length - 1].timestamp : undefined;
+
+      logger.info(chalk.gray('\nFollowing logs (Ctrl+C to stop)...'));
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const newLogs = await api.getRunLogs(runId, {
+            lines: 50,
+            since: lastTimestamp,
+          });
+
+          for (const entry of newLogs) {
+            if (entry.timestamp === lastTimestamp) continue;
+
+            const timestamp = chalk.gray(new Date(entry.timestamp).toLocaleTimeString());
+            const source = entry.source ? chalk.gray(`[${entry.source}]`) : '';
+            let levelColor: (text: string) => string;
+            switch (entry.level) {
+              case 'error': levelColor = chalk.red; break;
+              case 'warn': levelColor = chalk.yellow; break;
+              case 'debug': levelColor = chalk.gray; break;
+              default: levelColor = chalk.white; break;
+            }
+            console.log(`${timestamp} ${levelColor(entry.level.toUpperCase().padEnd(5))} ${source} ${entry.message}`);
+            lastTimestamp = entry.timestamp;
+          }
+        } catch {
+          // Silently handle poll errors
+        }
+      }, 3000);
+
+      process.on('SIGINT', () => {
+        clearInterval(pollInterval);
+        console.log();
+        logger.info('Stopped following logs.');
+        process.exit(0);
+      });
+    }
+  } catch (error) {
+    spinner.fail('Failed to fetch run logs');
+    if (error instanceof Error) {
+      logger.error(error.message);
+    }
+    process.exit(1);
   }
 }
