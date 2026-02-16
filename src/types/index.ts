@@ -593,7 +593,7 @@ export interface ModelConfig {
 
 // Run command types
 
-export type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type RunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export type RunPriority = 'low' | 'normal' | 'high' | 'critical';
 
