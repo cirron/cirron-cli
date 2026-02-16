@@ -165,6 +165,7 @@ program
 const configCmd = program
   .command('config')
   .description('Manage CLI, global, and project configuration')
+  .enablePositionalOptions()
   .option('--scope <scope>', 'Configuration scope (cli, global, project)')
   .option('-l, --list', 'List configuration')
   .option('-g, --get <key>', 'Get configuration value')
