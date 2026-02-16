@@ -320,7 +320,8 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
         { name: 'Set request timeout', value: 'timeout' },
         { name: 'Set retry count', value: 'retries' },
         { name: 'Reset to defaults', value: 'reset' }
-      ]
+      ],
+      loop: false,
     }
   ]);
 
@@ -351,7 +352,8 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
           name: 'value',
           message: 'Select default environment:',
           default: currentConfig.defaultEnv,
-          choices: ['development', 'staging', 'production']
+          choices: ['development', 'staging', 'production'],
+          loop: false,
         }
       ]);
       await setConfig(config, `defaultEnv=${envAnswer.value}`);
