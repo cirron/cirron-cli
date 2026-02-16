@@ -590,3 +590,108 @@ export interface ModelConfig {
     requirements?: string[];
   };
 }
+
+// Run command types
+
+export type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export type RunPriority = 'low' | 'normal' | 'high' | 'critical';
+
+export type SweepStrategy = 'grid' | 'random' | 'bayesian';
+
+export interface RunInfo {
+  id: string;
+  name?: string;
+  type: 'pipeline' | 'job' | 'inference' | 'sweep';
+  status: RunStatus;
+  pipeline?: {
+    id: string;
+    name: string;
+  };
+  gpu?: string;
+  priority?: RunPriority;
+  tags?: string[];
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  duration?: number;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RunPipelineOptions {
+  config?: string;
+  gpu?: string;
+  priority?: string;
+  tag?: string;
+  dryRun?: boolean;
+  async?: boolean;
+  watch?: boolean;
+}
+
+export interface RunListOptions {
+  status?: string;
+  last?: string;
+  pipeline?: string;
+  json?: boolean;
+}
+
+export interface RunStatusOptions {
+  json?: boolean;
+  watch?: boolean;
+}
+
+export interface RunCancelOptions {
+  force?: boolean;
+}
+
+export interface RunLogsOptions {
+  follow?: boolean;
+  lines?: string;
+}
+
+export interface RunJobOptions {
+  config?: string;
+  gpu?: string;
+  priority?: string;
+  dryRun?: boolean;
+}
+
+export interface RunInferenceOptions {
+  input?: string;
+  output?: string;
+  model?: string;
+  batchSize?: string;
+  async?: boolean;
+  watch?: boolean;
+}
+
+export interface RunSweepOptions {
+  config?: string;
+  trials?: string;
+  parallel?: string;
+  strategy?: string;
+  async?: boolean;
+  watch?: boolean;
+}
+
+export interface PipelineConfig {
+  name?: string;
+  steps?: PipelineStep[];
+  gpu?: string;
+  priority?: RunPriority;
+  tags?: string[];
+  parameters?: Record<string, unknown>;
+}
+
+export interface PipelineStep {
+  name: string;
+  command?: string;
+  image?: string;
+  resources?: {
+    gpu?: string;
+    memory?: string;
+    cpu?: string;
+  };
+  dependsOn?: string[];
+}
