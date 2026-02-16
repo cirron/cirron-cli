@@ -165,9 +165,7 @@ program
 const configCmd = program
   .command('config')
   .description('Manage CLI, global, and project configuration')
-  .option('--cli', 'CLI configuration scope (API URL, timeout, retries)')
-  .option('--global', 'Global user preferences scope')
-  .option('--project', 'Project-specific settings scope')
+  .option('--scope <scope>', 'Configuration scope (cli, global, project)')
   .option('-l, --list', 'List configuration')
   .option('-g, --get <key>', 'Get configuration value')
   .option('-s, --set <key=value>', 'Set configuration value')

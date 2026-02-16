@@ -28,7 +28,7 @@ Restructure the CLI command tree for beta launch. The goal is to consolidate com
 
 | Current Command | Moves To | Migration |
 |----------------|----------|-----------|
-| `settings` | `config` | Merge all settings flags into config with scope flags (`--cli`, `--global`, `--project`) |
+| `settings` | `config` | ~~Merge all settings flags into config with scope flags (`--cli`, `--global`, `--project`)~~ Merged into config with `--scope <cli\|global\|project>` flag |
 | `hardware` | `config hardware` | Becomes a subcommand of config. Existing `hardwareCommand` handler unchanged |
 | `diagnostics` | `info --diagnostics` | Becomes a flag on info. Existing `diagnosticsCommand` handler unchanged |
 | `replay` | `plan replay` | Moves under plan subcommand group. Existing `replayCommand` handler unchanged |
@@ -62,24 +62,23 @@ cirron settings [options]    # User preferences and project behavior
 ```
 
 ### After
+**Updated:** Three separate scope flags replaced with single `--scope <scope>` flag:
 
 ```
 cirron config [options]
-  Scopes:
-    --cli                    # CLI configuration (API URL, timeout, retries)
-    --global                 # User preferences across all projects
-    --project                # Project-specific settings (default scope for --set)
+  Scope:
+    --scope <scope>          # Target scope: cli, global, project
 
   Operations:
-    -l, --list               # List all config (across all scopes, or filtered by scope flag)
+    -l, --list               # List all config (across all scopes, or filtered by --scope)
     -g, --get <key>          # Get value (walks resolution chain: project > global > cli)
-    -s, --set <key=value>    # Set value (project scope default, override with --cli/--global)
-    -d, --delete <key>       # Delete key (requires scope flag)
-    --reset                  # Reset scope to defaults (requires scope flag)
-    -e, --edit               # Interactive editor (scope selector if no scope flag passed)
+    -s, --set <key=value>    # Set value (project scope default, override with --scope)
+    -d, --delete <key>       # Delete key (requires --scope)
+    --reset                  # Reset scope to defaults (requires --scope)
+    -e, --edit               # Interactive editor (scope selector if --scope omitted)
     --explain <key>          # Show resolution chain for a key
-    --export <file>          # Export config to file (requires scope flag)
-    --import <file>          # Import config from file (requires scope flag)
+    --export <file>          # Export config to file (requires --scope)
+    --import <file>          # Import config from file (requires --scope)
 
   Subcommands:
     hardware [options]       # Hardware config (detect, configure, profiles)
@@ -89,14 +88,17 @@ cirron config [options]
 
 - The existing `configCommand` handler covers `--list`, `--get`, `--set`, `--delete`, `--reset` for CLI scope
 - The existing `settingsCommand` handler covers everything else (global, project, edit, export, import, explain, templates)
-- Migration approach: Create a new unified `configCommand` that checks scope flags and delegates to the appropriate existing logic
-  - No scope flag + `--list` → show all scopes
-  - `--cli` + any operation → delegate to existing `configCommand` logic
-  - `--global` or `--project` + any operation → delegate to existing `settingsCommand` logic
-  - `--get` without scope → walk resolution chain (project > global > cli)
-  - `--set` without scope → default to project scope
-  - `-e, --edit` without scope → show scope selector prompt first
+- Migration approach: Create a new unified `configCommand` that checks `--scope` and delegates to the appropriate existing logic
+  - ~~`--cli` + any operation → delegate to existing `configCommand` logic~~
+  - ~~`--global` or `--project` + any operation → delegate to existing `settingsCommand` logic~~
+  - `--scope cli` + any operation → delegate to existing `configCommand` logic
+  - `--scope global` or `--scope project` + any operation → delegate to existing `settingsCommand` logic
+  - No `--scope` + `--list` → show all scopes
+  - `--get` without `--scope` → walk resolution chain (project > global > cli)
+  - `--set` without `--scope` → default to project scope
+  - `-e, --edit` without `--scope` → show scope selector prompt first
   - `--explain` → show full chain (reuse settings `--explain` logic)
+  - `--delete`, `--reset`, `--export`, `--import` without `--scope` → error requiring `--scope`
 
 ### Storage (Unchanged)
 
@@ -464,7 +466,7 @@ cirron
 │   └── --detailed
 │
 ├── config [options]         # Unified config (absorbed settings)
-│   ├── --cli / --global / --project   # Scope flags
+│   ├── --scope <scope>              # Scope: cli, global, project
 │   ├── -l, --list
 │   ├── -g, --get <key>
 │   ├── -s, --set <key=value>
@@ -505,7 +507,9 @@ cirron
 Completed in branch `CIRRON-608`. Implementation plan: `.claude/plans/indexed-twirling-bubble.md`
 
 Key implementation details:
-- `config.ts` updated with scope-based routing (`--cli`, `--global`, `--project`) that delegates to existing `cliConfigHandler` and `settingsCommand`
+- `config.ts` updated with scope-based routing via `--scope <cli|global|project>` that delegates to existing `cliConfigHandler` and `settingsCommand`
+- Originally spec'd as three separate flags (`--cli`, `--global`, `--project`); consolidated to single `--scope` flag for cleaner UX and future extensibility (org, team, environment scopes)
+- Invalid `--scope` values are validated with a clear error message listing valid scopes
 - `hardware` wired as subcommand of `config` in `index.ts`
 - `info` command action handler delegates to `diagnosticsCommand` when `--diagnostics` passed, `hardwareCommand` when `--hardware` passed
 - `replay` moved under `plan replay` in `index.ts`
