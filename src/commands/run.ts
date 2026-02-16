@@ -442,8 +442,9 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
   const spinner = ora(`Fetching logs for run ${runId}...`).start();
 
   try {
-    const lines = options.lines ? parseInt(options.lines, 10) : undefined;
-    const logs = await api.getRunLogs(runId, { lines });
+    const logOptions: { lines?: number; since?: string } = {};
+    if (options.lines) logOptions.lines = parseInt(options.lines, 10);
+    const logs = await api.getRunLogs(runId, logOptions);
 
     spinner.succeed(`Logs for run ${runId}`);
     console.log();
@@ -468,16 +469,15 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
 
     // Follow mode - poll for new logs
     if (options.follow) {
-      let lastTimestamp = logs.length > 0 ? logs[logs.length - 1].timestamp : undefined;
+      let lastTimestamp: string | undefined = logs.length > 0 ? logs[logs.length - 1].timestamp : undefined;
 
       logger.info(chalk.gray('\nFollowing logs (Ctrl+C to stop)...'));
 
       const pollInterval = setInterval(async () => {
         try {
-          const newLogs = await api.getRunLogs(runId, {
-            lines: 50,
-            since: lastTimestamp,
-          });
+          const pollOptions: { lines?: number; since?: string } = { lines: 50 };
+          if (lastTimestamp) pollOptions.since = lastTimestamp;
+          const newLogs = await api.getRunLogs(runId, pollOptions);
 
           for (const entry of newLogs) {
             if (entry.timestamp === lastTimestamp) continue;
