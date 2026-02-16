@@ -490,23 +490,36 @@ cirron
 
 ### Phase 1: Structural Changes (No New Logic)
 
-- [ ] Create unified `config` command that delegates to existing `configCommand` and `settingsCommand` based on scope
-- [ ] Add `hardware` as subcommand of `config` → wire to existing `hardwareCommand`
-- [ ] Add `--diagnostics` flag to `info` → wire to existing `diagnosticsCommand`
-- [ ] Add `--hardware` flag to `info` → wire to existing `hardwareCommand` with `--detect`
-- [ ] Move `replay` under `plan replay` → wire to existing `replayCommand`
-- [ ] Remove `plan lint`, `plan test`, `plan --compare` from registration
-- [ ] Remove top-level `settings`, `hardware`, `diagnostics`, `replay` commands
-- [ ] Add `runs` and `pipelines` to `list` resource types
-- [ ] Update `--help` descriptions for all modified commands
+- [x] Create unified `config` command that delegates to existing `configCommand` and `settingsCommand` based on scope
+- [x] Add `hardware` as subcommand of `config` → wire to existing `hardwareCommand`
+- [x] Add `--diagnostics` flag to `info` → wire to existing `diagnosticsCommand`
+- [x] Add `--hardware` flag to `info` → wire to existing `hardwareCommand` with `--detect`
+- [x] Move `replay` under `plan replay` → wire to existing `replayCommand`
+- [x] Remove `plan lint`, `plan test`, `plan --compare` from registration
+- [x] Remove top-level `settings`, `hardware`, `diagnostics`, `replay` commands
+- [x] Add `runs` and `pipelines` to `list` resource types
+- [x] Update `--help` descriptions for all modified commands
+
+#### Phase 1 Implementation Notes
+
+Completed in branch `CIRRON-608`. Implementation plan: `.claude/plans/indexed-twirling-bubble.md`
+
+Key implementation details:
+- `config.ts` updated with scope-based routing (`--cli`, `--global`, `--project`) that delegates to existing `cliConfigHandler` and `settingsCommand`
+- `hardware` wired as subcommand of `config` in `index.ts`
+- `info` command action handler delegates to `diagnosticsCommand` when `--diagnostics` passed, `hardwareCommand` when `--hardware` passed
+- `replay` moved under `plan replay` in `index.ts`
+- `plan lint`, `plan test`, `plan --compare` removed from command registration
+- Top-level `settings`, `hardware`, `diagnostics`, `replay` commands removed from `index.ts`
+- `runs` and `pipelines` added to `list` with stub handlers
 
 ### Phase 2: New Command Stubs
 
-- [ ] Create `commands/run.ts` with subcommand structure (stubs returning "not yet implemented")
-- [ ] Create `commands/push.ts` (stub)
-- [ ] Create `commands/pull.ts` (stub)
-- [ ] Create `commands/sync.ts` (stub)
-- [ ] Wire all new commands into `index.ts`
+- [x] Create `commands/run.ts` with subcommand structure (stubs returning "not yet implemented")
+- [x] Create `commands/push.ts` (stub)
+- [x] Create `commands/pull.ts` (stub)
+- [x] Create `commands/sync.ts` (stub)
+- [x] Wire all new commands into `index.ts`
 
 ### Phase 3: Implement New Commands
 
