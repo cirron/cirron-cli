@@ -1,9 +1,11 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { ConfigManager } from '../utils/config';
+import { settingsCommand } from './settings';
 import { logger } from '../utils/logger';
+import type { ConfigCommandOptions, SettingsOptions } from '../types';
 
-interface ConfigOptions {
+interface CliConfigOptions {
   list?: boolean;
   get?: string;
   set?: string;
@@ -11,7 +13,132 @@ interface ConfigOptions {
   reset?: boolean;
 }
 
-export async function configCommand(options: ConfigOptions): Promise<void> {
+// Scope-based routing: delegates to cliConfigHandler or settingsCommand
+export async function configCommand(options: ConfigCommandOptions): Promise<void> {
+  try {
+    const scope = determineScope(options);
+
+    // Explicit --cli scope: delegate to CLI config handler
+    if (scope === 'cli') {
+      return cliConfigHandler({
+        list: options.list,
+        get: options.get,
+        set: options.set,
+        delete: options.delete,
+        reset: options.reset,
+      });
+    }
+
+    // Explicit --global or --project scope: delegate to settings handler
+    if (scope === 'global' || scope === 'project') {
+      const settingsOpts: SettingsOptions = {
+        global: scope === 'global',
+        project: scope === 'project',
+        list: options.list,
+        get: options.get,
+        set: options.set,
+        delete: options.delete,
+        edit: options.edit,
+        export: options.export,
+        import: options.import,
+        template: options.template,
+        explain: options.explain,
+        reset: options.reset,
+        verbose: options.verbose,
+        json: options.json,
+      };
+      return settingsCommand(settingsOpts);
+    }
+
+    // No scope specified -- behavior depends on operation
+    if (options.list) {
+      // Show all scopes
+      await cliConfigHandler({ list: true });
+      await settingsCommand({ list: true });
+      return;
+    }
+
+    if (options.get) {
+      // Walk resolution chain: project > global > cli
+      return settingsCommand({ explain: options.get, json: options.json });
+    }
+
+    if (options.set) {
+      // Default to project scope
+      return settingsCommand({ project: true, set: options.set, json: options.json });
+    }
+
+    if (options.explain) {
+      return settingsCommand({ explain: options.explain, json: options.json });
+    }
+
+    if (options.edit) {
+      // Show scope selector prompt
+      const { selectedScope } = await inquirer.prompt([{
+        type: 'list',
+        name: 'selectedScope',
+        message: 'Which configuration scope would you like to edit?',
+        choices: [
+          { name: 'CLI Configuration (API URL, timeout, retries)', value: 'cli' },
+          { name: 'Global Settings (user preferences)', value: 'global' },
+          { name: 'Project Settings (project behavior)', value: 'project' },
+        ],
+        loop: false,
+      }]);
+
+      if (selectedScope === 'cli') {
+        return cliConfigHandler({});
+      }
+      return settingsCommand({
+        global: selectedScope === 'global',
+        project: selectedScope === 'project',
+        edit: true,
+      });
+    }
+
+    if (options.export || options.import || options.reset || options.delete) {
+      logger.error('The --export, --import, --reset, and --delete operations require a scope flag (--cli, --global, or --project)');
+      process.exit(1);
+    }
+
+    // No operation specified -- show interactive scope selector
+    const { selectedScope } = await inquirer.prompt([{
+      type: 'list',
+      name: 'selectedScope',
+      message: 'Which configuration scope would you like to manage?',
+      choices: [
+        { name: 'CLI Configuration (API URL, timeout, retries)', value: 'cli' },
+        { name: 'Global Settings (user preferences)', value: 'global' },
+        { name: 'Project Settings (project behavior)', value: 'project' },
+      ],
+      loop: false,
+    }]);
+
+    if (selectedScope === 'cli') {
+      return cliConfigHandler({});
+    }
+    return settingsCommand({
+      global: selectedScope === 'global',
+      project: selectedScope === 'project',
+    });
+
+  } catch (error) {
+    logger.error('Config command failed:', error);
+    process.exit(1);
+  }
+}
+
+function determineScope(options: ConfigCommandOptions): 'cli' | 'global' | 'project' | null {
+  if (options.cli) return 'cli';
+  if (options.global) return 'global';
+  if (options.project) return 'project';
+  return null;
+}
+
+// --- CLI config handler (previously configCommand) ---
+// Handles CLI-scoped configuration: API URL, timeout, retries
+
+async function cliConfigHandler(options: CliConfigOptions): Promise<void> {
   try {
     const config = new ConfigManager();
 
@@ -38,16 +165,16 @@ export async function configCommand(options: ConfigOptions): Promise<void> {
 
 async function listConfig(config: ConfigManager): Promise<void> {
   const currentConfig = config.load();
-  
+
   console.log();
   logger.info(chalk.bold('Current Configuration'));
   console.log();
-  
+
   logger.info(`${chalk.cyan('API URL:')} ${currentConfig.apiUrl}`);
   logger.info(`${chalk.cyan('Default Environment:')} ${currentConfig.defaultEnv}`);
   logger.info(`${chalk.cyan('Timeout:')} ${currentConfig.timeout}ms`);
   logger.info(`${chalk.cyan('Retries:')} ${currentConfig.retries}`);
-  
+
   if (currentConfig.token) {
     logger.info(`${chalk.cyan('Authentication:')} ${chalk.green('✓ Logged in')}`);
   } else {
@@ -58,7 +185,7 @@ async function listConfig(config: ConfigManager): Promise<void> {
 async function getConfig(config: ConfigManager, key: string): Promise<void> {
   const currentConfig = config.load();
   const value = getNestedValue(currentConfig, key);
-  
+
   if (value !== undefined) {
     if (key.toLowerCase().includes('token') && typeof value === 'string') {
       // Mask token for security
@@ -76,22 +203,22 @@ async function getConfig(config: ConfigManager, key: string): Promise<void> {
 async function setConfig(config: ConfigManager, keyValue: string): Promise<void> {
   const [key, ...valueParts] = keyValue.split('=');
   const value = valueParts.join('='); // Handle values with = signs
-  
+
   if (!key || value === undefined) {
     logger.error('Invalid format. Use: key=value');
     process.exit(1);
   }
 
   const currentConfig = config.load();
-  
+
   // Validate key
   const validKeys = [
     'apiUrl',
-    'defaultEnv', 
+    'defaultEnv',
     'timeout',
     'retries'
   ];
-  
+
   if (!validKeys.includes(key)) {
     logger.error(`Invalid configuration key: ${key}`);
     logger.info('Valid keys:', validKeys.join(', '));
@@ -132,13 +259,13 @@ async function setConfig(config: ConfigManager, keyValue: string): Promise<void>
   // Update config
   setNestedValue(currentConfig, key, parsedValue);
   config.save(currentConfig);
-  
+
   logger.info(`${chalk.green('✓')} Set ${chalk.cyan(key)} = ${chalk.yellow(value)}`);
 }
 
 async function deleteConfig(config: ConfigManager, key: string): Promise<void> {
   const currentConfig = config.load();
-  
+
   if (key === 'token') {
     delete currentConfig.token;
     config.save(currentConfig);
@@ -171,7 +298,7 @@ async function resetConfig(config: ConfigManager): Promise<void> {
 
 async function interactiveConfig(config: ConfigManager): Promise<void> {
   const currentConfig = config.load();
-  
+
   const answers = await inquirer.prompt([
     {
       type: 'list',
@@ -192,7 +319,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
     case 'list':
       await listConfig(config);
       break;
-      
+
     case 'apiUrl':
       const urlAnswer = await inquirer.prompt([
         {
@@ -207,7 +334,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
       ]);
       await setConfig(config, `apiUrl=${urlAnswer.value}`);
       break;
-      
+
     case 'defaultEnv':
       const envAnswer = await inquirer.prompt([
         {
@@ -220,7 +347,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
       ]);
       await setConfig(config, `defaultEnv=${envAnswer.value}`);
       break;
-      
+
     case 'timeout':
       const timeoutAnswer = await inquirer.prompt([
         {
@@ -230,14 +357,14 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
           default: currentConfig.timeout.toString(),
           validate: (input: string) => {
             const num = parseInt(input, 10);
-            return (!isNaN(num) && num >= 1000 && num <= 300000) || 
+            return (!isNaN(num) && num >= 1000 && num <= 300000) ||
                    'Timeout must be between 1000 and 300000 ms';
           }
         }
       ]);
       await setConfig(config, `timeout=${timeoutAnswer.value}`);
       break;
-      
+
     case 'retries':
       const retryAnswer = await inquirer.prompt([
         {
@@ -247,14 +374,14 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
           default: currentConfig.retries.toString(),
           validate: (input: string) => {
             const num = parseInt(input, 10);
-            return (!isNaN(num) && num >= 0 && num <= 10) || 
+            return (!isNaN(num) && num >= 0 && num <= 10) ||
                    'Retries must be between 0 and 10';
           }
         }
       ]);
       await setConfig(config, `retries=${retryAnswer.value}`);
       break;
-      
+
     case 'reset':
       await resetConfig(config);
       break;
