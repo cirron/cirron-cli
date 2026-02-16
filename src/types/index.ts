@@ -485,10 +485,8 @@ export interface SettingsOptions {
 
 // Config command options (merged config + settings with scope flags)
 export interface ConfigCommandOptions {
-  // Scope flags
-  cli?: boolean;
-  global?: boolean;
-  project?: boolean;
+  // Scope flag
+  scope?: 'cli' | 'global' | 'project';
   // Operations (superset of config + settings)
   list?: boolean;
   get?: string;

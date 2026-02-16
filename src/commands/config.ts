@@ -102,7 +102,7 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
     }
 
     if (options.export || options.import || options.reset || options.delete) {
-      logger.error('The --export, --import, --reset, and --delete operations require a scope flag (--cli, --global, or --project)');
+      logger.error('The --export, --import, --reset, and --delete operations require --scope (cli, global, or project)');
       process.exit(1);
     }
 
@@ -133,11 +133,15 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
   }
 }
 
+const VALID_SCOPES = ['cli', 'global', 'project'] as const;
+
 function determineScope(options: ConfigCommandOptions): 'cli' | 'global' | 'project' | null {
-  if (options.cli) return 'cli';
-  if (options.global) return 'global';
-  if (options.project) return 'project';
-  return null;
+  if (!options.scope) return null;
+  if (!VALID_SCOPES.includes(options.scope)) {
+    logger.error(`Invalid scope '${options.scope}'. Valid scopes: ${VALID_SCOPES.join(', ')}`);
+    process.exit(1);
+  }
+  return options.scope;
 }
 
 // --- CLI config handler (previously configCommand) ---
