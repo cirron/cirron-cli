@@ -8,22 +8,31 @@ import { deployCommand } from './commands/deploy';
 import { initCommand } from './commands/init';
 import { testCommand } from './commands/test';
 import { configCommand } from './commands/config';
-import { settingsCommand } from './commands/settings';
 import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
 import { hardwareCommand } from './commands/hardware';
 import { diagnosticsCommand } from './commands/diagnostics';
 import { listCommand } from './commands/list';
-import { 
-  planCompileCommand, 
-  planBuildCommand, 
-  planLintCommand, 
-  planTestCommand, 
+import {
+  planCompileCommand,
+  planBuildCommand,
   planDiffCommand,
-  planCompareCommand,
   planSaveCommand
 } from './commands/plan';
 import { replayCommand } from './commands/replay';
+import {
+  runPipelineCommand,
+  runJobCommand,
+  runInferenceCommand,
+  runSweepCommand,
+  runListCommand,
+  runStatusCommand,
+  runCancelCommand,
+  runLogsCommand
+} from './commands/run';
+import { pushCommand } from './commands/push';
+import { pullCommand } from './commands/pull';
+import { syncCommand } from './commands/sync';
 import { logger } from './utils/logger';
 
 const program = new Command();
@@ -152,44 +161,61 @@ program
   .option('-m, --message <message>', 'Deployment message')
   .action(deployCommand);
 
-// Config command (CLI configuration: API URL, timeout, retries, etc.)
-program
+// Config command (merged: CLI config + settings + hardware subcommand)
+const configCmd = program
   .command('config')
-  .description('Manage CLI configuration (API URL, timeout, retries, etc.)')
-  .option('-l, --list', 'List all configuration')
+  .description('Manage CLI, global, and project configuration')
+  .option('--cli', 'CLI configuration scope (API URL, timeout, retries)')
+  .option('--global', 'Global user preferences scope')
+  .option('--project', 'Project-specific settings scope')
+  .option('-l, --list', 'List configuration')
   .option('-g, --get <key>', 'Get configuration value')
   .option('-s, --set <key=value>', 'Set configuration value')
   .option('-d, --delete <key>', 'Delete configuration key')
   .option('--reset', 'Reset configuration to defaults')
+  .option('-e, --edit', 'Interactive configuration editor')
+  .option('--explain <key>', 'Show setting resolution chain')
+  .option('--export <file>', 'Export configuration to file')
+  .option('--import <file>', 'Import configuration from file')
+  .option('-t, --template <name>', 'Apply settings template')
+  .option('--verbose', 'Verbose output')
+  .option('--json', 'Output in JSON format')
   .action(configCommand);
 
-// Settings command (user preferences and project behavior)
-program
-  .command('settings')
-  .description('Manage user preferences and settings')
-  .option('-g, --global', 'Manage global settings')
-  .option('-p, --project', 'Manage project settings')
-  .option('-l, --list', 'List all settings')
-  .option('--get <key>', 'Get setting value')
-  .option('--set <key=value>', 'Set setting value')
-  .option('--delete <key>', 'Delete setting key')
-  .option('-e, --edit', 'Interactive settings editor')
-  .option('--export <file>', 'Export settings to file')
-  .option('--import <file>', 'Import settings from file')
-  .option('-t, --template <name>', 'Apply settings template')
-  .option('--explain <key>', 'Show setting resolution chain')
-  .option('--reset', 'Reset settings to defaults')
-  .option('-v, --verbose', 'Verbose output')
+// Hardware subcommand of config
+configCmd
+  .command('hardware')
+  .description('Manage hardware configuration for ML models')
+  .option('--detect', 'Detect current device hardware')
+  .option('--configure', 'Configure hardware interactively')
+  .option('--list', 'List available hardware profiles')
+  .option('--profile <name>', 'Use specific hardware profile')
+  .option('--save [filename]', 'Save hardware configuration to file')
+  .option('--from <path>', 'Load hardware configuration from file')
+  .option('--current', 'Use current device specifications')
   .option('--json', 'Output in JSON format')
-  .action(settingsCommand);
+  .option('--verbose', 'Show detailed information')
+  .action(hardwareCommand);
 
-// Info command
+// Info command (with diagnostics and hardware flags)
 program
   .command('info')
-  .description('Show model information and metadata')
+  .description('Show model information, diagnostics, and hardware details')
   .option('--update <type>', 'Update specific information (metadata)')
   .option('--dry-run', 'Preview changes without applying them')
-  .action(infoCommand);
+  .option('--diagnostics', 'Run diagnostic checks on configuration and connectivity')
+  .option('--hardware', 'Show hardware information')
+  .option('--json', 'Output in JSON format')
+  .option('--detailed', 'Show detailed information')
+  .action(async (options) => {
+    if (options.diagnostics) {
+      return diagnosticsCommand({ json: options.json, verbose: options.detailed });
+    }
+    if (options.hardware) {
+      return hardwareCommand({ detect: true, json: options.json, verbose: options.detailed });
+    }
+    return infoCommand(options);
+  });
 
 // Lint command
 program
@@ -210,15 +236,8 @@ program
 const planCmd = program
   .command('plan')
   .description('Preview and plan project operations')
-  .option('--compare [planA] [planB]', 'Compare two saved plans (interactive if no plans specified)')
-  .action(async (options) => {
-    if (options.compare !== undefined) {
-      // Handle --compare option at the main plan level
-      await planCompareCommand(options.compare, undefined, { verbose: options.verbose, json: options.json });
-    } else {
-      // Show help if no subcommand or options provided
-      planCmd.outputHelp();
-    }
+  .action(() => {
+    planCmd.outputHelp();
   });
 
 planCmd
@@ -246,24 +265,6 @@ planCmd
   .action(planBuildCommand);
 
 planCmd
-  .command('lint')
-  .description('Preview linting scope and expected issues')
-  .option('--save [filename]', 'Save plan to file')
-  .option('--verbose', 'Show detailed planning information')
-  .option('--json', 'Output plan in JSON format')
-  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
-  .action(planLintCommand);
-
-planCmd
-  .command('test')
-  .description('Preview test suite setup and coverage')
-  .option('--save [filename]', 'Save plan to file')
-  .option('--verbose', 'Show detailed planning information')
-  .option('--json', 'Output plan in JSON format')
-  .option('-i, --interactive', 'Enable interactive mode with step-by-step confirmations')
-  .action(planTestCommand);
-
-planCmd
   .command('diff <planA> <planB>')
   .description('Compare two plan files to detect changes and impacts')
   .option('--save [filename]', 'Save comparison to file')
@@ -274,7 +275,7 @@ planCmd
 planCmd
   .command('save [type]')
   .description('Save plans to disk for later comparison and auditing')
-  .option('--all', 'Save all plan types (compile, build, lint, test)')
+  .option('--all', 'Save all plan types (compile, build)')
   .option('--name <filename>', 'Custom filename for the saved plan')
   .option('--description <desc>', 'Description for the saved plan')
   .option('--tags <tags>', 'Comma-separated tags for the saved plan')
@@ -284,8 +285,8 @@ planCmd
   .option('--json', 'Output plan in JSON format')
   .action(planSaveCommand);
 
-// Replay command
-program
+// Replay (moved under plan)
+planCmd
   .command('replay')
   .description('Execute saved plan from file')
   .requiredOption('--plan <file>', 'Plan file to replay')
@@ -295,15 +296,138 @@ program
   .option('--force', 'Force execution despite compatibility warnings')
   .action(replayCommand);
 
-// List command
+// Run commands (stubs)
+const runCmd = program
+  .command('run')
+  .description('Training runs, pipeline executions, and job management');
+
+runCmd
+  .command('pipeline [name]')
+  .description('Trigger a pipeline run')
+  .option('-c, --config <file>', 'Pipeline config file (YAML/JSON)')
+  .option('--gpu <type>', 'GPU type override')
+  .option('--priority <level>', 'Job priority (low, normal, high, critical)')
+  .option('--tag <tags>', 'Comma-separated run tags')
+  .option('--dry-run', 'Show what would execute without running')
+  .option('--async', 'Do not wait for completion')
+  .option('--watch', 'Stream output and wait for completion')
+  .action(runPipelineCommand);
+
+runCmd
+  .command('job')
+  .description('Execute a single-task job')
+  .option('-c, --config <file>', 'Job config file')
+  .option('--gpu <type>', 'GPU type override')
+  .option('--priority <level>', 'Job priority')
+  .option('--dry-run', 'Show what would execute without running')
+  .action(runJobCommand);
+
+runCmd
+  .command('inference [deployment]')
+  .description('Trigger batch inference')
+  .option('-i, --input <path>', 'Input data path')
+  .option('-o, --output <path>', 'Output path')
+  .option('--model <name>', 'Model name/version to use')
+  .option('--batch-size <n>', 'Batch size override')
+  .option('--async', 'Do not wait for completion')
+  .option('--watch', 'Stream output')
+  .action(runInferenceCommand);
+
+runCmd
+  .command('sweep')
+  .description('Trigger hyperparameter sweep')
+  .option('-c, --config <file>', 'Sweep config file')
+  .option('--trials <n>', 'Number of trials')
+  .option('--parallel <n>', 'Max parallel trials')
+  .option('--strategy <type>', 'Search strategy (grid, random, bayesian)')
+  .option('--async', 'Do not wait for completion')
+  .option('--watch', 'Stream output')
+  .action(runSweepCommand);
+
+runCmd
+  .command('list')
+  .description('List all runs and jobs')
+  .option('--status <status>', 'Filter by status (running, completed, failed, cancelled)')
+  .option('--last <n>', 'Show last N runs')
+  .option('--pipeline <name>', 'Filter by pipeline')
+  .option('--json', 'Output in JSON format')
+  .action(runListCommand);
+
+runCmd
+  .command('status <runId>')
+  .description('Get run status')
+  .option('--json', 'Output in JSON format')
+  .option('--watch', 'Poll for updates')
+  .action(runStatusCommand);
+
+runCmd
+  .command('cancel <runId>')
+  .description('Cancel a running job')
+  .option('--force', 'Force cancel without confirmation')
+  .action(runCancelCommand);
+
+runCmd
+  .command('logs <runId>')
+  .description('Stream run logs')
+  .option('-f, --follow', 'Follow log output')
+  .option('-n, --lines <number>', 'Number of lines to show')
+  .action(runLogsCommand);
+
+// Push command (stub)
+program
+  .command('push [resource]')
+  .description('Push artifacts to registry (model, image, build, runtime)')
+  .option('-t, --tag <tag>', 'Version tag')
+  .option('-m, --message <message>', 'Push message/description')
+  .option('--registry <url>', 'Override registry URL')
+  .option('--force', 'Overwrite existing version')
+  .option('--dry-run', 'Show what would be pushed')
+  .option('--json', 'Output in JSON format')
+  .action(pushCommand);
+
+// Pull command (stub)
+program
+  .command('pull <resource> [name]')
+  .description('Pull artifacts from registry (model, image, build, runtime)')
+  .option('-t, --tag <tag>', 'Version tag (default: latest)')
+  .option('-o, --output <path>', 'Output directory')
+  .option('--registry <url>', 'Override registry URL')
+  .option('--force', 'Overwrite local files')
+  .option('--json', 'Output in JSON format')
+  .action(pullCommand);
+
+// Sync command (stub)
+program
+  .command('sync [path]')
+  .description('Bidirectional state sync with conflict resolution')
+  .option('--dry-run', 'Show what would change without writing')
+  .option('--push-only', 'Only push local changes')
+  .option('--pull-only', 'Only pull remote changes')
+  .option('--conflicts <strategy>', 'Conflict resolution strategy (keep-both, local-wins, remote-wins, prompt)')
+  .option('--force', 'Skip conflict resolution')
+  .option('--exclude <patterns>', 'Comma-separated glob patterns to exclude')
+  .option('--verbose', 'Show detailed sync information')
+  .option('--json', 'Output in JSON format')
+  .action(syncCommand);
+
+// List command (with runs and pipelines support)
 program
   .command('list <resource>')
-  .description('List resources (deployments, builds, models, images, registry)')
+  .description('List resources (deployments, builds, models, images, registry, runs, pipelines)')
   .option('--json', 'Output in JSON format')
   .option('-l, --limit <number>', 'Number of items to show', '20')
   .option('-f, --filter <filter>', 'Filter resources')
   .option('--all', 'Show all items (no limit)')
-  .action(listCommand);
+  .action(async (resource: string, options: any) => {
+    if (resource === 'runs') {
+      return runListCommand(options);
+    }
+    if (resource === 'pipelines') {
+      logger.info('This command is not yet implemented.');
+      return;
+    }
+    return listCommand(resource, options);
+  });
 
 // Status command
 program
@@ -386,29 +510,6 @@ envCmd
       process.exit(1);
     }
   });
-
-// Hardware command
-program
-  .command('hardware')
-  .description('Manage hardware configuration for ML models')
-  .option('--detect', 'Detect current device hardware')
-  .option('--configure', 'Configure hardware interactively')
-  .option('--list', 'List available hardware profiles')
-  .option('--profile <name>', 'Use specific hardware profile')
-  .option('--save [filename]', 'Save hardware configuration to file')
-  .option('--from <path>', 'Load hardware configuration from file')
-  .option('--current', 'Use current device specifications')
-  .option('--json', 'Output in JSON format')
-  .option('--verbose', 'Show detailed information')
-  .action(hardwareCommand);
-
-// Diagnostics command
-program
-  .command('diagnostics')
-  .description('Run diagnostic checks on configuration and connectivity')
-  .option('--json', 'Output results in JSON format')
-  .option('--detailed', 'Show detailed diagnostic information')
-  .action((options) => diagnosticsCommand({ ...options, verbose: options.detailed }));
 
 // Parse command line arguments
 program.parse();
