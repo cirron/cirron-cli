@@ -483,6 +483,27 @@ export interface SettingsOptions {
   json?: boolean;
 }
 
+// Config command options (merged config + settings with scope flags)
+export interface ConfigCommandOptions {
+  // Scope flags
+  cli?: boolean;
+  global?: boolean;
+  project?: boolean;
+  // Operations (superset of config + settings)
+  list?: boolean;
+  get?: string;
+  set?: string;
+  delete?: string;
+  reset?: boolean;
+  edit?: boolean;
+  explain?: string;
+  export?: string;
+  import?: string;
+  template?: string;
+  verbose?: boolean;
+  json?: boolean;
+}
+
 export interface SettingsSource {
   type: 'default' | 'global' | 'project' | 'cli';
   file?: string;
