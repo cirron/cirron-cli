@@ -733,3 +733,95 @@ export interface PullResult {
   verified: boolean;
   skipped: boolean;
 }
+
+// Push command types
+
+export type PushResourceType = 'model' | 'image' | 'build' | 'runtime';
+
+export interface PushOptions {
+  tag?: string;
+  message?: string;
+  all?: boolean;
+  ignore?: string;
+  registry?: string;
+  force?: boolean;
+  json?: boolean;
+  dryRun?: boolean;
+}
+
+export interface PushFileInfo {
+  filePath: string;
+  relativePath: string;
+  size: number;
+  checksum: string;
+}
+
+export interface PushArtifactInfo {
+  id: string;
+  name: string;
+  type: string;
+  tag: string;
+  filename: string;
+  size: number;
+  checksum: string;
+  createdAt: string;
+}
+
+export interface PushUploadUrl {
+  uploadUrl: string;
+  uploadId: string;
+  expiresAt: string;
+  chunkSize: number;
+  maxChunks: number;
+}
+
+export interface PushDedupeResult {
+  exists: boolean;
+  artifactId?: string;
+  artifactName?: string;
+  tag?: string;
+}
+
+export interface PushConfirmation {
+  artifactId: string;
+  name: string;
+  type: string;
+  tag: string;
+  size: number;
+  checksum: string;
+  versionId: string;
+  createdAt: string;
+}
+
+export interface PushSessionInfo {
+  sessionId: string;
+  filePath: string;
+  checksum: string;
+  totalSize: number;
+  chunkSize: number;
+  totalChunks: number;
+  completedChunks: number[];
+  chunkChecksums: Record<number, string>;
+  uploadUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PushResult {
+  file: PushFileInfo;
+  artifact: PushArtifactInfo;
+  verified: boolean;
+  skipped: boolean;
+  skipReason?: string;
+}
+
+export interface PushSummary {
+  totalFiles: number;
+  uploaded: number;
+  skipped: number;
+  failed: number;
+  totalBytes: number;
+  uploadedBytes: number;
+  tag: string;
+  results: PushResult[];
+}
