@@ -1,13 +1,23 @@
 import fetch from 'node-fetch';
-import type { 
-  CirronConfig, 
-  ApiResponse, 
-  AuthInfo, 
+import { createWriteStream, createReadStream } from 'fs';
+import fs from 'fs-extra';
+import type {
+  CirronConfig,
+  ApiResponse,
+  AuthInfo,
   DeploymentInfo,
   LogEntry,
   DeviceCodeResponse,
   DeviceTokenResponse,
-  DeviceAuthStatus
+  DeviceAuthStatus,
+  RunInfo,
+  PullArtifactInfo,
+  PullDownloadInfo,
+  PushDedupeResult,
+  PushUploadUrl,
+  PushConfirmation,
+  PushSessionInfo,
+  SyncDiffResult,
 } from '../types';
 
 export class CirronApi {
@@ -244,6 +254,477 @@ export class CirronApi {
     return response.data || response || [];
   }
 
+  // Run command methods
+
+  async triggerPipelineRun(pipelineNameOrId: string, options: {
+    config?: Record<string, unknown>;
+    gpu?: string;
+    priority?: string;
+    tags?: string[];
+  } = {}): Promise<RunInfo> {
+    const response = await this.request(`/api/cli/pipelines/${encodeURIComponent(pipelineNameOrId)}/run`, {
+      method: 'POST',
+      body: {
+        gpu: options.gpu,
+        priority: options.priority,
+        tags: options.tags,
+        config: options.config,
+      }
+    });
+    return response.data;
+  }
+
+  async getRun(runId: string): Promise<RunInfo> {
+    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}`);
+    return response.data;
+  }
+
+  async getRuns(options: {
+    status?: string;
+    limit?: number;
+    pipeline?: string;
+  } = {}): Promise<RunInfo[]> {
+    const params = new URLSearchParams();
+    if (options.status) params.append('status', options.status);
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.pipeline) params.append('pipeline', options.pipeline);
+
+    const response = await this.request(`/api/cli/runs?${params}`);
+    return response.data || [];
+  }
+
+  async cancelRun(runId: string, options: {
+    force?: boolean;
+  } = {}): Promise<RunInfo> {
+    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/cancel`, {
+      method: 'POST',
+      body: { force: options.force }
+    });
+    return response.data;
+  }
+
+  async getRunLogs(runId: string, options: {
+    lines?: number;
+    since?: string;
+  } = {}): Promise<LogEntry[]> {
+    const params = new URLSearchParams();
+    if (options.lines) params.append('lines', options.lines.toString());
+    if (options.since) params.append('since', options.since);
+
+    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/logs?${params}`);
+    return response.data || [];
+  }
+
+  // Pull command methods
+
+  async getPullArtifacts(options: {
+    resource?: string;
+    name?: string;
+    tag?: string;
+    projectName?: string;
+    type?: string;
+    path?: string;
+  } = {}): Promise<PullArtifactInfo[]> {
+    const params = new URLSearchParams();
+    if (options.resource) params.append('resource', options.resource);
+    if (options.name) params.append('name', options.name);
+    if (options.tag) params.append('tag', options.tag);
+    if (options.projectName) params.append('projectName', options.projectName);
+    if (options.type) params.append('type', options.type);
+    if (options.path) params.append('path', options.path);
+
+    const response = await this.request(`/api/cli/registry/pull?${params}`);
+    return response.data?.artifacts || response.data || [];
+  }
+
+  async getPullDownloadUrl(artifactId: string): Promise<PullDownloadInfo> {
+    const params = new URLSearchParams();
+    params.append('artifactId', artifactId);
+
+    const response = await this.request(`/api/cli/registry/pull/download?${params}`);
+    return response.data;
+  }
+
+  async downloadFile(
+    url: string,
+    destPath: string,
+    onProgress?: (downloaded: number, total: number) => void
+  ): Promise<void> {
+    await this.ensureValidToken();
+
+    // Don't send auth headers to external presigned URLs (S3/GCS) —
+    // the presigned URL already contains its own auth credentials
+    const headers: Record<string, string> = {
+      'User-Agent': 'cirron-cli/1.0.0',
+    };
+
+    let attempt = 0;
+    let lastError: Error = new Error('Download failed after retries');
+
+    while (attempt <= this.config.retries) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout * 10); // 10x normal timeout for large downloads
+
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Download failed: HTTP ${response.status} ${response.statusText}`);
+        }
+
+        if (!response.body) {
+          throw new Error('Download failed: empty response body');
+        }
+
+        const totalSize = parseInt(response.headers.get('content-length') || '0', 10);
+        let downloaded = 0;
+
+        const fileStream = createWriteStream(destPath);
+
+        await new Promise<void>((resolve, reject) => {
+          response.body!.on('data', (chunk: Buffer) => {
+            downloaded += chunk.length;
+            if (onProgress && totalSize > 0) {
+              onProgress(downloaded, totalSize);
+            }
+          });
+
+          response.body!.pipe(fileStream);
+
+          response.body!.on('error', (err: Error) => {
+            fileStream.close();
+            reject(err);
+          });
+
+          fileStream.on('finish', () => {
+            fileStream.close();
+            resolve();
+          });
+
+          fileStream.on('error', (err: Error) => {
+            reject(err);
+          });
+        });
+
+        return;
+      } catch (error) {
+        lastError = error as Error;
+
+        if (error instanceof Error &&
+            (error.message.includes('401') || error.message.includes('403'))) {
+          throw error;
+        }
+
+        attempt++;
+        if (attempt <= this.config.retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    throw lastError;
+  }
+
+  // Push command methods
+
+  async checkDedupe(checksum: string, options: {
+    resource?: string;
+    name?: string;
+  } = {}): Promise<PushDedupeResult> {
+    const body: Record<string, string> = { checksum };
+    if (options.resource) body['resource'] = options.resource;
+    if (options.name) body['name'] = options.name;
+
+    const response = await this.request('/api/cli/registry/push/check-dedupe', {
+      method: 'POST',
+      body,
+    });
+    return response.data;
+  }
+
+  async getUploadUrl(options: {
+    filename: string;
+    size: number;
+    checksum: string;
+    resource?: string;
+    name?: string;
+    tag?: string;
+    registry?: string;
+  }): Promise<PushUploadUrl> {
+    const body: Record<string, string | number> = {
+      filename: options.filename,
+      size: options.size,
+      checksum: options.checksum,
+    };
+    if (options.resource) body['resource'] = options.resource;
+    if (options.name) body['name'] = options.name;
+    if (options.tag) body['tag'] = options.tag;
+    if (options.registry) body['registry'] = options.registry;
+
+    const response = await this.request('/api/cli/registry/push/upload-url', {
+      method: 'POST',
+      body,
+    });
+    return response.data;
+  }
+
+  async confirmUpload(options: {
+    uploadId: string;
+    checksum: string;
+    size: number;
+    resource?: string;
+    name?: string;
+    tag?: string;
+    message?: string;
+    gitHash?: string;
+  }): Promise<PushConfirmation> {
+    const body: Record<string, string | number> = {
+      uploadId: options.uploadId,
+      checksum: options.checksum,
+      size: options.size,
+    };
+    if (options.resource) body['resource'] = options.resource;
+    if (options.name) body['name'] = options.name;
+    if (options.tag) body['tag'] = options.tag;
+    if (options.message) body['message'] = options.message;
+    if (options.gitHash) body['gitHash'] = options.gitHash;
+
+    const response = await this.request('/api/cli/registry/push/confirm', {
+      method: 'POST',
+      body,
+    });
+    return response.data;
+  }
+
+  async createVersion(options: {
+    projectName: string;
+    tag?: string;
+    artifacts: Array<{
+      artifactId: string;
+      filename: string;
+      checksum: string;
+      size: number;
+      type: string;
+    }>;
+    message?: string;
+    gitHash?: string;
+  }): Promise<{ versionId: string; tag: string; createdAt: string }> {
+    const response = await this.request('/api/cli/registry/push/version', {
+      method: 'POST',
+      body: {
+        projectName: options.projectName,
+        artifacts: options.artifacts,
+        ...(options.tag ? { tag: options.tag } : {}),
+        ...(options.message ? { message: options.message } : {}),
+        ...(options.gitHash ? { gitHash: options.gitHash } : {}),
+      },
+    });
+    return response.data;
+  }
+
+  async getUploadSession(sessionId: string): Promise<PushSessionInfo | null> {
+    try {
+      const response = await this.request(
+        `/api/cli/registry/push/session/${encodeURIComponent(sessionId)}`
+      );
+      return response.data;
+    } catch {
+      return null;
+    }
+  }
+
+  async createUploadSession(options: {
+    filePath: string;
+    totalSize: number;
+    chunkSize: number;
+    totalChunks: number;
+    checksum: string;
+  }): Promise<{ sessionId: string }> {
+    const response = await this.request('/api/cli/registry/push/session', {
+      method: 'POST',
+      body: options,
+    });
+    return response.data;
+  }
+
+  async uploadFile(
+    url: string,
+    filePath: string,
+    onProgress?: (uploaded: number, total: number) => void
+  ): Promise<void> {
+    await this.ensureValidToken();
+
+    const stat = await fs.stat(filePath);
+    const totalSize = stat.size;
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'cirron-cli/1.0.0',
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': totalSize.toString(),
+    };
+
+    let attempt = 0;
+    let lastError: Error = new Error('Upload failed after retries');
+
+    while (attempt <= this.config.retries) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout * 10);
+
+      try {
+        const fileStream = createReadStream(filePath);
+        let uploaded = 0;
+
+        fileStream.on('data', (chunk: string | Buffer) => {
+          uploaded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+          if (onProgress && totalSize > 0) {
+            onProgress(uploaded, totalSize);
+          }
+        });
+
+        fileStream.on('error', () => {
+          fileStream.destroy();
+          controller.abort();
+        });
+
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers,
+          body: fileStream as any,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Upload failed: HTTP ${response.status} ${response.statusText}`
+          );
+        }
+
+        return;
+      } catch (error) {
+        lastError = error as Error;
+
+        if (
+          error instanceof Error &&
+          (error.message.includes('401') || error.message.includes('403'))
+        ) {
+          throw error;
+        }
+
+        attempt++;
+        if (attempt <= this.config.retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    throw lastError;
+  }
+
+  async uploadFileChunk(
+    url: string,
+    filePath: string,
+    chunkIndex: number,
+    chunkSize: number,
+    totalSize: number,
+    onProgress?: (uploaded: number, chunkTotal: number) => void
+  ): Promise<string> {
+    await this.ensureValidToken();
+
+    const start = chunkIndex * chunkSize;
+    const end = Math.min(start + chunkSize, totalSize);
+    const length = end - start;
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'cirron-cli/1.0.0',
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': length.toString(),
+      'Content-Range': `bytes ${start}-${end - 1}/${totalSize}`,
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, this.config.timeout * 10);
+
+    try {
+      const fileStream = createReadStream(filePath, { start, end: end - 1 });
+      let uploaded = 0;
+
+      fileStream.on('data', (chunk: string | Buffer) => {
+        uploaded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+        if (onProgress) {
+          onProgress(uploaded, length);
+        }
+      });
+
+      fileStream.on('error', () => {
+        controller.abort();
+      });
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: fileStream as any,
+        signal: controller.signal as any,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Chunk upload failed: HTTP ${response.status} ${response.statusText}`
+        );
+      }
+
+      return response.headers.get('etag') || '';
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Sync command methods
+
+  async getSyncDiff(options: {
+    projectName: string;
+    manifest: Array<{ path: string; checksum: string; size: number }>;
+  }): Promise<SyncDiffResult> {
+    const response = await this.request('/api/cli/registry/sync/diff', {
+      method: 'POST',
+      body: {
+        projectName: options.projectName,
+        manifest: options.manifest,
+      },
+    });
+    return response.data;
+  }
+
+  async completeSyncMetadata(options: {
+    projectName: string;
+    pushed: Array<{ path: string; checksum: string; artifactId: string }>;
+    pulled: Array<{ path: string; checksum: string; artifactId: string }>;
+  }): Promise<void> {
+    await this.request('/api/cli/registry/sync/complete', {
+      method: 'POST',
+      body: {
+        projectName: options.projectName,
+        pushed: options.pushed,
+        pulled: options.pulled,
+      },
+    });
+  }
+
   private getAuthHeader(): string | undefined {
     // Try JWT token first
     if (this.config.auth?.accessToken) {
@@ -348,7 +829,7 @@ export class CirronApi {
     }, this.config.timeout);
 
     let attempt = 0;
-    let lastError: Error;
+    let lastError: Error = new Error('Request failed after retries');
 
     while (attempt <= this.config.retries) {
       try {
@@ -391,6 +872,6 @@ export class CirronApi {
     }
 
     clearTimeout(timeoutId);
-    throw lastError!;
+    throw lastError;
   }
 }
