@@ -70,14 +70,14 @@ function loadProjectConfig(): ProjectConfig | null {
   }
 }
 
-function formatSize(bytes: number): string {
+export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-async function computeFileChecksum(filePath: string): Promise<string> {
+export async function computeFileChecksum(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
     const stream = fs.createReadStream(filePath);
@@ -171,7 +171,7 @@ async function collectProjectFiles(
   return allFiles;
 }
 
-async function prepareFileInfo(filePath: string): Promise<PushFileInfo> {
+export async function prepareFileInfo(filePath: string): Promise<PushFileInfo> {
   const stat = await fs.stat(filePath);
   const checksum = await computeFileChecksum(filePath);
   return {
@@ -264,7 +264,7 @@ async function removeUploadSession(checksum: string): Promise<void> {
 
 // --- Core Upload Flow ---
 
-async function uploadSingleFile(
+export async function uploadSingleFile(
   api: CirronApi,
   fileInfo: PushFileInfo,
   options: {

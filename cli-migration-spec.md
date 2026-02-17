@@ -536,7 +536,7 @@ Key implementation details:
 - [ ] `run sweep` — hyperparameter sweep (enhanced stub)
 - [x] `push` — push artifacts to registry
 - [x] `pull` — pull artifacts from registry
-- [ ] `sync` — bidirectional sync with conflict resolution
+- [x] `sync` — bidirectional sync with conflict resolution
 
 #### Phase 3 Implementation Notes (run commands)
 
@@ -621,6 +621,40 @@ Key implementation details:
   - `POST /session` — creates `UploadSession` with 24h expiry for chunked upload resume support. Returns `{ sessionId }`
   - `GET /session/[id]` — retrieves upload session by ID with expiry check (Next.js 15 async params pattern). Returns session info or 404/410
 - **Pull route updated**: `searchProjectArtifacts()` in `apps/app/app/api/cli/registry/pull/route.ts` now includes CLI-pushed artifacts via OR condition: `{ sourcePipelineId: null, externalSource: "CLI" }` alongside existing pipeline-scoped query. Local duplicate constants removed, now imports from `@cirron/cli`
+
+#### Phase 3 Implementation Notes (sync command)
+
+Completed in branch `CIRRON-472`. Implementation plan: `.claude/plans/linked-yawning-hollerith.md`
+
+Key implementation details:
+- **Types**: Added `SyncConflictStrategy`, `SyncOptions`, `SyncFileManifestEntry`, `SyncRemoteFileEntry`, `SyncChangedFileEntry`, `SyncConflictEntry`, `SyncDiffResult`, `SyncConflictResolution`, `SyncSummary` to `src/types/index.ts`
+- **API methods**: Added 2 methods to `CirronApi` in `src/utils/api.ts`: `getSyncDiff` (POST `/api/cli/registry/sync/diff`), `completeSyncMetadata` (POST `/api/cli/registry/sync/complete`)
+- **Checksum-only diffing**: No timestamps — checksums are the sole source of truth. Server categorizes files into 6 buckets: `localOnly`, `remoteOnly`, `changedLocally`, `changedRemotely`, `conflicts`, `unchanged`
+- **Reuses push/pull infrastructure**: Exported `uploadSingleFile`, `prepareFileInfo`, `computeFileChecksum`, `formatSize` from `push.ts` and `downloadArtifact` from `pull.ts`. Sync uses adapter functions (`toArtifactInfo`, `toFileInfo`) to bridge sync types to push/pull function signatures
+- **Commander wiring**: Fixed `-f` short flag on `--force` option in `index.ts`. All flags match spec: `--dry-run`, `--push-only`, `--pull-only`, `--conflicts <strategy>`, `-f, --force`, `--exclude <patterns>`, `--verbose`, `--json`
+- **Validation**: `--force` without `--push-only` or `--pull-only` errors with direction guidance. `--push-only` + `--pull-only` mutual exclusion. Invalid `--conflicts` value validated against allowed set
+- **`--push-only --force`**: Conflicts moved into `changedLocally` (local wins). `--pull-only --force`: conflicts moved into `changedRemotely` (remote wins)
+- **Conflict resolution**: Four strategies — `prompt` (interactive with "apply same to remaining" after first choice), `local-wins`, `remote-wins`, `keep-both` (creates `.local`/`.remote` suffixed copies)
+- **`--dry-run`**: Human-readable categorized output with push/pull/conflict/unchanged sections. `--json` mode outputs structured data with summary. `--verbose` shows unchanged files and per-file checksums
+- **Execution order**: Pull remote-only, pull changed-remotely, push local-only, push changed-locally, resolve conflicts
+- **Per-file error handling**: Individual failures don't abort the sync. Errors recorded in summary, process exits with code 1 if any failures after summary
+- **`completeSyncMetadata`**: Best-effort server notification after sync. Failure logged as warning, does not fail the sync
+- **Idempotent recovery**: No explicit resume state. Re-running `cirron sync` after a failure skips completed files (checksums match → `unchanged`)
+- **Beta scope deferrals**: `--watch` (continuous sync), delta sync (byte-level diffs), sync state resume file (`~/.cirron/sync/<project>.json`), remote change notifications
+- **Auth pattern**: Reuses `checkAuth()` pattern from `push.ts`/`pull.ts`
+
+#### Phase 3 Implementation Notes (sync command — server-side API routes)
+
+Completed in branch `CIRRON-472`. Implementation plan: `.claude/plans/tender-whistling-garden.md`
+
+Key implementation details:
+- **Schema changes**: Added `SyncManifest` model to Prisma schema for persistent path-to-artifact mapping. Fields: `organizationId`, `projectName`, `path` (VARCHAR(380) — sized to fit MySQL 3072-byte composite key limit with utf8mb4), `checksum`, `size` (BigInt), `artifactId`, `artifactName`, `type`, `tag` (nullable). Unique constraint on `[organizationId, projectName, path]`. Cascade deletes from `Organization` and `RegistryArtifact`. Reverse relations added on both models
+- **Shared helper**: Added `getProjectArtifactsRaw()` to `apps/app/lib/cli-registry.ts` — reuses same query logic as `searchProjectArtifacts` in the pull route (model → pipelines → RegistryArtifact with OR conditions for pipeline-scoped and CLI-pushed artifacts) but returns raw DB records instead of mapped `PullArtifactInfo`
+- **2 API routes created** under `apps/app/app/api/cli/registry/sync/`:
+  - `POST /diff` — computes diff between local file manifest and remote artifacts. Uses `SyncManifest` as baseline for three-way comparison. First sync (no baseline): basename matching, same checksum = `unchanged`, different = `conflicts` (can't determine direction). Subsequent syncs: `local == baseline && remote != baseline` → `changedRemotely`, `local != baseline && remote == baseline` → `changedLocally`, both changed → `conflicts`, `local == remote` → `unchanged`. Validates manifest entries (no path traversal, no null bytes, no absolute paths). Returns 6-bucket `SyncDiffResult` matching CLI types
+  - `POST /complete` — called after sync operations finish. Upserts `SyncManifest` entries for each pushed/pulled file in a `$transaction` keyed on `[organizationId, projectName, path]`. Marks referenced `RegistryArtifact` records as `syncStatus: "SYNCED"` with `lastSyncAt` timestamp. No-op when pushed/pulled arrays are empty
+- **CLI bug fix**: `executeSyncPlan()` in `cirron-cli/src/commands/sync.ts` now collects `pushed`/`pulled` arrays from `pushSyncFiles`, `pullSyncFiles`, and `resolveConflicts` results. Returns `SyncPlanResult` (summary + pushed + pulled) instead of just `SyncSummary`. Call site in `syncCommand` passes actual arrays to `completeSyncMetadata` instead of empty arrays
+- **Key design decision**: `SyncManifest.path` uses `VARCHAR(380)` instead of `VARCHAR(1000)` due to MySQL composite key limit of 3072 bytes with utf8mb4 encoding: `(191 + 191 + 380) * 4 = 3048 bytes`
 
 ### Phase 4: Cleanup
 
