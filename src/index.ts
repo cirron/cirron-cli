@@ -93,7 +93,7 @@ program
   .command('init')
   .description('Initialize a new Cirron project')
   .argument('[name]', 'Project name')
-  .option('-t, --template <template>', 'Project template (nextjs, react, vue, express)', 'nextjs')
+  .option('-t, --template <template>', 'Project template (pytorch, tensorflow, sklearn, pytorch-train, tensorflow-train, sklearn-pipeline, custom)')
   .option('-f, --force', 'Force initialization in non-empty directory')
   .option('--no-install', 'Skip package installation')
   .option('--git', 'Initialize git repository')
