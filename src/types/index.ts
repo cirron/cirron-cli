@@ -825,3 +825,84 @@ export interface PushSummary {
   tag: string;
   results: PushResult[];
 }
+
+// Sync command types
+
+export type SyncConflictStrategy = 'keep-both' | 'local-wins' | 'remote-wins' | 'prompt';
+
+export interface SyncOptions {
+  dryRun?: boolean;
+  pushOnly?: boolean;
+  pullOnly?: boolean;
+  conflicts?: string;
+  force?: boolean;
+  exclude?: string;
+  verbose?: boolean;
+  json?: boolean;
+}
+
+export interface SyncFileManifestEntry {
+  path: string;
+  checksum: string;
+  size: number;
+}
+
+export interface SyncRemoteFileEntry {
+  path: string;
+  checksum: string;
+  size: number;
+  artifactId: string;
+  artifactName: string;
+  type: string;
+  tag: string;
+  createdAt: string;
+}
+
+export interface SyncChangedFileEntry {
+  path: string;
+  localChecksum: string;
+  remoteChecksum: string;
+  localSize: number;
+  remoteSize: number;
+  artifactId: string;
+  artifactName: string;
+  type: string;
+  tag: string;
+}
+
+export interface SyncConflictEntry {
+  path: string;
+  localChecksum: string;
+  remoteChecksum: string;
+  localSize: number;
+  remoteSize: number;
+  artifactId: string;
+  artifactName: string;
+  type: string;
+  tag: string;
+}
+
+export interface SyncDiffResult {
+  localOnly: SyncFileManifestEntry[];
+  remoteOnly: SyncRemoteFileEntry[];
+  changedLocally: SyncChangedFileEntry[];
+  changedRemotely: SyncChangedFileEntry[];
+  conflicts: SyncConflictEntry[];
+  unchanged: SyncFileManifestEntry[];
+}
+
+export type SyncConflictResolution = 'skip' | 'overwrite-local' | 'overwrite-remote' | 'keep-both';
+
+export interface SyncSummary {
+  pushed: number;
+  pulled: number;
+  conflictsResolved: number;
+  conflictsSkipped: number;
+  unchanged: number;
+  failed: number;
+  totalLocalOnly: number;
+  totalRemoteOnly: number;
+  totalChangedLocally: number;
+  totalChangedRemotely: number;
+  totalConflicts: number;
+}
