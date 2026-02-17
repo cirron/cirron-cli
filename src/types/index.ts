@@ -483,6 +483,25 @@ export interface SettingsOptions {
   json?: boolean;
 }
 
+// Config command options (merged config + settings with scope flags)
+export interface ConfigCommandOptions {
+  // Scope flag
+  scope?: 'cli' | 'global' | 'project';
+  // Operations (superset of config + settings)
+  list?: boolean;
+  get?: string;
+  set?: string;
+  delete?: string;
+  reset?: boolean;
+  edit?: boolean;
+  explain?: string;
+  export?: string;
+  import?: string;
+  template?: string;
+  verbose?: boolean;
+  json?: boolean;
+}
+
 export interface SettingsSource {
   type: 'default' | 'global' | 'project' | 'cli';
   file?: string;
@@ -570,4 +589,320 @@ export interface ModelConfig {
     packages?: Record<string, string>;
     requirements?: string[];
   };
+}
+
+// Run command types
+
+export type RunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export type RunPriority = 'low' | 'normal' | 'high' | 'critical';
+
+export type SweepStrategy = 'grid' | 'random' | 'bayesian';
+
+export interface RunInfo {
+  id: string;
+  name?: string;
+  type: 'pipeline' | 'job' | 'inference' | 'sweep';
+  status: RunStatus;
+  pipeline?: {
+    id: string;
+    name: string;
+  };
+  gpu?: string;
+  priority?: RunPriority;
+  tags?: string[];
+  createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  duration?: number;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RunPipelineOptions {
+  config?: string;
+  gpu?: string;
+  priority?: string;
+  tag?: string;
+  dryRun?: boolean;
+  watch?: boolean;
+}
+
+export interface RunListOptions {
+  status?: string;
+  last?: string;
+  pipeline?: string;
+  json?: boolean;
+}
+
+export interface RunStatusOptions {
+  json?: boolean;
+  watch?: boolean;
+}
+
+export interface RunCancelOptions {
+  force?: boolean;
+}
+
+export interface RunLogsOptions {
+  follow?: boolean;
+  lines?: string;
+}
+
+export interface RunJobOptions {
+  config?: string;
+  gpu?: string;
+  priority?: string;
+  dryRun?: boolean;
+}
+
+export interface RunInferenceOptions {
+  input?: string;
+  output?: string;
+  model?: string;
+  batchSize?: string;
+  watch?: boolean;
+}
+
+export interface RunSweepOptions {
+  config?: string;
+  trials?: string;
+  parallel?: string;
+  strategy?: string;
+  watch?: boolean;
+}
+
+export interface PipelineConfig {
+  name?: string;
+  steps?: PipelineStep[];
+  gpu?: string;
+  priority?: RunPriority;
+  tags?: string[];
+  parameters?: Record<string, unknown>;
+}
+
+export interface PipelineStep {
+  name: string;
+  command?: string;
+  image?: string;
+  resources?: {
+    gpu?: string;
+    memory?: string;
+    cpu?: string;
+  };
+  dependsOn?: string[];
+}
+
+// Pull command types
+
+export type PullResourceType = 'model' | 'image' | 'build' | 'runtime';
+
+export interface PullOptions {
+  tag?: string;
+  output?: string;
+  all?: boolean;
+  type?: string;
+  ignore?: string;
+  registry?: string;
+  force?: boolean;
+  interactive?: boolean;
+  json?: boolean;
+  dryRun?: boolean;
+}
+
+export interface PullArtifactInfo {
+  id: string;
+  name: string;
+  type: string;
+  tag: string;
+  filename: string;
+  size: number;
+  checksum: string;
+  createdAt: string;
+}
+
+export interface PullDownloadInfo {
+  artifactId: string;
+  downloadUrl: string;
+  expiresAt: string;
+}
+
+export interface PullResult {
+  artifact: PullArtifactInfo;
+  outputPath: string;
+  verified: boolean;
+  skipped: boolean;
+}
+
+// Push command types
+
+export type PushResourceType = 'model' | 'image' | 'build' | 'runtime';
+
+export interface PushOptions {
+  tag?: string;
+  message?: string;
+  all?: boolean;
+  ignore?: string;
+  registry?: string;
+  force?: boolean;
+  json?: boolean;
+  dryRun?: boolean;
+}
+
+export interface PushFileInfo {
+  filePath: string;
+  relativePath: string;
+  size: number;
+  checksum: string;
+}
+
+export interface PushArtifactInfo {
+  id: string;
+  name: string;
+  type: string;
+  tag: string;
+  filename: string;
+  size: number;
+  checksum: string;
+  createdAt: string;
+}
+
+export interface PushUploadUrl {
+  uploadUrl: string;
+  uploadId: string;
+  expiresAt: string;
+  chunkSize: number;
+  maxChunks: number;
+}
+
+export interface PushDedupeResult {
+  exists: boolean;
+  artifactId?: string;
+  artifactName?: string;
+  tag?: string;
+}
+
+export interface PushConfirmation {
+  artifactId: string;
+  name: string;
+  type: string;
+  tag: string;
+  size: number;
+  checksum: string;
+  versionId: string;
+  createdAt: string;
+}
+
+export interface PushSessionInfo {
+  sessionId: string;
+  filePath: string;
+  checksum: string;
+  totalSize: number;
+  chunkSize: number;
+  totalChunks: number;
+  completedChunks: number[];
+  chunkChecksums: Record<number, string>;
+  uploadUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PushResult {
+  file: PushFileInfo;
+  artifact: PushArtifactInfo;
+  verified: boolean;
+  skipped: boolean;
+  skipReason?: string;
+}
+
+export interface PushSummary {
+  totalFiles: number;
+  uploaded: number;
+  skipped: number;
+  failed: number;
+  totalBytes: number;
+  uploadedBytes: number;
+  tag: string;
+  results: PushResult[];
+}
+
+// Sync command types
+
+export type SyncConflictStrategy = 'keep-both' | 'local-wins' | 'remote-wins' | 'prompt';
+
+export interface SyncOptions {
+  dryRun?: boolean;
+  pushOnly?: boolean;
+  pullOnly?: boolean;
+  conflicts?: string;
+  force?: boolean;
+  exclude?: string;
+  verbose?: boolean;
+  json?: boolean;
+}
+
+export interface SyncFileManifestEntry {
+  path: string;
+  checksum: string;
+  size: number;
+}
+
+export interface SyncRemoteFileEntry {
+  path: string;
+  checksum: string;
+  size: number;
+  artifactId: string;
+  artifactName: string;
+  type: string;
+  tag: string;
+  createdAt: string;
+}
+
+export interface SyncChangedFileEntry {
+  path: string;
+  localChecksum: string;
+  remoteChecksum: string;
+  localSize: number;
+  remoteSize: number;
+  artifactId: string;
+  artifactName: string;
+  type: string;
+  tag: string;
+}
+
+export interface SyncConflictEntry {
+  path: string;
+  localChecksum: string;
+  remoteChecksum: string;
+  localSize: number;
+  remoteSize: number;
+  artifactId: string;
+  artifactName: string;
+  type: string;
+  tag: string;
+}
+
+export interface SyncDiffResult {
+  localOnly: SyncFileManifestEntry[];
+  remoteOnly: SyncRemoteFileEntry[];
+  changedLocally: SyncChangedFileEntry[];
+  changedRemotely: SyncChangedFileEntry[];
+  conflicts: SyncConflictEntry[];
+  unchanged: SyncFileManifestEntry[];
+}
+
+export type SyncConflictResolution = 'skip' | 'overwrite-local' | 'overwrite-remote' | 'keep-both';
+
+export interface SyncSummary {
+  pushed: number;
+  pulled: number;
+  conflictsResolved: number;
+  conflictsSkipped: number;
+  unchanged: number;
+  failed: number;
+  totalLocalOnly: number;
+  totalRemoteOnly: number;
+  totalChangedLocally: number;
+  totalChangedRemotely: number;
+  totalConflicts: number;
 }

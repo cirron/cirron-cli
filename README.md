@@ -155,13 +155,25 @@ cirron-cli/
 │   │   ├── auth.ts
 │   │   ├── build.ts
 │   │   ├── compile.ts
-│   │   ├── config.ts
+│   │   ├── config.ts        # Unified config (CLI + global + project scopes)
 │   │   ├── deploy.ts
+│   │   ├── diagnostics.ts   # Internal module, delegated from info --diagnostics
 │   │   ├── env.ts
-│   │   ├── files
+│   │   ├── files/
+│   │   ├── hardware.ts      # Internal module, delegated from config hardware
+│   │   ├── info.ts
 │   │   ├── init.ts
+│   │   ├── lint.ts
+│   │   ├── list.ts
 │   │   ├── logs.ts
+│   │   ├── plan.ts
+│   │   ├── pull.ts
+│   │   ├── push.ts
+│   │   ├── replay.ts        # Internal module, delegated from plan replay
+│   │   ├── run.ts
+│   │   ├── settings.ts      # Internal module, delegated from config --scope global/project
 │   │   ├── status.ts
+│   │   ├── sync.ts
 │   │   └── test.ts
 │   ├── utils/
 │   │   ├── api.ts
@@ -367,18 +379,13 @@ cirron plan compile                    # Plan compilation for default architectu
 cirron plan compile --arch cuda        # Plan CUDA-specific compilation
 cirron plan compile --validate         # Include validation checks in plan
 
-# Preview container builds  
+# Preview container builds
 cirron plan build                      # Plan build with current configuration
 cirron plan build --arch transformer   # Plan build with transformer template
-cirron plan build --validate          # Include comprehensive validation
+cirron plan build --validate           # Include comprehensive validation
 
-# Preview project linting
-cirron plan lint                       # Plan lint checks for all categories
-cirron plan lint --code                # Plan code quality checks only
-
-# Preview testing strategy
-cirron plan test                       # Plan test execution
-cirron plan test --model               # Plan model testing only
+# Compare two plan files
+cirron plan diff plan-a.json plan-b.json
 
 # Interactive mode for all commands
 cirron build --interactive            # Step-by-step build confirmations
@@ -393,17 +400,17 @@ cirron plan build --interactive       # Enhanced planning with save options
 cirron plan save --name "v1.0-build"   # Save current build plan
 cirron plan save --file build-plan.json # Save to specific file
 
-# Compare plans to detect changes
-cirron plan compare                     # Compare with previous plan
-cirron plan compare --baseline v1.0     # Compare with named baseline
+# Compare two plan files
+cirron plan diff plan-a.json plan-b.json --verbose
 ```
 
 ### Replay Saved Plans
 ```bash
 # Execute previously saved plans
-cirron replay build-plan.json          # Execute saved plan file
-cirron replay --plan v1.0-build        # Execute named plan
-cirron replay --validate               # Validate plan before execution
+cirron plan replay --plan build-plan.json           # Execute saved plan file
+cirron plan replay --plan v1.0-build                # Execute named plan
+cirron plan replay --plan v1.0-build --validate     # Validate plan before execution
+cirron plan replay --plan build-plan.json --dry-run # Preview without executing
 ```
 
 **Use Cases:**
@@ -501,4 +508,84 @@ cirron test --interactive
     Essential only (quick)
     Custom selection
     None (skip all)
+```
+
+## Run
+
+Training runs, pipeline executions, and job management:
+
+```bash
+# Trigger a pipeline run
+cirron run pipeline my-pipeline -c config.yaml --watch
+
+# List runs
+cirron run list --status running --last 10
+
+# Check run status
+cirron run status <runId> --json
+
+# Cancel a run
+cirron run cancel <runId> --force
+
+# Stream run logs
+cirron run logs <runId> -f
+```
+
+Runs are also accessible via `cirron list runs`.
+
+## Push
+
+Push artifacts to the Cirron registry:
+
+```bash
+# Push a specific resource
+cirron push model sentiment-classifier --tag v1.3.0 -m "Improved accuracy"
+
+# Push a file by path
+cirron push model.pt --tag latest
+
+# Push all project artifacts
+cirron push --all
+
+# Dry run to see what would be pushed
+cirron push --all --dry-run
+```
+
+## Pull
+
+Pull artifacts from the Cirron registry:
+
+```bash
+# Pull a specific resource
+cirron pull model sentiment-classifier --tag v1.2.0
+
+# Pull all project artifacts
+cirron pull --all
+
+# Pull with type filter
+cirron pull --all --type model
+
+# Dry run to preview
+cirron pull --all --dry-run
+```
+
+## Sync
+
+Bidirectional state sync with conflict resolution:
+
+```bash
+# Sync entire project (dry run by default on first sync)
+cirron sync --dry-run
+
+# Push local changes only
+cirron sync --push-only
+
+# Pull remote changes only
+cirron sync --pull-only
+
+# Sync with conflict strategy
+cirron sync --conflicts local-wins
+
+# Sync with exclusions
+cirron sync --exclude "*.log,temp_*" --verbose
 ```
