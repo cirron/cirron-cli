@@ -381,15 +381,20 @@ program
   .option('--json', 'Output in JSON format')
   .action(pushCommand);
 
-// Pull command (stub)
+// Pull command
 program
-  .command('pull <resource> [name]')
+  .command('pull [resource] [name]')
   .description('Pull artifacts from registry (model, image, build, runtime)')
   .option('-t, --tag <tag>', 'Version tag (default: latest)')
   .option('-o, --output <path>', 'Output directory')
+  .option('--all', 'Pull all resources for current project')
+  .option('--type <type>', 'Filter --all by resource type')
+  .option('--ignore <patterns>', 'Glob patterns to exclude')
   .option('--registry <url>', 'Override registry URL')
-  .option('--force', 'Overwrite local files')
+  .option('-f, --force', 'Overwrite local files without prompting')
+  .option('-i, --interactive', 'Guided pull flow')
   .option('--json', 'Output in JSON format')
+  .option('--dry-run', 'Show what would be pulled')
   .action(pullCommand);
 
 // Sync command (stub)
