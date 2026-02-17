@@ -785,12 +785,18 @@ async function resolveConflicts(
   return { resolved, skipped, failed, pushed, pulled };
 }
 
+interface SyncPlanResult {
+  summary: SyncSummary;
+  pushed: Array<{ path: string; checksum: string; artifactId: string }>;
+  pulled: Array<{ path: string; checksum: string; artifactId: string }>;
+}
+
 async function executeSyncPlan(
   api: CirronApi,
   diff: SyncDiffResult,
   strategy: SyncConflictStrategy,
   _options: SyncOptions
-): Promise<SyncSummary> {
+): Promise<SyncPlanResult> {
   const summary: SyncSummary = {
     pushed: 0,
     pulled: 0,
@@ -805,12 +811,16 @@ async function executeSyncPlan(
     totalConflicts: diff.conflicts.length,
   };
 
+  const allPushed: Array<{ path: string; checksum: string; artifactId: string }> = [];
+  const allPulled: Array<{ path: string; checksum: string; artifactId: string }> = [];
+
   // 1. Pull remote-only files
   if (diff.remoteOnly.length > 0) {
     logger.info(chalk.bold(`\nPulling ${diff.remoteOnly.length} new remote file(s)...`));
     const pullResult = await pullSyncFiles(api, diff.remoteOnly, 'Pull (new)');
     summary.pulled += pullResult.succeeded;
     summary.failed += pullResult.failed;
+    allPulled.push(...pullResult.pulled);
   }
 
   // 2. Pull changed-remotely files
@@ -819,6 +829,7 @@ async function executeSyncPlan(
     const pullResult = await pullSyncFiles(api, diff.changedRemotely, 'Pull (updated)');
     summary.pulled += pullResult.succeeded;
     summary.failed += pullResult.failed;
+    allPulled.push(...pullResult.pulled);
   }
 
   // 3. Push local-only files
@@ -827,6 +838,7 @@ async function executeSyncPlan(
     const pushResult = await pushSyncFiles(api, diff.localOnly, 'Push (new)');
     summary.pushed += pushResult.succeeded;
     summary.failed += pushResult.failed;
+    allPushed.push(...pushResult.pushed);
   }
 
   // 4. Push changed-locally files
@@ -835,6 +847,7 @@ async function executeSyncPlan(
     const pushResult = await pushSyncFiles(api, diff.changedLocally, 'Push (updated)');
     summary.pushed += pushResult.succeeded;
     summary.failed += pushResult.failed;
+    allPushed.push(...pushResult.pushed);
   }
 
   // 5. Resolve conflicts
@@ -844,9 +857,11 @@ async function executeSyncPlan(
     summary.conflictsResolved += conflictResult.resolved;
     summary.conflictsSkipped += conflictResult.skipped;
     summary.failed += conflictResult.failed;
+    allPushed.push(...conflictResult.pushed);
+    allPulled.push(...conflictResult.pulled);
   }
 
-  return summary;
+  return { summary, pushed: allPushed, pulled: allPulled };
 }
 
 // --- Summary ---
@@ -973,14 +988,14 @@ export async function syncCommand(
   }
 
   // Execute sync
-  const summary = await executeSyncPlan(api, diff, conflictStrategy, options);
+  const { summary, pushed, pulled } = await executeSyncPlan(api, diff, conflictStrategy, options);
 
   // Best-effort sync metadata update
   try {
     await api.completeSyncMetadata({
       projectName: projectConfig.name,
-      pushed: [],
-      pulled: [],
+      pushed,
+      pulled,
     });
   } catch {
     logger.warn('Failed to update sync metadata on server. Sync completed successfully.');
