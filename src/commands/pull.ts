@@ -116,7 +116,7 @@ async function checkConflict(
   return overwrite;
 }
 
-async function downloadArtifact(
+export async function downloadArtifact(
   api: CirronApi,
   artifact: PullArtifactInfo,
   destPath: string,
