@@ -2,13 +2,12 @@ import chalk from 'chalk';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
-import crypto from 'crypto';
 import inquirer from 'inquirer';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
-import { uploadSingleFile, formatSize } from './push';
+import { uploadSingleFile, formatSize, computeFileChecksum } from './push';
 import { downloadArtifact } from './pull';
 import type {
   SyncOptions,
@@ -56,16 +55,6 @@ function loadProjectConfig(): ProjectConfig | null {
     logger.error(`Failed to parse cirron.json: ${msg}`);
     return null;
   }
-}
-
-async function computeFileChecksum(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
-  });
 }
 
 async function collectFiles(targetPath: string): Promise<string[]> {
@@ -312,8 +301,11 @@ function applySyncFilters(diff: SyncDiffResult, options: SyncOptions): SyncDiffR
 
   // Re-apply exclude patterns to all categories as defense in depth
   if (options.exclude) {
+    const ignore = new CirronIgnore();
     const patterns = options.exclude.split(',').map((p) => p.trim());
-    const ignore = new CirronIgnore({ defaultPatterns: patterns });
+    for (const pattern of patterns) {
+      ignore.addPattern(pattern);
+    }
     const isExcluded = (filePath: string): boolean => ignore.isIgnored(filePath);
 
     result = {
@@ -535,11 +527,15 @@ async function pushSyncFiles(
       }
 
       succeeded++;
-      pushed.push({
-        path: fileInfo.relativePath,
-        checksum: fileInfo.checksum,
-        artifactId: result.artifact.id,
-      });
+      // Only track for sync metadata if we have a valid artifact ID
+      // (deduped uploads may return an empty ID)
+      if (result.artifact.id) {
+        pushed.push({
+          path: fileInfo.relativePath,
+          checksum: fileInfo.checksum,
+          artifactId: result.artifact.id,
+        });
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       itemSpinner.fail(`Failed to push ${fileInfo.relativePath}: ${msg}`);
@@ -559,10 +555,19 @@ async function pullSyncFiles(
   let failed = 0;
   const pulled: Array<{ path: string; checksum: string; artifactId: string }> = [];
 
+  const cwd = process.cwd();
+
   for (const file of files) {
     const artifactInfo = toArtifactInfo(file);
-    const destPath = path.resolve(process.cwd(), file.path);
+    const destPath = path.resolve(cwd, file.path);
     const itemSpinner = ora(`${label}: ${file.path}...`).start();
+
+    // Validate the resolved path stays within the project directory
+    if (!destPath.startsWith(cwd + path.sep) && destPath !== cwd) {
+      itemSpinner.fail(`Rejected ${file.path}: path traversal detected`);
+      failed++;
+      continue;
+    }
 
     try {
       await fs.ensureDir(path.dirname(destPath));
@@ -925,9 +930,7 @@ export async function syncCommand(
     if (manifest.length === 0 && !options.pullOnly) {
       manifestSpinner.info('No local artifact files found');
       logger.info('Ensure your cirron.json has artifacts configured, or specify a path.');
-      if (!options.pullOnly) {
-        return;
-      }
+      return;
     }
     manifestSpinner.succeed(`Scanned ${manifest.length} local file(s)`);
   } catch (error) {

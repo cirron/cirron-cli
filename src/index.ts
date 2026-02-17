@@ -407,7 +407,7 @@ program
   .option('--push-only', 'Only push local changes')
   .option('--pull-only', 'Only pull remote changes')
   .option('--conflicts <strategy>', 'Conflict resolution strategy (keep-both, local-wins, remote-wins, prompt)')
-  .option('-f, --force', 'Skip conflict resolution')
+  .option('-f, --force', 'Skip conflict resolution (requires --push-only or --pull-only)')
   .option('--exclude <patterns>', 'Comma-separated glob patterns to exclude')
   .option('--verbose', 'Show detailed sync information')
   .option('--json', 'Output in JSON format')
