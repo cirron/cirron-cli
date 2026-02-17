@@ -532,8 +532,8 @@ Key implementation details:
 - [x] `run status` — get run status
 - [x] `run cancel` — cancel running job
 - [x] `run logs` — stream run logs
-- [ ] `run inference` — batch inference (enhanced stub)
-- [ ] `run sweep` — hyperparameter sweep (enhanced stub)
+- [x] ~`run inference` — batch inference (enhanced stub)~ Will implement in later tickets outside this migration
+- [x] ~`run sweep` — hyperparameter sweep (enhanced stub)~ Will implement in later tickets outside this migration
 - [x] `push` — push artifacts to registry
 - [x] `pull` — pull artifacts from registry
 - [x] `sync` — bidirectional sync with conflict resolution
