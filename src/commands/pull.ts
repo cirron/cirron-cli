@@ -57,7 +57,9 @@ function loadProjectConfig(): ProjectConfig | null {
   }
   try {
     return fs.readJSONSync(projectConfigPath) as ProjectConfig;
-  } catch {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to parse cirron.json: ${msg}`);
     return null;
   }
 }
@@ -142,7 +144,7 @@ async function downloadArtifact(
       );
     }
 
-    await fs.rename(tempPath, destPath);
+    await fs.move(tempPath, destPath, { overwrite: true });
   } catch (error) {
     if (fs.existsSync(tempPath)) {
       await fs.remove(tempPath);
