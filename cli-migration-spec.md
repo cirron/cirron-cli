@@ -643,6 +643,19 @@ Key implementation details:
 - **Beta scope deferrals**: `--watch` (continuous sync), delta sync (byte-level diffs), sync state resume file (`~/.cirron/sync/<project>.json`), remote change notifications
 - **Auth pattern**: Reuses `checkAuth()` pattern from `push.ts`/`pull.ts`
 
+#### Phase 3 Implementation Notes (sync command — server-side API routes)
+
+Completed in branch `CIRRON-472`. Implementation plan: `.claude/plans/tender-whistling-garden.md`
+
+Key implementation details:
+- **Schema changes**: Added `SyncManifest` model to Prisma schema for persistent path-to-artifact mapping. Fields: `organizationId`, `projectName`, `path` (VARCHAR(380) — sized to fit MySQL 3072-byte composite key limit with utf8mb4), `checksum`, `size` (BigInt), `artifactId`, `artifactName`, `type`, `tag` (nullable). Unique constraint on `[organizationId, projectName, path]`. Cascade deletes from `Organization` and `RegistryArtifact`. Reverse relations added on both models
+- **Shared helper**: Added `getProjectArtifactsRaw()` to `apps/app/lib/cli-registry.ts` — reuses same query logic as `searchProjectArtifacts` in the pull route (model → pipelines → RegistryArtifact with OR conditions for pipeline-scoped and CLI-pushed artifacts) but returns raw DB records instead of mapped `PullArtifactInfo`
+- **2 API routes created** under `apps/app/app/api/cli/registry/sync/`:
+  - `POST /diff` — computes diff between local file manifest and remote artifacts. Uses `SyncManifest` as baseline for three-way comparison. First sync (no baseline): basename matching, same checksum = `unchanged`, different = `conflicts` (can't determine direction). Subsequent syncs: `local == baseline && remote != baseline` → `changedRemotely`, `local != baseline && remote == baseline` → `changedLocally`, both changed → `conflicts`, `local == remote` → `unchanged`. Validates manifest entries (no path traversal, no null bytes, no absolute paths). Returns 6-bucket `SyncDiffResult` matching CLI types
+  - `POST /complete` — called after sync operations finish. Upserts `SyncManifest` entries for each pushed/pulled file in a `$transaction` keyed on `[organizationId, projectName, path]`. Marks referenced `RegistryArtifact` records as `syncStatus: "SYNCED"` with `lastSyncAt` timestamp. No-op when pushed/pulled arrays are empty
+- **CLI bug fix**: `executeSyncPlan()` in `cirron-cli/src/commands/sync.ts` now collects `pushed`/`pulled` arrays from `pushSyncFiles`, `pullSyncFiles`, and `resolveConflicts` results. Returns `SyncPlanResult` (summary + pushed + pulled) instead of just `SyncSummary`. Call site in `syncCommand` passes actual arrays to `completeSyncMetadata` instead of empty arrays
+- **Key design decision**: `SyncManifest.path` uses `VARCHAR(380)` instead of `VARCHAR(1000)` due to MySQL composite key limit of 3072 bytes with utf8mb4 encoding: `(191 + 191 + 380) * 4 = 3048 bytes`
+
 ### Phase 4: Cleanup
 
 - [ ] Remove old command files if fully absorbed (settings.ts, hardware.ts, diagnostics.ts)
