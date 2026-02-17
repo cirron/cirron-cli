@@ -796,6 +796,7 @@ export interface PushConfirmation {
 export interface PushSessionInfo {
   sessionId: string;
   filePath: string;
+  checksum: string;
   totalSize: number;
   chunkSize: number;
   totalChunks: number;

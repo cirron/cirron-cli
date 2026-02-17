@@ -251,12 +251,12 @@ async function loadUploadSession(
 
 async function saveUploadSession(session: PushSessionInfo): Promise<void> {
   await fs.ensureDir(UPLOAD_SESSIONS_DIR);
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${session.sessionId}.json`);
+  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${session.checksum}.json`);
   await fs.writeJSON(sessionFile, session, { spaces: 2 });
 }
 
-async function removeUploadSession(sessionId: string): Promise<void> {
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${sessionId}.json`);
+async function removeUploadSession(checksum: string): Promise<void> {
+  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${checksum}.json`);
   if (await fs.pathExists(sessionFile)) {
     await fs.remove(sessionFile);
   }
@@ -282,7 +282,7 @@ async function uploadSingleFile(
 
   // Step 1: Deduplication check
   if (!options.force) {
-    spinner.text = `Checking deduplicate for ${displayName}...`;
+    spinner.text = `Checking for duplicates for ${displayName}...`;
 
     const dedupeOpts: { resource?: string; name?: string } = {};
     if (options.resource) dedupeOpts.resource = options.resource;
@@ -424,6 +424,7 @@ async function uploadChunked(
     session = {
       sessionId: serverSession.sessionId,
       filePath: fileInfo.filePath,
+      checksum: fileInfo.checksum,
       totalSize: fileInfo.size,
       chunkSize,
       totalChunks,
@@ -452,7 +453,7 @@ async function uploadChunked(
       chunkSize,
       fileInfo.size,
       (uploaded, _chunkTotal) => {
-        const overallUploaded = completedChunks.size * chunkSize + uploaded;
+        const overallUploaded = Math.min(completedChunks.size * chunkSize + uploaded, fileInfo.size);
         const pct = Math.round((overallUploaded / fileInfo.size) * 100);
         spinner.text = `Uploading ${displayName}: ${pct}% (chunk ${chunkNum}/${totalChunks})`;
       }
@@ -466,7 +467,7 @@ async function uploadChunked(
   }
 
   // Clean up session on success
-  await removeUploadSession(session.sessionId);
+  await removeUploadSession(session.checksum);
 }
 
 // --- Dry Run ---

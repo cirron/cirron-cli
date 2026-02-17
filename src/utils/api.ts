@@ -591,6 +591,10 @@ export class CirronApi {
           }
         });
 
+        fileStream.on('error', () => {
+          controller.abort();
+        });
+
         const response = await fetch(url, {
           method: 'PUT',
           headers,
@@ -649,29 +653,43 @@ export class CirronApi {
       'Content-Range': `bytes ${start}-${end - 1}/${totalSize}`,
     };
 
-    const fileStream = createReadStream(filePath, { start, end: end - 1 });
-    let uploaded = 0;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, this.config.timeout * 10);
 
-    fileStream.on('data', (chunk: string | Buffer) => {
-      uploaded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
-      if (onProgress) {
-        onProgress(uploaded, length);
+    try {
+      const fileStream = createReadStream(filePath, { start, end: end - 1 });
+      let uploaded = 0;
+
+      fileStream.on('data', (chunk: string | Buffer) => {
+        uploaded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+        if (onProgress) {
+          onProgress(uploaded, length);
+        }
+      });
+
+      fileStream.on('error', () => {
+        controller.abort();
+      });
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: fileStream as any,
+        signal: controller.signal as any,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Chunk upload failed: HTTP ${response.status} ${response.statusText}`
+        );
       }
-    });
 
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers,
-      body: fileStream as any,
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Chunk upload failed: HTTP ${response.status} ${response.statusText}`
-      );
+      return response.headers.get('etag') || '';
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return response.headers.get('etag') || '';
   }
 
   private getAuthHeader(): string | undefined {
