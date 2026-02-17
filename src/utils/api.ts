@@ -346,32 +346,27 @@ export class CirronApi {
   ): Promise<void> {
     await this.ensureValidToken();
 
+    // Don't send auth headers to external presigned URLs (S3/GCS) —
+    // the presigned URL already contains its own auth credentials
     const headers: Record<string, string> = {
       'User-Agent': 'cirron-cli/1.0.0',
     };
-
-    const authHeader = this.getAuthHeader();
-    if (authHeader) {
-      headers['Authorization'] = authHeader;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, this.config.timeout * 10); // 10x normal timeout for large downloads
 
     let attempt = 0;
     let lastError: Error;
 
     while (attempt <= this.config.retries) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout * 10); // 10x normal timeout for large downloads
+
       try {
         const response = await fetch(url, {
           method: 'GET',
           headers,
           signal: controller.signal,
         });
-
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`Download failed: HTTP ${response.status} ${response.statusText}`);
@@ -425,10 +420,11 @@ export class CirronApi {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
-    clearTimeout(timeoutId);
     throw lastError!;
   }
 
