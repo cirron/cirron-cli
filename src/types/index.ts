@@ -692,3 +692,44 @@ export interface PipelineStep {
   };
   dependsOn?: string[];
 }
+
+// Pull command types
+
+export type PullResourceType = 'model' | 'image' | 'build' | 'runtime';
+
+export interface PullOptions {
+  tag?: string;
+  output?: string;
+  all?: boolean;
+  type?: string;
+  ignore?: string;
+  registry?: string;
+  force?: boolean;
+  interactive?: boolean;
+  json?: boolean;
+  dryRun?: boolean;
+}
+
+export interface PullArtifactInfo {
+  id: string;
+  name: string;
+  type: string;
+  tag: string;
+  filename: string;
+  size: number;
+  checksum: string;
+  createdAt: string;
+}
+
+export interface PullDownloadInfo {
+  artifactId: string;
+  downloadUrl: string;
+  expiresAt: string;
+}
+
+export interface PullResult {
+  artifact: PullArtifactInfo;
+  outputPath: string;
+  verified: boolean;
+  skipped: boolean;
+}
