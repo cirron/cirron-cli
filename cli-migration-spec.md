@@ -534,7 +534,7 @@ Key implementation details:
 - [x] `run logs` — stream run logs
 - [ ] `run inference` — batch inference (enhanced stub)
 - [ ] `run sweep` — hyperparameter sweep (enhanced stub)
-- [ ] `push` — push artifacts to registry
+- [x] `push` — push artifacts to registry
 - [x] `pull` — pull artifacts from registry
 - [ ] `sync` — bidirectional sync with conflict resolution
 
@@ -578,6 +578,49 @@ Key implementation details:
 - **`--interactive`**: Enhanced stub for beta — echoes back resource, name, and options, says "not yet fully implemented"
 - **`--all` pull summary**: After downloading all artifacts, prints succeeded/skipped/failed counts. Exits with code 1 if any failures
 - **Auth pattern**: Reuses `checkAuth()` pattern from `run.ts`
+
+#### Phase 3 Implementation Notes (push command)
+
+Completed in branch `CIRRON-608`. Implementation plan: `.claude/plans/expressive-spinning-eclipse.md`
+
+Key implementation details:
+- **Types**: Added `PushResourceType`, `PushOptions`, `PushFileInfo`, `PushArtifactInfo`, `PushUploadUrl`, `PushDedupeResult`, `PushConfirmation`, `PushSessionInfo`, `PushResult`, `PushSummary` to `src/types/index.ts`
+- **DB alignment**: Types align with database enums (`ArtifactType`, `VersionType`, `StorageAction`) from `packages/database/generated/prisma/enums.ts`. `PushArtifactInfo.type` is `string` (not restricted to `PushResourceType`) to accept any DB `ArtifactType` value. No DB schema changes — CLI sends data that fits existing DB columns/enums
+- **API methods**: Added 8 methods to `CirronApi` in `src/utils/api.ts`: `checkDedupe` (POST `/api/cli/registry/push/check-dedupe`), `getUploadUrl` (POST `/api/cli/registry/push/upload-url`), `confirmUpload` (POST `/api/cli/registry/push/confirm`), `createVersion` (POST `/api/cli/registry/push/version`), `getUploadSession` (GET `/api/cli/registry/push/session/:id`), `createUploadSession` (POST `/api/cli/registry/push/session`), `uploadFile` (streaming PUT to presigned URL), `uploadFileChunk` (chunked PUT with Content-Range)
+- **Commander wiring**: `push [resource] [name]` with flags: `-t, --tag`, `-m, --message`, `--all`, `--ignore`, `--registry`, `-f, --force`, `--dry-run`, `--json`
+- **Three push modes**:
+  - **Resource-typed**: `cirron push model sentiment-classifier --tag v1.3.0` — enforces known resource types (`model`, `image`, `build`, `runtime`), resolves file via common project paths
+  - **Path-based**: `cirron push model.pt` or `cirron push checkpoints/` — pushes single file or recursive directory walk
+  - **Project-wide**: `cirron push --all` — reads `cirron.json`, scans `artifacts.modelPath`, `artifacts.checkpointPath`, common dirs (`models/`, `artifacts/`, `build/`), applies `.cirronignore` + `--ignore` patterns via `CirronIgnore`
+- **Content hash as identity**: Every push is identified by its SHA-256 content hash (like a git commit). `--tag` is an optional human-friendly label (like a git tag). Server maps tag to `RegistryArtifact.version` and determines `ModelVersion.versionType`
+- **Dedupe check**: `checkDedupe()` checks if hash already exists before upload. Skips upload if duplicate found (unless `--force`)
+- **Streaming uploads**: `uploadFile()` mirrors `downloadFile()` pattern — no auth headers on presigned URLs, 10x timeout, exponential backoff retry, `createReadStream` piped to `fetch` PUT, progress callback for spinner updates
+- **Chunked upload with resume**: Files > 5MB use chunked upload. Session state persisted to `~/.cirron/uploads/<sessionId>.json` after each chunk. On resume, skips already-completed chunks. Session file cleaned up on completion
+- **`--dry-run`**: Lists files with path, size, checksum; shows total count + size + tag; JSON mode outputs structured data
+- **`message` / `gitHash` mapping**: `--message` maps server-side to `ModelVersion.changelog`; git SHA maps to `ModelVersion.commitSha`/`commitShortSha`
+- **Programmatic export**: `pushArtifact(filePath, options)` exported for use by `build --push` chain. Handles auth, file prep, tag resolution, and calls upload flow
+- **`exactOptionalPropertyTypes`**: All API call sites and option passing use conditional object building to avoid assigning `undefined` to optional properties
+- **Auth pattern**: Reuses `checkAuth()` pattern from `pull.ts`
+
+#### Phase 3 Implementation Notes (push command — server-side API routes)
+
+Completed in branch `CIRRON-471`. Implementation plan: `.claude/plans/noble-stirring-narwhal.md`
+
+Key implementation details:
+- **Schema changes**: `RegistryArtifact` fields `sourceNodeId`, `sourceNodeType`, `sourcePipelineId`, `sourceExecutionId` made nullable to support CLI-pushed artifacts with no pipeline context. Relations `pipeline` and `execution` made optional. Added `@@unique([organizationId, name, version])` constraint for CLI artifact uniqueness
+- **New DB model**: `UploadSession` added for chunked upload resume support — tracks `storageKey`, `totalSize`, `chunkSize`, `totalChunks`, `checksum`, `status`, `expiresAt`. Reverse relations added on `Organization` and `User` models
+- **Output types**: `packages/flow/types/output.ts` `RegistryArtifact` interface source fields made optional to match schema
+- **Storage provider presigned PUT URLs**: Added `generatePresignedUrl(key, expiresInSeconds, method)` to both `S3Provider` (using `@aws-sdk/s3-request-presigner` `getSignedUrl`) and `GCPProvider` (using `file.getSignedUrl({ version: "v4" })`). Added `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` deps to `@cirron/storage`
+- **New package `@cirron/cli`**: Created `packages/cli/` for shared constants and helpers used by both CLI repo and server routes — `CLI_TYPE_TO_ARTIFACT_TYPE`, `ARTIFACT_TYPE_TO_CLI_TYPE`, `ARTIFACT_TYPE_EXTENSIONS`, `deriveFilenameFromArtifact()`, `mapArtifactTypeToCLIType()`, `generateCLIStorageKey()`
+- **Server helpers**: `apps/app/lib/cli-registry.ts` — `authenticateCLIRequest()` (JWT validation via `@cirron/auth`), `createCLIStorageProvider()` (provider creation from env config), `buildStorageUrl()` (s3:// or gs:// URL construction)
+- **6 API routes created** under `apps/app/app/api/cli/registry/push/`:
+  - `POST /check-dedupe` — queries `RegistryArtifact` by `checksum` or `contentHash`, optional resource type and name filter. Returns `{ exists, artifactId?, artifactName?, tag? }`
+  - `POST /upload-url` — checks storage quota, generates storage key via `generateCLIStorageKey()`, creates presigned PUT URL via storage provider, creates `UploadSession` record. Returns `{ uploadUrl, uploadId, expiresAt, chunkSize, maxChunks }`
+  - `POST /confirm` — finalizes upload in a `$transaction`: marks previous versions not latest, creates `RegistryArtifact` with null pipeline fields + `externalSource: "CLI"` + `contentHash`, creates `OutputAuditLog` with `OUTPUT_CREATED`, increments `OrganizationStorageQuota`, records `StorageUsageHistory`, marks session `COMPLETED`. Returns artifact confirmation
+  - `POST /version` — creates `ModelVersion` for `--all` push: finds model by project name, determines `VersionType` (SEMANTIC/GIT/CUSTOM), marks previous versions not latest, creates version with `changelog`/`commitSha`, updates artifact metadata with version reference. Returns `{ versionId, tag, createdAt }`
+  - `POST /session` — creates `UploadSession` with 24h expiry for chunked upload resume support. Returns `{ sessionId }`
+  - `GET /session/[id]` — retrieves upload session by ID with expiry check (Next.js 15 async params pattern). Returns session info or 404/410
+- **Pull route updated**: `searchProjectArtifacts()` in `apps/app/app/api/cli/registry/pull/route.ts` now includes CLI-pushed artifacts via OR condition: `{ sourcePipelineId: null, externalSource: "CLI" }` alongside existing pipeline-scoped query. Local duplicate constants removed, now imports from `@cirron/cli`
 
 ### Phase 4: Cleanup
 
