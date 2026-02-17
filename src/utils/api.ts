@@ -359,7 +359,7 @@ export class CirronApi {
     };
 
     let attempt = 0;
-    let lastError: Error;
+    let lastError: Error = new Error('Download failed after retries');
 
     while (attempt <= this.config.retries) {
       const controller = new AbortController();
@@ -431,7 +431,7 @@ export class CirronApi {
       }
     }
 
-    throw lastError!;
+    throw lastError;
   }
 
   // Push command methods
@@ -573,7 +573,7 @@ export class CirronApi {
     };
 
     let attempt = 0;
-    let lastError: Error;
+    let lastError: Error = new Error('Upload failed after retries');
 
     while (attempt <= this.config.retries) {
       const controller = new AbortController();
@@ -593,6 +593,7 @@ export class CirronApi {
         });
 
         fileStream.on('error', () => {
+          fileStream.destroy();
           controller.abort();
         });
 
@@ -630,7 +631,7 @@ export class CirronApi {
       }
     }
 
-    throw lastError!;
+    throw lastError;
   }
 
   async uploadFileChunk(
@@ -828,7 +829,7 @@ export class CirronApi {
     }, this.config.timeout);
 
     let attempt = 0;
-    let lastError: Error;
+    let lastError: Error = new Error('Request failed after retries');
 
     while (attempt <= this.config.retries) {
       try {
@@ -871,6 +872,6 @@ export class CirronApi {
     }
 
     clearTimeout(timeoutId);
-    throw lastError!;
+    throw lastError;
   }
 }

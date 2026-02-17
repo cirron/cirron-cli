@@ -508,7 +508,7 @@ export async function runLogsCommand(runId: string, options: RunLogsOptions): Pr
         }
       }, 2000);
 
-      process.on('SIGINT', () => {
+      process.once('SIGINT', () => {
         clearInterval(pollInterval);
         console.log();
         logger.info('Stopped following logs.');

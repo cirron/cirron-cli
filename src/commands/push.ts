@@ -404,6 +404,16 @@ async function uploadChunked(
 
   // Check for existing session (resume)
   let session = await loadUploadSession(fileInfo.checksum);
+
+  // Discard stale session if chunk parameters no longer match
+  if (session && (session.chunkSize !== chunkSize || session.totalChunks !== totalChunks)) {
+    logger.info(
+      `Discarding stale upload session for ${displayName} (chunk parameters changed)`
+    );
+    await removeUploadSession(fileInfo.checksum);
+    session = null;
+  }
+
   const completedChunks = new Set<number>(session?.completedChunks || []);
 
   if (session && completedChunks.size > 0) {
