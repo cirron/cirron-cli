@@ -563,7 +563,8 @@ async function pullSyncFiles(
     const itemSpinner = ora(`${label}: ${file.path}...`).start();
 
     // Validate the resolved path stays within the project directory
-    if (!destPath.startsWith(cwd + path.sep) && destPath !== cwd) {
+    const relPath = path.relative(cwd, destPath);
+    if (relPath.startsWith('..') || path.isAbsolute(relPath)) {
       itemSpinner.fail(`Rejected ${file.path}: path traversal detected`);
       failed++;
       continue;
