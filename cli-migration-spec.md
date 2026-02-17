@@ -658,17 +658,66 @@ Key implementation details:
 
 ### Phase 4: Cleanup
 
-- [ ] Remove old command files if fully absorbed (settings.ts, hardware.ts, diagnostics.ts)
-  - OR keep them as internal modules and just remove the top-level CLI registration
-- [ ] Update any docs/README referencing old command names
-- [ ] Update any CI scripts referencing old commands
-- [ ] Add deprecation warnings if users try old command names (optional, nice UX)
+- [x] Remove old command files if fully absorbed (settings.ts, hardware.ts, diagnostics.ts)
+  - **Decision**: Keep as internal modules. Old handlers remain in their original files; new commands delegate to them. No top-level CLI registration for the old names.
+- [x] Update any docs/README referencing old command names
+- [x] Update any CI scripts referencing old commands
+  - CI scripts were already commented out — no changes needed
+- [x] Add deprecation warnings if users try old command names (optional, nice UX)
+  - **Skipped**: No existing users to break; old command names are not registered in Commander.js so they simply don't resolve
+
+#### Phase 4 Implementation Notes
+
+**Branch**: `CIRRON-608`
+
+**CLI repo changes (`cirron-cli/`)**:
+- `src/commands/hardware.ts`: Updated 4 user-facing log messages from `cirron hardware` to `cirron config hardware` (lines 148, 153, 260, 457)
+- `src/index.ts` line 96: Fixed stale template option description from `'Project template (nextjs, react, vue, express)', 'nextjs'` to `'Project template (pytorch, tensorflow, sklearn, pytorch-train, tensorflow-train, sklearn-pipeline, custom)'`
+- `README.md`: Updated Plan/Replay section (removed `plan lint`/`plan test`/`plan compare`, updated `replay` → `plan replay`), updated directory tree in Structure section, added `run`/`push`/`pull`/`sync` command sections
+- `CLAUDE.md`: Updated Core Commands list and Plan Commands list, updated Replay System reference to `plan replay`
+
+**Docs site changes (`apps/docs/cli/`)**:
+
+*New pages created:*
+- `commands/run.mdx` — Documents `cirron run` with subcommands: pipeline, job, inference, sweep, list, status, cancel, logs
+- `commands/sync.mdx` — Documents `cirron sync` with conflict resolution strategies
+- `commands/push.mdx` — Documents three push modes (resource-typed, path-based, project-wide)
+- `commands/pull.mdx` — Documents three pull modes with checksum verification
+- `commands/list.mdx` — Documents `cirron list <resource>` with all resource types and options
+
+*Pages rewritten:*
+- `commands/config.mdx` — Full rewrite with three scopes (cli/global/project), hardware subcommand, new options (`--edit`, `--explain`, `--export`, `--import`, `--template`, `--scope`)
+- `commands/plan.mdx` — Removed `plan lint`/`plan test`/`plan compare` sections, added `plan replay` section with options, added `--interactive` to compile/build, added structured `plan save` options table
+- `commands/info.mdx` — Added `--diagnostics`, `--hardware`, `--json`, `--detailed` flags with dedicated sections
+
+*Pages deleted:*
+- `commands/replay.mdx` — Standalone replay page removed; replay docs now live in `plan.mdx`
+
+*Pages updated (docs-vs-CLI audit fixes):*
+- `commands/env.mdx` — Fixed colon syntax (`env:list` → `env list`, `env:set` → `env set`, `env:delete` → `env delete`), fixed `cirron.config.json` → `cirron.json`
+- `commands/auth.mdx` — Added `refresh` subcommand section, fixed `--url` default to `https://api.cirron.com`
+- `commands/test.mdx` — Added `--json`, `--strict`, `-i, --interactive` to options table; added short forms `-w`, `-v`, `-p`, `-e`
+- `commands/build.mdx` — Added `--strict`, `-f, --force`, `-i, --interactive`; removed phantom `-i` short form on `--index`
+- `commands/compile.mdx` — Added `-i, --interactive`; removed phantom short forms (`-v`, `-s`, `-i`) and phantom `--verbose` flag
+- `commands/init.mdx` — Fixed `--install` → `--no-install` (negated boolean) in options table and all examples
+- `commands/lint.mdx` — Removed phantom `--dry-run` example
+- `quickstart.mdx` — Fixed `cirron env:set` → `cirron env set`, removed stale `--install` flag, removed npm dev commands
+- `utils/cirronignore.mdx` — Removed phantom `cirron info --show-files` reference
+- `introduction.mdx` — Updated Core Commands list with all new commands
+- Template docs (`pytorch.mdx`, `tensorflow.mdx`, `sklearn.mdx`, `custom.mdx`, `template-generation.mdx`) — Removed phantom `--model-type` CLI flag, noted model type is interactive-only
+
+*Navigation:*
+- `mint.json` — Added `cli/commands/run`, `cli/commands/sync`, `cli/commands/list`; removed `cli/commands/replay`
+
+**Verification**:
+- `npm run build` passes cleanly
+- Grep confirms no stale references to `cirron hardware`, `cirron settings`, `cirron diagnostics`, `cirron replay` (standalone), `plan lint`, `plan test`, `plan compare` in CLI source or docs
 
 ---
 
 ## Notes
 
 - **No handler logic changes in Phase 1.** Every existing command handler stays identical. We're only changing how Commander.js wires them.
-- **Deprecation aliases** (optional): For a few releases, keep `cirron settings` and `cirron hardware` as hidden aliases that print a deprecation warning and delegate to the new location. Prevents breaking anyone's scripts.
+- **Deprecation aliases** (optional): For a few releases, keep `cirron settings` and `cirron hardware` as hidden aliases that print a deprecation warning and delegate to the new location. Prevents breaking anyone's scripts. **Decision (Phase 4)**: Skipped — no existing users on old command names, old names are simply not registered in Commander.js.
 - **The `connect` command** was mentioned but isn't specced here. If it's for connecting to a remote cluster or endpoint, it fits naturally as either `config --set cluster <url>` or `auth connect <cluster>`. Decide scope before implementing.
 - **`promote`** is deferred post-beta. When implemented, it should be top-level: `cirron promote staging production`.
