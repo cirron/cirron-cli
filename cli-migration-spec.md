@@ -535,7 +535,7 @@ Key implementation details:
 - [ ] `run inference` — batch inference (enhanced stub)
 - [ ] `run sweep` — hyperparameter sweep (enhanced stub)
 - [ ] `push` — push artifacts to registry
-- [ ] `pull` — pull artifacts from registry
+- [x] `pull` — pull artifacts from registry
 - [ ] `sync` — bidirectional sync with conflict resolution
 
 #### Phase 3 Implementation Notes (run commands)
@@ -555,6 +555,29 @@ Key implementation details:
 - **`run job`/`run inference`/`run sweep`**: Enhanced stubs with typed option interfaces that echo back user arguments
 - **Auth pattern**: Shared `checkAuth()` helper using `list.ts` pattern (checks both `token` and `auth?.accessToken`)
 - **`exactOptionalPropertyTypes`**: All API call sites build options objects conditionally to avoid passing `undefined` to optional properties
+
+#### Phase 3 Implementation Notes (pull command)
+
+Completed in branch `CIRRON-394`. Implementation plan: `.claude/plans/parallel-jumping-sundae.md`
+
+Key implementation details:
+- **Types**: Added `PullResourceType`, `PullOptions`, `PullArtifactInfo`, `PullDownloadInfo`, `PullResult` to `src/types/index.ts`
+- **API methods**: Added 3 methods to `CirronApi` in `src/utils/api.ts`: `getPullArtifacts` (GET `/api/cli/registry/pull`), `getPullDownloadUrl` (GET `/api/cli/registry/pull/download`), `downloadFile` (streaming binary download with progress callback)
+- **Commander wiring**: Changed `<resource>` to `[resource]` (optional) so `cirron pull --all` works without a positional argument. Added `--all`, `--type`, `--ignore`, `--dry-run`, `-f`, `-i` flags
+- **Three pull modes**:
+  - **Resource-typed**: `cirron pull model sentiment-classifier --tag v1.2.0` — checks resource against known types (`model`, `image`, `build`, `runtime`)
+  - **Path-based**: `cirron pull model.pt` — anything not matching a known type is treated as a direct file/directory path
+  - **Project-wide**: `cirron pull --all [--type model]` — reads `cirron.json` project name, fetches all artifacts, optional `--type` filter
+- **`name:tag` parsing**: Supports `cirron pull image sentiment-classifier:latest` format, with `--tag` flag taking precedence
+- **Checksum verification**: SHA-256 hash computed via `crypto.createHash('sha256')` streaming, compared against API-provided checksum
+- **Atomic writes**: Downloads to `.tmp` suffix in same directory, verifies checksum, then `fs.rename()` to final path. Temp file cleaned up on any error
+- **Streaming downloads**: `downloadFile()` on `CirronApi` uses `node-fetch` response body piped to `fs.createWriteStream`, with progress callback for spinner updates. 10x normal timeout for large files. Retry with exponential backoff matching `requestRaw` pattern
+- **Conflict detection**: Checks if local file exists; uses `--force` to skip prompt, otherwise `inquirer.prompt` with `loop: false`
+- **`--ignore` patterns**: Comma-separated patterns passed to `CirronIgnore` (existing `src/utils/ignore.ts` utility using minimatch) to filter artifacts by filename
+- **`--dry-run`**: Displays artifact list with type, tag, filename, size, and output path; shows total count and size; prints gray note about removing flag
+- **`--interactive`**: Enhanced stub for beta — echoes back resource, name, and options, says "not yet fully implemented"
+- **`--all` pull summary**: After downloading all artifacts, prints succeeded/skipped/failed counts. Exits with code 1 if any failures
+- **Auth pattern**: Reuses `checkAuth()` pattern from `run.ts`
 
 ### Phase 4: Cleanup
 

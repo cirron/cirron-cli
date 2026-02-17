@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { createWriteStream } from 'fs';
 import type {
   CirronConfig,
   ApiResponse,
@@ -8,7 +9,9 @@ import type {
   DeviceCodeResponse,
   DeviceTokenResponse,
   DeviceAuthStatus,
-  RunInfo
+  RunInfo,
+  PullArtifactInfo,
+  PullDownloadInfo
 } from '../types';
 
 export class CirronApi {
@@ -304,6 +307,125 @@ export class CirronApi {
 
     const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/logs?${params}`);
     return response.data || [];
+  }
+
+  // Pull command methods
+
+  async getPullArtifacts(options: {
+    resource?: string;
+    name?: string;
+    tag?: string;
+    projectName?: string;
+    type?: string;
+    path?: string;
+  } = {}): Promise<PullArtifactInfo[]> {
+    const params = new URLSearchParams();
+    if (options.resource) params.append('resource', options.resource);
+    if (options.name) params.append('name', options.name);
+    if (options.tag) params.append('tag', options.tag);
+    if (options.projectName) params.append('projectName', options.projectName);
+    if (options.type) params.append('type', options.type);
+    if (options.path) params.append('path', options.path);
+
+    const response = await this.request(`/api/cli/registry/pull?${params}`);
+    return response.data?.artifacts || response.data || [];
+  }
+
+  async getPullDownloadUrl(artifactId: string): Promise<PullDownloadInfo> {
+    const params = new URLSearchParams();
+    params.append('artifactId', artifactId);
+
+    const response = await this.request(`/api/cli/registry/pull/download?${params}`);
+    return response.data;
+  }
+
+  async downloadFile(
+    url: string,
+    destPath: string,
+    onProgress?: (downloaded: number, total: number) => void
+  ): Promise<void> {
+    await this.ensureValidToken();
+
+    // Don't send auth headers to external presigned URLs (S3/GCS) —
+    // the presigned URL already contains its own auth credentials
+    const headers: Record<string, string> = {
+      'User-Agent': 'cirron-cli/1.0.0',
+    };
+
+    let attempt = 0;
+    let lastError: Error;
+
+    while (attempt <= this.config.retries) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout * 10); // 10x normal timeout for large downloads
+
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Download failed: HTTP ${response.status} ${response.statusText}`);
+        }
+
+        if (!response.body) {
+          throw new Error('Download failed: empty response body');
+        }
+
+        const totalSize = parseInt(response.headers.get('content-length') || '0', 10);
+        let downloaded = 0;
+
+        const fileStream = createWriteStream(destPath);
+
+        await new Promise<void>((resolve, reject) => {
+          response.body!.on('data', (chunk: Buffer) => {
+            downloaded += chunk.length;
+            if (onProgress && totalSize > 0) {
+              onProgress(downloaded, totalSize);
+            }
+          });
+
+          response.body!.pipe(fileStream);
+
+          response.body!.on('error', (err: Error) => {
+            fileStream.close();
+            reject(err);
+          });
+
+          fileStream.on('finish', () => {
+            fileStream.close();
+            resolve();
+          });
+
+          fileStream.on('error', (err: Error) => {
+            reject(err);
+          });
+        });
+
+        return;
+      } catch (error) {
+        lastError = error as Error;
+
+        if (error instanceof Error &&
+            (error.message.includes('401') || error.message.includes('403'))) {
+          throw error;
+        }
+
+        attempt++;
+        if (attempt <= this.config.retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    throw lastError!;
   }
 
   private getAuthHeader(): string | undefined {
