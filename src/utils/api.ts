@@ -17,6 +17,7 @@ import type {
   PushUploadUrl,
   PushConfirmation,
   PushSessionInfo,
+  SyncDiffResult,
 } from '../types';
 
 export class CirronApi {
@@ -690,6 +691,37 @@ export class CirronApi {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  // Sync command methods
+
+  async getSyncDiff(options: {
+    projectName: string;
+    manifest: Array<{ path: string; checksum: string; size: number }>;
+  }): Promise<SyncDiffResult> {
+    const response = await this.request('/api/cli/registry/sync/diff', {
+      method: 'POST',
+      body: {
+        projectName: options.projectName,
+        manifest: options.manifest,
+      },
+    });
+    return response.data;
+  }
+
+  async completeSyncMetadata(options: {
+    projectName: string;
+    pushed: Array<{ path: string; checksum: string; artifactId: string }>;
+    pulled: Array<{ path: string; checksum: string; artifactId: string }>;
+  }): Promise<void> {
+    await this.request('/api/cli/registry/sync/complete', {
+      method: 'POST',
+      body: {
+        projectName: options.projectName,
+        pushed: options.pushed,
+        pulled: options.pulled,
+      },
+    });
   }
 
   private getAuthHeader(): string | undefined {
