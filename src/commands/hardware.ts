@@ -145,12 +145,12 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
       const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig, options.save);
       logger.info(`\n${chalk.green('✓')} Hardware profile saved to ${chalk.cyan(configPath)}`);
       logger.info('To apply this profile to a project, run:');
-      logger.info(`  ${chalk.cyan(`cirron hardware --configure --from ${configPath}`)}`);
+      logger.info(`  ${chalk.cyan(`cirron config hardware --configure --from ${configPath}`)}`);
     } else if (answers.shouldSave) {
       const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
       logger.info(`${chalk.green('✓')} Hardware profile saved to ${chalk.cyan(configPath)}`);
       logger.info('To apply this profile to a project, run:');
-      logger.info(`  ${chalk.cyan(`cirron hardware --configure --from ${configPath}`)}`);
+      logger.info(`  ${chalk.cyan(`cirron config hardware --configure --from ${configPath}`)}`);
     }
 
     if (answers.shouldApplyToProject) {
@@ -257,7 +257,7 @@ async function configCommand(options: HardwareOptions): Promise<void> {
     const configPath = await HardwareDetector.saveHardwareConfig(hardwareConfig);
     logger.info(`${chalk.green('✓')} Hardware profile saved to ${chalk.cyan(configPath)}`);
     logger.info('To apply this profile to a project, run:');
-    logger.info(`  ${chalk.cyan(`cirron hardware --configure --from ${configPath}`)}`);
+    logger.info(`  ${chalk.cyan(`cirron config hardware --configure --from ${configPath}`)}`);
   }
 }
 
@@ -454,7 +454,7 @@ async function loadExistingConfig(): Promise<void> {
     const config = await HardwareDetector.loadHardwareConfig();
     if (!config) {
       logger.warn('No hardware configuration file found');
-      logger.info('Run ' + chalk.cyan('cirron hardware config') + ' to create one');
+      logger.info('Run ' + chalk.cyan('cirron config hardware --configure') + ' to create one');
       return;
     }
 
