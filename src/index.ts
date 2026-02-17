@@ -369,14 +369,16 @@ runCmd
   .option('-n, --lines <number>', 'Number of lines to show')
   .action(runLogsCommand);
 
-// Push command (stub)
+// Push command
 program
-  .command('push [resource]')
+  .command('push [resource] [name]')
   .description('Push artifacts to registry (model, image, build, runtime)')
   .option('-t, --tag <tag>', 'Version tag')
-  .option('-m, --message <message>', 'Push message/description')
+  .option('-m, --message <message>', 'Push message for audit log')
+  .option('--all', 'Push all files defined in cirron.json')
+  .option('--ignore <patterns>', 'Glob patterns to exclude')
   .option('--registry <url>', 'Override registry URL')
-  .option('--force', 'Overwrite existing version')
+  .option('-f, --force', 'Overwrite existing version / skip dedupe')
   .option('--dry-run', 'Show what would be pushed')
   .option('--json', 'Output in JSON format')
   .action(pushCommand);
