@@ -534,7 +534,7 @@ Key implementation details:
 - [x] `run logs` — stream run logs
 - [ ] `run inference` — batch inference (enhanced stub)
 - [ ] `run sweep` — hyperparameter sweep (enhanced stub)
-- [ ] `push` — push artifacts to registry
+- [x] `push` — push artifacts to registry
 - [x] `pull` — pull artifacts from registry
 - [ ] `sync` — bidirectional sync with conflict resolution
 
@@ -578,6 +578,29 @@ Key implementation details:
 - **`--interactive`**: Enhanced stub for beta — echoes back resource, name, and options, says "not yet fully implemented"
 - **`--all` pull summary**: After downloading all artifacts, prints succeeded/skipped/failed counts. Exits with code 1 if any failures
 - **Auth pattern**: Reuses `checkAuth()` pattern from `run.ts`
+
+#### Phase 3 Implementation Notes (push command)
+
+Completed in branch `CIRRON-608`. Implementation plan: `.claude/plans/expressive-spinning-eclipse.md`
+
+Key implementation details:
+- **Types**: Added `PushResourceType`, `PushOptions`, `PushFileInfo`, `PushArtifactInfo`, `PushUploadUrl`, `PushDedupeResult`, `PushConfirmation`, `PushSessionInfo`, `PushResult`, `PushSummary` to `src/types/index.ts`
+- **DB alignment**: Types align with database enums (`ArtifactType`, `VersionType`, `StorageAction`) from `packages/database/generated/prisma/enums.ts`. `PushArtifactInfo.type` is `string` (not restricted to `PushResourceType`) to accept any DB `ArtifactType` value. No DB schema changes — CLI sends data that fits existing DB columns/enums
+- **API methods**: Added 8 methods to `CirronApi` in `src/utils/api.ts`: `checkDedupe` (POST `/api/cli/registry/push/check-dedupe`), `getUploadUrl` (POST `/api/cli/registry/push/upload-url`), `confirmUpload` (POST `/api/cli/registry/push/confirm`), `createVersion` (POST `/api/cli/registry/push/version`), `getUploadSession` (GET `/api/cli/registry/push/session/:id`), `createUploadSession` (POST `/api/cli/registry/push/session`), `uploadFile` (streaming PUT to presigned URL), `uploadFileChunk` (chunked PUT with Content-Range)
+- **Commander wiring**: `push [resource] [name]` with flags: `-t, --tag`, `-m, --message`, `--all`, `--ignore`, `--registry`, `-f, --force`, `--dry-run`, `--json`
+- **Three push modes**:
+  - **Resource-typed**: `cirron push model sentiment-classifier --tag v1.3.0` — enforces known resource types (`model`, `image`, `build`, `runtime`), resolves file via common project paths
+  - **Path-based**: `cirron push model.pt` or `cirron push checkpoints/` — pushes single file or recursive directory walk
+  - **Project-wide**: `cirron push --all` — reads `cirron.json`, scans `artifacts.modelPath`, `artifacts.checkpointPath`, common dirs (`models/`, `artifacts/`, `build/`), applies `.cirronignore` + `--ignore` patterns via `CirronIgnore`
+- **Content hash as identity**: Every push is identified by its SHA-256 content hash (like a git commit). `--tag` is an optional human-friendly label (like a git tag). Server maps tag to `RegistryArtifact.version` and determines `ModelVersion.versionType`
+- **Dedupe check**: `checkDedupe()` checks if hash already exists before upload. Skips upload if duplicate found (unless `--force`)
+- **Streaming uploads**: `uploadFile()` mirrors `downloadFile()` pattern — no auth headers on presigned URLs, 10x timeout, exponential backoff retry, `createReadStream` piped to `fetch` PUT, progress callback for spinner updates
+- **Chunked upload with resume**: Files > 5MB use chunked upload. Session state persisted to `~/.cirron/uploads/<sessionId>.json` after each chunk. On resume, skips already-completed chunks. Session file cleaned up on completion
+- **`--dry-run`**: Lists files with path, size, checksum; shows total count + size + tag; JSON mode outputs structured data
+- **`message` / `gitHash` mapping**: `--message` maps server-side to `ModelVersion.changelog`; git SHA maps to `ModelVersion.commitSha`/`commitShortSha`
+- **Programmatic export**: `pushArtifact(filePath, options)` exported for use by `build --push` chain. Handles auth, file prep, tag resolution, and calls upload flow
+- **`exactOptionalPropertyTypes`**: All API call sites and option passing use conditional object building to avoid assigning `undefined` to optional properties
+- **Auth pattern**: Reuses `checkAuth()` pattern from `pull.ts`
 
 ### Phase 4: Cleanup
 
