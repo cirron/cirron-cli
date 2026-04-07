@@ -4,6 +4,7 @@ import path from 'path';
 import { logger } from '../utils/logger';
 import { getRepositoryInfo, getShortCommitHash } from '../utils/git';
 import { ModelConfigManager } from '../utils/model-config';
+import { loadProjectConfig, findProjectConfigPath, saveProjectConfig } from '../utils/project-config';
 import type { ProjectConfig, ModelConfig } from '../types';
 
 interface ModelInfo {
@@ -44,14 +45,14 @@ interface InfoOptions {
 export async function infoCommand(options: InfoOptions = {}): Promise<void> {
   try {
     // Check if we're in a Cirron project
-    const cirronJsonPath = path.join(process.cwd(), 'cirron.json');
-    if (!fs.existsSync(cirronJsonPath)) {
-      logger.error('Not a Cirron project. Run this command in a directory with cirron.json');
+    const projectConfigResult = loadProjectConfig();
+    if (!projectConfigResult) {
+      logger.error('Not a Cirron project. Run this command in a directory with cirron.yaml or cirron.json');
       process.exit(1);
     }
 
     // Load project configuration
-    const projectConfig: ProjectConfig = await fs.readJSON(cirronJsonPath);
+    const { configPath: cirronJsonPath, config: projectConfig } = projectConfigResult;
     
     // Load model configuration
     const modelConfigManager = new ModelConfigManager();
@@ -564,7 +565,7 @@ async function handleMetadataUpdate(
     const changes = compareMetadata(projectConfig.metadata, newMetadata);
     
     if (changes.length === 0) {
-      console.log(chalk.green('No metadata changes found. cirron.json is up to date.'));
+      console.log(chalk.green('No metadata changes found. Project config is up to date.'));
       return;
     }
 
@@ -584,7 +585,7 @@ async function handleMetadataUpdate(
     }
 
     if (dryRun) {
-      console.log(chalk.blue('Dry run mode - no changes were made to cirron.json'));
+      console.log(chalk.blue('Dry run mode - no changes were made to the project config'));
       console.log(chalk.gray('Run without --dry-run to apply these changes'));
       return;
     }
@@ -592,7 +593,7 @@ async function handleMetadataUpdate(
     // Check for concurrent changes before writing
     const currentStats = await fs.stat(cirronJsonPath);
     if (currentStats.mtime.getTime() !== originalModTime.getTime()) {
-      logger.error('cirron.json has been modified by another process. Please retry the update.');
+      logger.error('Project config has been modified by another process. Please retry the update.');
       process.exit(1);
     }
 
@@ -602,9 +603,10 @@ async function handleMetadataUpdate(
       metadata: newMetadata
     };
 
-    await fs.writeJSON(cirronJsonPath, updatedConfig, { spaces: 2 });
-    
-    console.log(chalk.green(`✓ Successfully updated ${changes.length} metadata field(s) in cirron.json`));
+    saveProjectConfig(cirronJsonPath, updatedConfig);
+
+    const configFilename = path.basename(cirronJsonPath);
+    console.log(chalk.green(`Successfully updated ${changes.length} metadata field(s) in ${configFilename}`));
     
   } catch (error) {
     logger.error('Failed to update metadata:', error);

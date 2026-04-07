@@ -9,6 +9,7 @@ import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
 import { uploadSingleFile, formatSize, computeFileChecksum } from './push';
 import { downloadArtifact } from './pull';
+import { loadProjectConfig as loadProjectConfigUtil } from '../utils/project-config';
 import type {
   SyncOptions,
   SyncFileManifestEntry,
@@ -44,17 +45,11 @@ function checkAuth(): { api: CirronApi } | null {
 }
 
 function loadProjectConfig(): ProjectConfig | null {
-  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-  if (!fs.existsSync(projectConfigPath)) {
+  const result = loadProjectConfigUtil();
+  if (!result) {
     return null;
   }
-  try {
-    return fs.readJSONSync(projectConfigPath) as ProjectConfig;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    logger.error(`Failed to parse cirron.json: ${msg}`);
-    return null;
-  }
+  return result.config;
 }
 
 async function collectFiles(targetPath: string): Promise<string[]> {
@@ -917,7 +912,7 @@ export async function syncCommand(
   // Load project config
   const projectConfig = loadProjectConfig();
   if (!projectConfig) {
-    logger.error('No cirron.json found in current directory');
+    logger.error('No cirron config found (cirron.yaml or cirron.json) in current directory');
     logger.info(`Run ${chalk.cyan('cirron init')} to initialize a project`);
     return;
   }
@@ -930,7 +925,7 @@ export async function syncCommand(
     manifest = await buildLocalManifest(syncPath, options, projectConfig);
     if (manifest.length === 0 && !options.pullOnly) {
       manifestSpinner.info('No local artifact files found');
-      logger.info('Ensure your cirron.json has artifacts configured, or specify a path.');
+      logger.info('Ensure your project config has artifacts configured, or specify a path.');
       return;
     }
     manifestSpinner.succeed(`Scanned ${manifest.length} local file(s)`);

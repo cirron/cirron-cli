@@ -7,6 +7,7 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ProjectConfig, ProjectStatus } from '../types';
 
 interface StatusOptions {
@@ -18,15 +19,15 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       return;
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Get local status
     const localStatus = await getLocalStatus(projectConfig);

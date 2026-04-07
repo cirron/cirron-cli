@@ -7,6 +7,7 @@ import path from 'path';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ProjectConfig } from '../types';
 
 interface EnvOptions {
@@ -99,13 +100,13 @@ export async function envDeleteCommand(key: string, options: EnvOptions): Promis
 
 async function setupCommand(): Promise<{ api: CirronApi; projectConfig: ProjectConfig }> {
   // Load project configuration
-  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-  
-  if (!fs.existsSync(projectConfigPath)) {
-    throw new Error('No cirron.json found. Run cirron init to initialize a project');
+  const projectConfigResult = loadProjectConfig();
+
+  if (!projectConfigResult) {
+    throw new Error('No cirron config found (cirron.yaml or cirron.json). Run cirron init to initialize a project');
   }
 
-  const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+  const projectConfig = projectConfigResult.config;
   
   // Check authentication
   const config = new ConfigManager();
