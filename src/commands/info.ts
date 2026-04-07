@@ -4,7 +4,7 @@ import path from 'path';
 import { logger } from '../utils/logger';
 import { getRepositoryInfo, getShortCommitHash } from '../utils/git';
 import { ModelConfigManager } from '../utils/model-config';
-import { loadProjectConfig, findProjectConfigPath, saveProjectConfig } from '../utils/project-config';
+import { loadProjectConfig, saveProjectConfig } from '../utils/project-config';
 import type { ProjectConfig, ModelConfig } from '../types';
 
 interface ModelInfo {
