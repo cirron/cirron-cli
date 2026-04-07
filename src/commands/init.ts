@@ -108,13 +108,40 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Check for existing project/model with the same name in the current directory
     const existingProjectPath = path.resolve(process.cwd(), projectName!);
     if (fs.existsSync(existingProjectPath)) {
-      // Check for cirron.yaml/cirron.json or model.py as a sign of an existing project/model
-      const cirronJsonExists = !!findProjectConfigPath(existingProjectPath);
+      // Check for cirron config (cirron.yaml/yml/json) or model.py as a sign of an existing project/model
+      const cirronConfigExists = !!findProjectConfigPath(existingProjectPath);
       const modelPyExists = fs.existsSync(path.join(existingProjectPath, 'src', 'model.py'));
       const files = fs.readdirSync(existingProjectPath);
       const hasExistingFiles = files.length > 0;
       
-      if (cirronJsonExists || modelPyExists || hasExistingFiles) {
+      if (cirronConfigExists) {
+        // Existing project with config - offer to register instead of overwrite
+        const { action } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'action',
+            message: `Directory "${projectName}" already has a Cirron config. What would you like to do?`,
+            choices: [
+              { name: 'Register existing project with Cirron (no file changes)', value: 'register' },
+              { name: 'Overwrite and reinitialize', value: 'overwrite' },
+              { name: 'Cancel', value: 'cancel' },
+            ],
+            loop: false,
+          },
+        ]);
+
+        if (action === 'cancel') {
+          logger.info('Initialization cancelled');
+          return;
+        }
+
+        if (action === 'register') {
+          const { registerCommand } = await import('./register');
+          await registerCommand({ path: existingProjectPath });
+          return;
+        }
+        // action === 'overwrite' falls through to scaffolding
+      } else if (modelPyExists || hasExistingFiles) {
         const answers = await inquirer.prompt([
           {
             type: 'confirm',
