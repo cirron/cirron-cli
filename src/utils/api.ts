@@ -60,6 +60,12 @@ export class CirronApi {
     name: string;
     template: string;
     path: string;
+    framework?: string;
+    modelType?: string;
+    type?: string;
+    servingConfig?: Record<string, any>;
+    repositoryId?: string;
+    repositoryPath?: string;
   }): Promise<any> {
     const response = await this.request('/api/cli/models', {
       method: 'POST',
