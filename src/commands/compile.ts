@@ -9,6 +9,7 @@ import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
 import { HardwareDetector } from '../utils/hardware';
 import { createInteractiveManager } from '../utils/interactive';
 import { ModelConfigManager } from '../utils/model-config';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ProjectConfig, HardwareConfig } from '../types';
 
 interface CompileOptions {
@@ -27,10 +28,10 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       if (strictMode) {
         handleCLIError(new Error('Project configuration not found'), true);
       }
@@ -38,7 +39,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       process.exit(CLIErrorCode.PROJECT_NOT_FOUND);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Load model configuration
     const modelConfigManager = new ModelConfigManager();
@@ -47,7 +48,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     if (modelConfig) {
       logger.info(chalk.blue(`Using model configuration: ${modelConfig.name || 'unnamed model'}`));
       if (modelConfig.framework && modelConfig.framework !== projectConfig.framework) {
-        logger.warn(chalk.yellow(`Framework mismatch: model.yaml (${modelConfig.framework}) vs cirron.json (${projectConfig.framework})`));
+        logger.warn(chalk.yellow(`Framework mismatch: model.yaml (${modelConfig.framework}) vs project config (${projectConfig.framework})`));
       }
     }
     

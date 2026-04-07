@@ -9,6 +9,7 @@ import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
 import { getShortCommitHash } from '../utils/git';
+import { loadProjectConfig as loadProjectConfigUtil } from '../utils/project-config';
 import type {
   PushOptions,
   PushFileInfo,
@@ -57,17 +58,11 @@ function parseNameTag(nameArg: string): { name: string; tag?: string } {
 }
 
 function loadProjectConfig(): ProjectConfig | null {
-  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-  if (!fs.existsSync(projectConfigPath)) {
+  const result = loadProjectConfigUtil();
+  if (!result) {
     return null;
   }
-  try {
-    return fs.readJSONSync(projectConfigPath) as ProjectConfig;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    logger.error(`Failed to parse cirron.json: ${msg}`);
-    return null;
-  }
+  return result.config;
 }
 
 export function formatSize(bytes: number): string {
@@ -802,7 +797,7 @@ async function pushAll(
 ): Promise<void> {
   const projectConfig = loadProjectConfig();
   if (!projectConfig) {
-    logger.error('No cirron.json found in current directory');
+    logger.error('No cirron config found (cirron.yaml or cirron.json) in current directory');
     logger.info(
       `Run ${chalk.cyan('cirron init')} to initialize a project, or use ${chalk.cyan('cirron push <resource> <name>')} to push a specific artifact`
     );
@@ -816,7 +811,7 @@ async function pushAll(
 
     if (filePaths.length === 0) {
       spinner.info('No artifact files found in project');
-      logger.info('Ensure your cirron.json has artifacts configured, or use path-based push.');
+      logger.info('Ensure your project config has artifacts configured, or use path-based push.');
       return;
     }
 

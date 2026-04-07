@@ -22,6 +22,7 @@ import {
   createSklearnPipelineFiles,
   createCustomFiles 
 } from './files';
+import { findProjectConfigPath } from '../utils/project-config';
 import { getRepositoryInfo } from '../utils/git';
 
 const TEMPLATES: Record<string, Template> = {
@@ -107,8 +108,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Check for existing project/model with the same name in the current directory
     const existingProjectPath = path.resolve(process.cwd(), projectName!);
     if (fs.existsSync(existingProjectPath)) {
-      // Check for cirron.json or model.py as a sign of an existing project/model
-      const cirronJsonExists = fs.existsSync(path.join(existingProjectPath, 'cirron.json'));
+      // Check for cirron.yaml/cirron.json or model.py as a sign of an existing project/model
+      const cirronJsonExists = !!findProjectConfigPath(existingProjectPath);
       const modelPyExists = fs.existsSync(path.join(existingProjectPath, 'src', 'model.py'));
       const files = fs.readdirSync(existingProjectPath);
       const hasExistingFiles = files.length > 0;

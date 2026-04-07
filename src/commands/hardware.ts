@@ -5,10 +5,11 @@ import fs from 'fs-extra';
 import path from 'path';
 import { logger } from '../utils/logger';
 import { HardwareDetector } from '../utils/hardware';
-import type { 
-  HardwareOptions, 
+import { findProjectConfigPath, loadProjectConfig, saveProjectConfig } from '../utils/project-config';
+import type {
+  HardwareOptions,
   HardwareConfig,
-  ProjectConfig 
+  ProjectConfig
 } from '../types';
 
 export async function hardwareCommand(options: HardwareOptions): Promise<void> {
@@ -127,7 +128,7 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
       });
     }
     
-    if (fs.existsSync('cirron.json')) {
+    if (findProjectConfigPath()) {
       questions.push({
         type: 'confirm',
         name: 'shouldApplyToProject',
@@ -225,14 +226,14 @@ async function configCommand(options: HardwareOptions): Promise<void> {
   displayConfigSummary(hardwareConfig);
 
   // Ask what to do with the hardware configuration
-  const isProjectDirectory = fs.existsSync('cirron.json');
+  const isProjectDirectory = !!findProjectConfigPath();
   const questions: any[] = [];
 
   if (isProjectDirectory) {
     questions.push({
       type: 'confirm',
       name: 'shouldApplyToProject',
-      message: 'Apply this hardware configuration to current project (cirron.json)?',
+      message: 'Apply this hardware configuration to current project?',
       default: true
     });
   }
@@ -493,17 +494,21 @@ function displayConfigSummary(config: HardwareConfig): void {
 
 async function applyToProject(hardwareConfig: HardwareConfig): Promise<void> {
   try {
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
-    
+    const projectConfigResult = loadProjectConfig();
+    if (!projectConfigResult) {
+      logger.error('No cirron config found (cirron.yaml or cirron.json)');
+      return;
+    }
+    const { configPath: projectConfigPath, config: projectConfig } = projectConfigResult;
+
     projectConfig.hardware = hardwareConfig;
-    
+
     // Update GPU required flag based on hardware type
     if (hardwareConfig.type === 'cuda' || hardwareConfig.type === 'gpu') {
       projectConfig.gpuRequired = true;
     }
-    
-    await fs.writeJSON(projectConfigPath, projectConfig, { spaces: 2 });
+
+    saveProjectConfig(projectConfigPath, projectConfig);
     logger.info(`${chalk.green('✓')} Hardware configuration applied to project`);
     
   } catch (error) {
