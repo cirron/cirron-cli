@@ -79,8 +79,8 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     // Environments
     console.log();
     logger.info(chalk.bold('Environments'));
-    Object.keys(projectConfig.environments).forEach(env => {
-      const envConfig = projectConfig.environments[env];
+    Object.keys(projectConfig.environments || {}).forEach(env => {
+      const envConfig = projectConfig.environments?.[env];
       let status = chalk.gray('configured');
       
       if (remoteStatus?.lastDeployment?.environment === env) {
@@ -100,7 +100,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 async function getLocalStatus(projectConfig: ProjectConfig): Promise<Partial<ProjectStatus>> {
   const status: Partial<ProjectStatus> = {
     name: projectConfig.name,
-    environments: Object.keys(projectConfig.environments)
+    environments: Object.keys(projectConfig.environments || {})
   };
 
   // Check git status
