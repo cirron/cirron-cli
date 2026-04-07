@@ -99,6 +99,24 @@ program
   .option('--git', 'Initialize git repository')
   .action(initCommand);
 
+// Register command
+program
+  .command('register')
+  .description('Register an existing project with Cirron')
+  .option('-n, --name <name>', 'Override project name from config')
+  .option('--repo <repository>', 'Associate with a connected repository')
+  .option('-p, --path <path>', 'Path scope within repository (for monorepos)')
+  .option('--dry-run', 'Show registration payload without calling API')
+  .action(async (options) => {
+    try {
+      const { registerCommand } = await import('./commands/register');
+      await registerCommand(options);
+    } catch (error) {
+      logger.error('Failed to load register command:', error);
+      process.exit(1);
+    }
+  });
+
 // Test command
 program
   .command('test')
