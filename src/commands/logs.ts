@@ -1,13 +1,11 @@
 // src/commands/logs.ts
 import chalk from 'chalk';
 import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { loadProjectConfig } from '../utils/project-config';
-import type { ProjectConfig, LogEntry } from '../types';
+import type { LogEntry } from '../types';
 
 interface LogsOptions {
   follow?: boolean;

@@ -114,7 +114,6 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     return;
   }
 
-  const configPath = projectConfigResult.configPath;
   const configFilename = projectConfigResult.filename;
 
   try {

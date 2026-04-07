@@ -1,15 +1,12 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
 import { logger } from '../utils/logger';
 import { HardwareDetector } from '../utils/hardware';
 import { findProjectConfigPath, loadProjectConfig, saveProjectConfig } from '../utils/project-config';
 import type {
   HardwareOptions,
-  HardwareConfig,
-  ProjectConfig
+  HardwareConfig
 } from '../types';
 
 export async function hardwareCommand(options: HardwareOptions): Promise<void> {

@@ -133,7 +133,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
       process.exit(1);
     }
 
-    const { configPath: projectConfigPath, config: projectConfig } = projectConfigResult;
+    const { config: projectConfig } = projectConfigResult;
 
     // Check if this is an ML project
     const isMLProject = projectConfig.framework && ['pytorch', 'tensorflow', 'sklearn'].includes(projectConfig.framework);
