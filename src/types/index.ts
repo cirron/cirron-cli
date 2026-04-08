@@ -85,6 +85,8 @@ export interface ProjectConfig {
   template: string;
   framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
   modelType?: string;
+  type?: string;
+  servingConfig?: Record<string, any>;
   pythonVersion?: string;
   gpuRequired?: boolean;
   hardware?: HardwareConfig;
