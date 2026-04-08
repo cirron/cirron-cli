@@ -5,7 +5,7 @@ import { logger } from './logger';
 export interface InteractiveOptions {
   message: string;
   default?: boolean;
-  type?: 'confirm' | 'select' | 'input' | 'list';
+  type?: 'confirm' | 'select' | 'input';
   choices?: string[] | { name: string; value: any }[];
   description?: string;
   impact?: 'low' | 'medium' | 'high';
@@ -70,7 +70,7 @@ export class InteractiveManager {
 
     const { action } = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'action',
         message: `Proceed with ${options.stepName}?`,
         choices,
@@ -106,7 +106,7 @@ export class InteractiveManager {
     }
 
     const promptConfig: any = {
-      type: options.type || 'list',
+      type: options.type || 'select',
       name: 'selection',
       message: options.message
     };
@@ -120,7 +120,7 @@ export class InteractiveManager {
     }
 
     // Add loop: false for list types to prevent infinite carousel
-    if (options.type === 'list') {
+    if (options.type === 'select') {
       promptConfig.loop = false;
     }
 
@@ -205,7 +205,7 @@ export class InteractiveManager {
     // First, let the user choose a preset or custom selection
     const { selectionType } = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'selectionType',
         message: 'How would you like to select steps?',
         choices: [
@@ -297,7 +297,7 @@ export class InteractiveManager {
     if (error) {
       const { action } = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'action',
           message: 'How would you like to proceed?',
           choices: [

@@ -80,7 +80,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       spinner.stop();
       const confirmedArch = await interactive.selectOption({
         message: 'Select target architecture for compilation',
-        type: 'list',
+        type: 'select',
         choices: [
           { name: `${architecture} (detected/default)`, value: architecture },
           { name: 'cpu (CPU optimized)', value: 'cpu' },

@@ -216,7 +216,7 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
     spinner.stop();
     const confirmedArch = await interactive.selectOption({
       message: 'Confirm target architecture',
-      type: 'list',
+      type: 'select',
       choices: [
         { name: `${architecture} (detected)`, value: architecture },
         { name: 'cpu', value: 'cpu' },
