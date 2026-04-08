@@ -167,7 +167,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
 
         if (action === 'register') {
           const { registerCommand } = await import('./register');
-          await registerCommand({ path: existingProjectPath });
+          await registerCommand({ dir: existingProjectPath });
           return;
         }
         // action === 'overwrite' falls through to scaffolding
