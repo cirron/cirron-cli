@@ -687,6 +687,9 @@ async function pushResourceTyped(
     spinner.fail(`Failed to push ${resource} ${resolvedName}`);
     if (error instanceof Error) {
       logger.error(error.message);
+      if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) {
+        logger.info(`If this project is not yet registered, run: ${chalk.cyan('cirron register')}`);
+      }
     } else {
       logger.error('Unknown error occurred');
     }
@@ -782,6 +785,9 @@ async function pushPathBased(
     spinner.fail(`Failed to push ${resourcePath}`);
     if (error instanceof Error) {
       logger.error(error.message);
+      if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) {
+        logger.info(`If this project is not yet registered, run: ${chalk.cyan('cirron register')}`);
+      }
     } else {
       logger.error('Unknown error occurred');
     }
@@ -857,6 +863,9 @@ async function pushAll(
     spinner.fail('Failed to push project artifacts');
     if (error instanceof Error) {
       logger.error(error.message);
+      if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) {
+        logger.info(`If this project is not yet registered, run: ${chalk.cyan('cirron register')}`);
+      }
     } else {
       logger.error('Unknown error occurred');
     }
