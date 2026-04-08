@@ -69,6 +69,7 @@ export async function registerCommand(options: RegisterOptions = {}): Promise<vo
     path: projectDir,
   };
 
+  if (config.description) payload['description'] = config.description;
   if (config.framework) payload['framework'] = config.framework;
   if (config.modelType) payload['modelType'] = config.modelType;
   if (config.type) payload['type'] = config.type;

@@ -81,6 +81,7 @@ export interface ApiResponse<T = any> {
 export interface ProjectConfig {
   version?: number;
   name: string;
+  description?: string;
   projectVersion: string;
   template: string;
   framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
