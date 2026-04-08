@@ -185,7 +185,7 @@ async function configCommand(options: HardwareOptions): Promise<void> {
   } else {
     const configAnswers = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'configType',
         message: 'How would you like to configure hardware?',
         choices: [
@@ -277,7 +277,7 @@ async function configureFromPreset(): Promise<HardwareConfig> {
   
   const { selectedProfile } = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'selectedProfile',
       message: 'Select a hardware profile:',
       choices: profiles.map(profile => ({
@@ -293,7 +293,7 @@ async function configureFromPreset(): Promise<HardwareConfig> {
 async function configureManually(): Promise<HardwareConfig> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'type',
       message: 'Select hardware type:',
       choices: [
@@ -419,7 +419,7 @@ async function listCommand(options: HardwareOptions): Promise<void> {
 async function interactiveCommand(options: HardwareOptions): Promise<void> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'action',
       message: 'What would you like to do?',
       choices: [
