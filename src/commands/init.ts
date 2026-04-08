@@ -86,7 +86,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     if (existingConfigInCwd) {
       const { action } = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'action',
           message: `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`,
           choices: [
@@ -148,7 +148,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
         // Existing project with config - offer to register instead of overwrite
         const { action } = await inquirer.prompt([
           {
-            type: 'list',
+            type: 'select',
             name: 'action',
             message: `Directory "${projectName}" already has a Cirron config. What would you like to do?`,
             choices: [
@@ -196,7 +196,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     if (!TEMPLATES[template]) {
       const templateAnswers = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'template',
           message: 'Choose a framework:',
           choices: Object.entries(TEMPLATES).map(([key, template]) => ({
@@ -205,7 +205,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
           }))
         },
         {
-          type: 'list',
+          type: 'select',
           name: 'modelType',
           message: 'Choose model type:',
           choices: Object.entries(MODEL_TYPES).map(([key, name]) => ({

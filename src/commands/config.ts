@@ -80,7 +80,7 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
     if (options.edit) {
       // Show scope selector prompt
       const { selectedScope } = await inquirer.prompt([{
-        type: 'list',
+        type: 'select',
         name: 'selectedScope',
         message: 'Which configuration scope would you like to edit?',
         choices: [
@@ -108,7 +108,7 @@ export async function configCommand(options: ConfigCommandOptions): Promise<void
 
     // No operation specified -- show interactive scope selector
     const { selectedScope } = await inquirer.prompt([{
-      type: 'list',
+      type: 'select',
       name: 'selectedScope',
       message: 'Which configuration scope would you like to manage?',
       choices: [
@@ -310,7 +310,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
 
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'action',
       message: 'What would you like to do?',
       choices: [
@@ -348,7 +348,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
     case 'defaultEnv':
       const envAnswer = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'value',
           message: 'Select default environment:',
           default: currentConfig.defaultEnv,

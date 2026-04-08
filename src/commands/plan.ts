@@ -59,7 +59,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       spinner.stop();
       architecture = await interactive.selectOption({
         message: 'Select target architecture for compilation planning',
-        type: 'list',
+        type: 'select',
         choices: [
           { name: `${architecture} (default for this project)`, value: architecture },
           { name: 'cpu (CPU optimized)', value: 'cpu' },
@@ -249,7 +249,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
       spinner.stop();
       architecture = await interactive.selectOption({
         message: 'Select target architecture for build planning',
-        type: 'list',
+        type: 'select',
         choices: [
           { name: `${architecture} (default for this project)`, value: architecture },
           { name: 'cpu (CPU optimized)', value: 'cpu' },
@@ -812,13 +812,13 @@ export async function planCompareCommand(planA?: string, planB?: string, options
 
       const { planAIndex, planBIndex } = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'planAIndex',
           message: 'Select first plan (Plan A):',
           choices: planChoices
         },
         {
-          type: 'list',
+          type: 'select',
           name: 'planBIndex',
           message: 'Select second plan (Plan B):',
           choices: planChoices.filter((_, index) => index !== undefined),
