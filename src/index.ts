@@ -106,6 +106,7 @@ program
   .option('-n, --name <name>', 'Override project name from config')
   .option('--repo <repository>', 'Associate with a connected repository')
   .option('-p, --path <path>', 'Path scope within repository (for monorepos)')
+  .option('-d, --dir <directory>', 'Project directory to load config from (default: current directory)')
   .option('--dry-run', 'Show registration payload without calling API')
   .action(async (options) => {
     try {

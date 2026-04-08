@@ -10,6 +10,7 @@ interface RegisterOptions {
   name?: string;
   repo?: string;
   path?: string;
+  dir?: string;
   dryRun?: boolean;
 }
 
@@ -35,11 +36,12 @@ export async function registerCommand(options: RegisterOptions = {}): Promise<vo
     process.exit(1);
   }
 
-  // Load project config
-  const projectConfigResult = loadProjectConfig(options.path);
+  // Load project config from --dir or current directory
+  const projectDir = options.dir || process.cwd();
+  const projectConfigResult = loadProjectConfig(projectDir);
 
   if (!projectConfigResult) {
-    const searchDir = options.path || 'current directory';
+    const searchDir = options.dir || 'current directory';
     logger.error(`No cirron config found in ${searchDir} (cirron.yaml, cirron.yml, or cirron.json)`);
     logger.info(`Run ${chalk.cyan('cirron init')} to create a new project, or add a cirron.yaml config file`);
     process.exit(1);
@@ -64,15 +66,17 @@ export async function registerCommand(options: RegisterOptions = {}): Promise<vo
   const payload: Record<string, any> = {
     name: projectName,
     template,
-    path: options.path || process.cwd(),
+    path: projectDir,
   };
 
   if (config.framework) payload['framework'] = config.framework;
   if (config.modelType) payload['modelType'] = config.modelType;
   if (config.type) payload['type'] = config.type;
   if (config.servingConfig) payload['servingConfig'] = config.servingConfig;
-  if (options.repo) payload['repositoryId'] = options.repo;
-  if (options.path) payload['repositoryPath'] = options.path;
+  if (options.repo) {
+    payload['repositoryId'] = options.repo;
+    if (options.path) payload['repositoryPath'] = options.path;
+  }
 
   // Dry-run mode
   if (options.dryRun) {
@@ -106,7 +110,7 @@ export async function registerCommand(options: RegisterOptions = {}): Promise<vo
     if (options.repo) {
       logger.info(`Associated with repository: ${chalk.cyan(options.repo)}`);
       if (options.path) {
-        logger.info(`Path scope: ${chalk.cyan(options.path)}`);
+        logger.info(`Repository path scope: ${chalk.cyan(options.path)}`);
       }
     }
   } catch (error: any) {
