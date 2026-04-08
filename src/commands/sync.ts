@@ -486,7 +486,7 @@ async function promptConflictResolution(
 
   const { resolution } = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'resolution',
       message: 'How would you like to resolve this conflict?',
       choices,
