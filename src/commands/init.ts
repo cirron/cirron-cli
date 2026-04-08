@@ -81,6 +81,36 @@ const MODEL_TYPES = {
 
 export async function initCommand(projectName?: string, options: InitOptions = { template: 'pytorch' }): Promise<void> {
   try {
+    // Check if running from a directory that already has a cirron config
+    const existingConfigInCwd = findProjectConfigPath(process.cwd());
+    if (existingConfigInCwd) {
+      const { action } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'action',
+          message: `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`,
+          choices: [
+            { name: 'Register existing project with Cirron (no file changes)', value: 'register' },
+            { name: 'Overwrite and reinitialize', value: 'overwrite' },
+            { name: 'Cancel', value: 'cancel' },
+          ],
+          loop: false,
+        },
+      ]);
+
+      if (action === 'cancel') {
+        logger.info('Initialization cancelled');
+        return;
+      }
+
+      if (action === 'register') {
+        const { registerCommand } = await import('./register');
+        await registerCommand({});
+        return;
+      }
+      // action === 'overwrite' falls through to normal init flow
+    }
+
     // Get project name if not provided
     if (!projectName) {
       const answers = await inquirer.prompt([
