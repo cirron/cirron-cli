@@ -7,14 +7,16 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import Table from 'cli-table3';
 import fetch from 'node-fetch';
+import type { Response } from 'node-fetch';
+import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { logger } from '../utils/logger';
+import { CLI_VERSION, USER_AGENT } from '../utils/version';
 
 const SPOOL_FILENAME_RE = /^(\d+)-[0-9a-f]+\.json$/;
 const DEFAULT_SPOOL_SUBPATH = path.join('.cirron', 'spool');
 const INGEST_PATH = '/api/traces';
 const GZIP_MIN_BYTES = 1024;
-const CLI_VERSION = '1.0.0';
 
 interface SpoolOptions {
   dir?: string;
@@ -38,20 +40,23 @@ async function listSpoolFiles(spoolDir: string): Promise<SpoolFile[]> {
     return [];
   }
   const entries = await fs.readdir(spoolDir);
-  const files: SpoolFile[] = [];
-  for (const name of entries) {
-    const match = SPOOL_FILENAME_RE.exec(name);
-    if (!match) continue;
-    const fullPath = path.join(spoolDir, name);
-    const stat = await fs.stat(fullPath);
-    if (!stat.isFile()) continue;
-    files.push({
-      name,
-      fullPath,
-      createdNs: BigInt(match[1]!),
-      size: stat.size,
-    });
-  }
+  const files = (
+    await Promise.all(
+      entries.map(async (name): Promise<SpoolFile | null> => {
+        const match = SPOOL_FILENAME_RE.exec(name);
+        if (!match) return null;
+        const fullPath = path.join(spoolDir, name);
+        const stat = await fs.stat(fullPath);
+        if (!stat.isFile()) return null;
+        return {
+          name,
+          fullPath,
+          createdNs: BigInt(match[1]!),
+          size: stat.size,
+        };
+      }),
+    )
+  ).filter((f): f is SpoolFile => f !== null);
   files.sort((a, b) => (a.createdNs < b.createdNs ? -1 : a.createdNs > b.createdNs ? 1 : 0));
   return files;
 }
@@ -71,6 +76,14 @@ function humanBytes(n: number): string {
 function nsToIso(ns: bigint): string {
   const ms = Number(ns / 1_000_000n);
   return new Date(ms).toISOString();
+}
+
+async function drainResponse(response: Response): Promise<void> {
+  try {
+    await response.text();
+  } catch {
+    // body already consumed or connection closed — nothing to drain
+  }
 }
 
 export async function spoolInspectCommand(options: SpoolOptions): Promise<void> {
@@ -132,7 +145,8 @@ interface FlushResult {
 async function flushBatch(
   file: SpoolFile,
   apiUrl: string,
-  authHeader: string | undefined,
+  authHeader: string,
+  timeoutMs: number,
 ): Promise<'ok' | 'fatal' | 'retryable'> {
   const raw = await fs.readFile(file.fullPath);
   const shouldGzip = raw.length >= GZIP_MIN_BYTES;
@@ -142,54 +156,73 @@ async function flushBatch(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'User-Agent': `cirron-cli/${CLI_VERSION}`,
+    'User-Agent': USER_AGENT,
     'X-Cirron-SDK-Version': `cli/${CLI_VERSION}`,
     'X-Cirron-Batch-Id': batchId,
+    Authorization: authHeader,
   };
   if (shouldGzip) headers['Content-Encoding'] = 'gzip';
-  if (authHeader) headers['Authorization'] = authHeader;
 
   const url = new URL(INGEST_PATH, apiUrl).toString();
-  let attempt = 0;
   const maxAttempts = 3;
 
-  while (attempt < maxAttempts) {
-    attempt++;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response | null = null;
     try {
-      const response = await fetch(url, { method: 'POST', headers, body });
-      if (response.ok) return 'ok';
+      response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+      if (response.ok) {
+        await drainResponse(response);
+        return 'ok';
+      }
 
       if (response.status === 401 || response.status === 403) {
+        await drainResponse(response);
         logger.error(
           `Auth rejected (${response.status}) for ${file.name}. Run ${chalk.cyan('cirron auth login')}.`,
         );
         return 'fatal';
       }
       if (response.status === 404) {
+        await drainResponse(response);
         logger.error(
           `Ingest route ${INGEST_PATH} not available on ${apiUrl} (404). Platform may not have shipped the route yet.`,
         );
         return 'fatal';
       }
       if (response.status === 400 || response.status === 413) {
+        await drainResponse(response);
         logger.error(`Rejected ${file.name}: HTTP ${response.status} ${response.statusText}`);
         return 'fatal';
       }
       if (response.status === 429 || response.status >= 500) {
         const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10);
-        const delayMs = retryAfter > 0 ? Math.min(retryAfter, 30) * 1000 : Math.min(1000 * 2 ** (attempt - 1), 10000);
-        await new Promise((r) => setTimeout(r, delayMs));
-        continue;
+        await drainResponse(response);
+        const delayMs =
+          retryAfter > 0 ? Math.min(retryAfter, 30) * 1000 : Math.min(1000 * 2 ** (attempt - 1), 10000);
+        if (attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+        return 'retryable';
       }
+      await drainResponse(response);
       logger.error(`Unexpected HTTP ${response.status} for ${file.name}`);
       return 'fatal';
     } catch (error) {
-      const delayMs = Math.min(1000 * 2 ** (attempt - 1), 10000);
-      await new Promise((r) => setTimeout(r, delayMs));
+      if (response) await drainResponse(response);
       if (attempt >= maxAttempts) {
-        logger.error(`Network error uploading ${file.name}: ${(error as Error).message}`);
+        const msg = (error as Error).name === 'AbortError'
+          ? `timed out after ${timeoutMs}ms`
+          : (error as Error).message;
+        logger.error(`Network error uploading ${file.name}: ${msg}`);
         return 'retryable';
       }
+      const delayMs = Math.min(1000 * 2 ** (attempt - 1), 10000);
+      await new Promise((r) => setTimeout(r, delayMs));
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
   return 'retryable';
@@ -205,17 +238,35 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   }
 
   const configManager = new ConfigManager();
-  const config = configManager.load();
-  const authHeader = config.auth?.accessToken
-    ? `Bearer ${config.auth.accessToken}`
-    : config.token
-      ? `Bearer ${config.token}`
-      : undefined;
+  let config = configManager.load();
 
-  if (!authHeader) {
+  if (!config.auth?.accessToken && !config.token) {
     logger.error(`Not authenticated. Run ${chalk.cyan('cirron auth login')} first.`);
     return;
   }
+
+  // Exercise token refresh via CirronApi — if the access token is near expiry
+  // and a refresh token is present, this will transparently refresh and persist
+  // the new token to ~/.cirron/config.json before we read auth out.
+  const api = new CirronApi(config);
+  try {
+    await api.verifyAuth();
+  } catch (error) {
+    const msg = (error as Error).message;
+    if (msg.includes('401') || msg.includes('403')) {
+      logger.error(`Authentication invalid. Run ${chalk.cyan('cirron auth login')} first.`);
+      return;
+    }
+    // Non-auth failures (network, 5xx on /status) are non-fatal — let the flush
+    // loop surface them per-batch with its own retry/backoff.
+    logger.warn(`Could not verify auth before flush: ${msg}. Proceeding anyway.`);
+  }
+
+  // Reload config in case ensureValidToken persisted a refreshed access token.
+  config = configManager.load();
+  const authHeader = config.auth?.accessToken
+    ? `Bearer ${config.auth.accessToken}`
+    : `Bearer ${config.token}`;
 
   const spinner = ora(`Flushing ${files.length} batch${files.length === 1 ? '' : 'es'}...`).start();
   const result: FlushResult = { uploaded: 0, failed: 0, skipped: 0 };
@@ -223,10 +274,17 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i]!;
     spinner.text = `Flushing ${i + 1}/${files.length}: ${file.name}`;
-    const outcome = await flushBatch(file, config.apiUrl, authHeader);
+    const outcome = await flushBatch(file, config.apiUrl, authHeader, config.timeout);
     if (outcome === 'ok') {
-      await fs.unlink(file.fullPath);
-      result.uploaded++;
+      try {
+        await fs.unlink(file.fullPath);
+        result.uploaded++;
+      } catch (error) {
+        result.failed++;
+        logger.error(
+          `Uploaded ${file.name} but failed to delete local spool file ${file.fullPath}: ${(error as Error).message}. It may be re-uploaded on next flush.`,
+        );
+      }
     } else if (outcome === 'fatal') {
       result.failed++;
       result.skipped = files.length - i - 1;

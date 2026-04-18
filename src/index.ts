@@ -39,6 +39,7 @@ import {
   spoolClearCommand,
 } from './commands/spool';
 import { logger } from './utils/logger';
+import { CLI_VERSION } from './utils/version';
 
 const program = new Command();
 
@@ -56,7 +57,7 @@ process.on('unhandledRejection', (error) => {
 program
   .name('cirron')
   .description('Cirron CLI - Build, deploy, and manage your projects with ease')
-  .version('1.0.0')
+  .version(CLI_VERSION)
   .option('-v, --verbose', 'Enable verbose logging')
   .option('--config <path>', 'Path to config file')
   .hook('preAction', (thisCommand) => {
