@@ -97,19 +97,30 @@ export async function spoolInspectCommand(options: SpoolOptions): Promise<void> 
       totalBytes,
       oldest: { name: oldest.name, createdNs: oldest.createdNs.toString(), iso: nsToIso(oldest.createdNs) },
       newest: { name: newest.name, createdNs: newest.createdNs.toString(), iso: nsToIso(newest.createdNs) },
+      entries: files.map((f) => ({
+        name: f.name,
+        size: f.size,
+        createdNs: f.createdNs.toString(),
+        iso: nsToIso(f.createdNs),
+      })),
     });
     return;
   }
 
-  logger.info(chalk.bold(`Spool: ${spoolDir}`));
-  const table = new Table({ head: [chalk.cyan('Metric'), chalk.cyan('Value')] });
-  table.push(
-    ['Files', String(files.length)],
-    ['Total size', humanBytes(totalBytes)],
-    ['Oldest', `${nsToIso(oldest.createdNs)}  ${chalk.gray(oldest.name)}`],
-    ['Newest', `${nsToIso(newest.createdNs)}  ${chalk.gray(newest.name)}`],
+  logger.info(
+    `${chalk.bold('Spool:')} ${spoolDir}  ${chalk.gray(`(${files.length} file${files.length === 1 ? '' : 's'}, ${humanBytes(totalBytes)})`)}`,
   );
+  const table = new Table({
+    head: [chalk.cyan('Timestamp'), chalk.cyan('Size'), chalk.cyan('File')],
+    colAligns: ['left', 'right', 'left'],
+  });
+  for (const f of files) {
+    table.push([nsToIso(f.createdNs), humanBytes(f.size), chalk.gray(f.name)]);
+  }
   console.log(table.toString());
+  logger.info(
+    `${chalk.gray('Oldest:')} ${nsToIso(oldest.createdNs)}   ${chalk.gray('Newest:')} ${nsToIso(newest.createdNs)}`,
+  );
 }
 
 interface FlushResult {
