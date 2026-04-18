@@ -33,7 +33,13 @@ import {
 import { pushCommand } from './commands/push';
 import { pullCommand } from './commands/pull';
 import { syncCommand } from './commands/sync';
+import {
+  spoolInspectCommand,
+  spoolFlushCommand,
+  spoolClearCommand,
+} from './commands/spool';
 import { logger } from './utils/logger';
+import { CLI_VERSION } from './utils/version';
 
 const program = new Command();
 
@@ -51,7 +57,7 @@ process.on('unhandledRejection', (error) => {
 program
   .name('cirron')
   .description('Cirron CLI - Build, deploy, and manage your projects with ease')
-  .version('1.0.0')
+  .version(CLI_VERSION)
   .option('-v, --verbose', 'Enable verbose logging')
   .option('--config <path>', 'Path to config file')
   .hook('preAction', (thisCommand) => {
@@ -532,6 +538,31 @@ envCmd
       process.exit(1);
     }
   });
+
+// Spool command
+const spoolCmd = program
+  .command('spool')
+  .description('Manage local SDK spool (./.cirron/spool/)');
+
+spoolCmd
+  .command('inspect')
+  .description('Show spool file count, size, oldest/newest timestamps')
+  .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--json', 'Output in JSON format')
+  .action(spoolInspectCommand);
+
+spoolCmd
+  .command('flush')
+  .description('Upload spool batches to the platform and delete on success')
+  .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
+  .action(spoolFlushCommand);
+
+spoolCmd
+  .command('clear')
+  .description('Delete all spool files (prompts for confirmation)')
+  .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--force', 'Skip confirmation prompt')
+  .action(spoolClearCommand);
 
 // Parse command line arguments
 program.parse();
