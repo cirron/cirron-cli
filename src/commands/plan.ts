@@ -11,6 +11,7 @@ import { PlanDiffAnalyzer } from '../utils/plan-diff';
 import { executePythonScript, handleExecutionResult } from '../utils/execution';
 import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
 import { createInteractiveManager } from '../utils/interactive';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ProjectConfig, PlanOptions, PlanCompareOptions, PlanSaveOptions } from '../types';
 import inquirer from 'inquirer';
 
@@ -22,15 +23,15 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(CLIErrorCode.PROJECT_NOT_FOUND);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Interactive plan configuration
     if (interactive.isInteractive()) {
@@ -58,7 +59,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       spinner.stop();
       architecture = await interactive.selectOption({
         message: 'Select target architecture for compilation planning',
-        type: 'list',
+        type: 'select',
         choices: [
           { name: `${architecture} (default for this project)`, value: architecture },
           { name: 'cpu (CPU optimized)', value: 'cpu' },
@@ -203,22 +204,22 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Check if this is an ML project
     const isMLProject = projectConfig.framework && ['pytorch', 'tensorflow', 'sklearn'].includes(projectConfig.framework);
     
     if (!isMLProject) {
       spinner.fail(chalk.red('Build planning is currently only supported for ML projects'));
-      logger.error('Specify a framework in cirron.json (pytorch, tensorflow, sklearn)');
+      logger.error('Specify a framework in your project config (pytorch, tensorflow, sklearn)');
       process.exit(1);
     }
     
@@ -248,7 +249,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
       spinner.stop();
       architecture = await interactive.selectOption({
         message: 'Select target architecture for build planning',
-        type: 'list',
+        type: 'select',
         choices: [
           { name: `${architecture} (default for this project)`, value: architecture },
           { name: 'cpu (CPU optimized)', value: 'cpu' },
@@ -357,15 +358,15 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Analyze files that would be linted
     const lintPlan = await generateLintPlan(projectConfig);
@@ -399,15 +400,15 @@ export async function planTestCommand(options: PlanOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Analyze test suite setup
     const testPlan = await generateTestPlan(projectConfig);
@@ -603,7 +604,7 @@ async function generateLintPlan(projectConfig: ProjectConfig) {
       code: [] as string[]
     },
     rules: {
-      config: ['cirron.json schema validation', 'environment configuration'],
+      config: ['project config schema validation', 'environment configuration'],
       structure: ['required files check', 'directory structure'],
       dependencies: ['requirements.txt validation', 'dependency conflicts'],
       code: ['Python syntax check', 'import validation']
@@ -612,8 +613,9 @@ async function generateLintPlan(projectConfig: ProjectConfig) {
   };
 
   // Check config files
-  if (fs.existsSync('cirron.json')) {
-    lintPlan.files.config.push('cirron.json');
+  const configFileResult = loadProjectConfig();
+  if (configFileResult) {
+    lintPlan.files.config.push(configFileResult.filename);
   }
 
   // Check structure files
@@ -810,13 +812,13 @@ export async function planCompareCommand(planA?: string, planB?: string, options
 
       const { planAIndex, planBIndex } = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'planAIndex',
           message: 'Select first plan (Plan A):',
           choices: planChoices
         },
         {
-          type: 'list',
+          type: 'select',
           name: 'planBIndex',
           message: 'Select second plan (Plan B):',
           choices: planChoices.filter((_, index) => index !== undefined),
@@ -920,15 +922,15 @@ export async function planSaveCommand(type?: string, options: PlanSaveOptions = 
   }
 
   // Load project configuration
-  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-  
-  if (!fs.existsSync(projectConfigPath)) {
-    logger.error(chalk.red('No cirron.json found'));
+  const projectConfigResult = loadProjectConfig();
+
+  if (!projectConfigResult) {
+    logger.error(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
     logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
     process.exit(1);
   }
 
-  const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+  const { config: projectConfig } = projectConfigResult;
   
   // Parse tags
   const tags = options.tags ? options.tags.split(',').map(tag => tag.trim()) : undefined;

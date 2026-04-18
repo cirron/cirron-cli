@@ -22,6 +22,7 @@ import {
   createSklearnPipelineFiles,
   createCustomFiles 
 } from './files';
+import { findProjectConfigPath } from '../utils/project-config';
 import { getRepositoryInfo } from '../utils/git';
 
 const TEMPLATES: Record<string, Template> = {
@@ -80,6 +81,36 @@ const MODEL_TYPES = {
 
 export async function initCommand(projectName?: string, options: InitOptions = { template: 'pytorch' }): Promise<void> {
   try {
+    // Check if running from a directory that already has a cirron config
+    const existingConfigInCwd = findProjectConfigPath(process.cwd());
+    if (existingConfigInCwd) {
+      const { action } = await inquirer.prompt([
+        {
+          type: 'select',
+          name: 'action',
+          message: `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`,
+          choices: [
+            { name: 'Register existing project with Cirron (no file changes)', value: 'register' },
+            { name: 'Overwrite and reinitialize', value: 'overwrite' },
+            { name: 'Cancel', value: 'cancel' },
+          ],
+          loop: false,
+        },
+      ]);
+
+      if (action === 'cancel') {
+        logger.info('Initialization cancelled');
+        return;
+      }
+
+      if (action === 'register') {
+        const { registerCommand } = await import('./register');
+        await registerCommand({});
+        return;
+      }
+      // action === 'overwrite' falls through to normal init flow
+    }
+
     // Get project name if not provided
     if (!projectName) {
       const answers = await inquirer.prompt([
@@ -107,13 +138,40 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Check for existing project/model with the same name in the current directory
     const existingProjectPath = path.resolve(process.cwd(), projectName!);
     if (fs.existsSync(existingProjectPath)) {
-      // Check for cirron.json or model.py as a sign of an existing project/model
-      const cirronJsonExists = fs.existsSync(path.join(existingProjectPath, 'cirron.json'));
+      // Check for cirron config (cirron.yaml/yml/json) or model.py as a sign of an existing project/model
+      const cirronConfigExists = !!findProjectConfigPath(existingProjectPath);
       const modelPyExists = fs.existsSync(path.join(existingProjectPath, 'src', 'model.py'));
       const files = fs.readdirSync(existingProjectPath);
       const hasExistingFiles = files.length > 0;
       
-      if (cirronJsonExists || modelPyExists || hasExistingFiles) {
+      if (cirronConfigExists) {
+        // Existing project with config - offer to register instead of overwrite
+        const { action } = await inquirer.prompt([
+          {
+            type: 'select',
+            name: 'action',
+            message: `Directory "${projectName}" already has a Cirron config. What would you like to do?`,
+            choices: [
+              { name: 'Register existing project with Cirron (no file changes)', value: 'register' },
+              { name: 'Overwrite and reinitialize', value: 'overwrite' },
+              { name: 'Cancel', value: 'cancel' },
+            ],
+            loop: false,
+          },
+        ]);
+
+        if (action === 'cancel') {
+          logger.info('Initialization cancelled');
+          return;
+        }
+
+        if (action === 'register') {
+          const { registerCommand } = await import('./register');
+          await registerCommand({ dir: existingProjectPath });
+          return;
+        }
+        // action === 'overwrite' falls through to scaffolding
+      } else if (modelPyExists || hasExistingFiles) {
         const answers = await inquirer.prompt([
           {
             type: 'confirm',
@@ -138,7 +196,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     if (!TEMPLATES[template]) {
       const templateAnswers = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'template',
           message: 'Choose a framework:',
           choices: Object.entries(TEMPLATES).map(([key, template]) => ({
@@ -147,7 +205,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
           }))
         },
         {
-          type: 'list',
+          type: 'select',
           name: 'modelType',
           message: 'Choose model type:',
           choices: Object.entries(MODEL_TYPES).map(([key, name]) => ({

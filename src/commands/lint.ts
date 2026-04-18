@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
 import { executeScript } from '../utils/execution';
 import { ModelConfigManager } from '../utils/model-config';
+import { loadProjectConfig, findProjectConfigPath } from '../utils/project-config';
 import type { ProjectConfig } from '../types';
 
 interface LintOptions {
@@ -99,23 +100,25 @@ export async function lintCommand(options: LintOptions): Promise<void> {
 }
 
 async function lintProjectConfig(summary: LintSummary, _options: LintOptions): Promise<void> {
-  const configPath = path.join(process.cwd(), 'cirron.json');
-  
-  if (!fs.existsSync(configPath)) {
+  const projectConfigResult = loadProjectConfig();
+
+  if (!projectConfigResult) {
     addResult(summary, {
       category: 'config',
       severity: 'error',
-      message: 'Missing cirron.json configuration file',
-      file: 'cirron.json',
+      message: 'Missing project configuration file',
+      file: 'project configuration',
       fixable: false,
       suggestion: 'Run "cirron init" to create a project configuration'
     });
     return;
   }
 
+  const configFilename = projectConfigResult.filename;
+
   try {
-    const config: ProjectConfig = await fs.readJSON(configPath);
-    
+    const config: ProjectConfig = projectConfigResult.config;
+
     // Validate required fields
     const requiredFields = ['name', 'version', 'template'];
     for (const field of requiredFields) {
@@ -124,7 +127,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
           category: 'config',
           severity: 'error',
           message: `Missing required field: ${field}`,
-          file: 'cirron.json',
+          file: configFilename,
           fixable: false
         });
       }
@@ -141,7 +144,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
         category: 'config',
         severity: 'warning',
         message: 'No environments configured',
-        file: 'cirron.json',
+        file: configFilename,
         fixable: false,
         suggestion: 'Add at least one environment configuration'
       });
@@ -153,7 +156,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
         category: 'config',
         severity: 'warning',
         message: 'Version should follow semantic versioning (e.g., 1.0.0)',
-        file: 'cirron.json',
+        file: configFilename,
         fixable: false
       });
     }
@@ -162,17 +165,17 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
       category: 'config',
       severity: 'info',
       message: 'Project configuration is valid',
-      file: 'cirron.json'
+      file: configFilename
     });
 
   } catch (error) {
     addResult(summary, {
       category: 'config',
       severity: 'error',
-      message: 'Invalid JSON in cirron.json',
-      file: 'cirron.json',
+      message: `Invalid content in ${configFilename}`,
+      file: configFilename,
       fixable: false,
-      suggestion: 'Check JSON syntax and formatting'
+      suggestion: 'Check syntax and formatting'
     });
   }
 }
@@ -411,12 +414,15 @@ async function lintCode(summary: LintSummary, _options: LintOptions): Promise<vo
 function validateFrameworkConfig(config: ProjectConfig, summary: LintSummary): void {
   const framework = config.framework;
   
+  const configPath = findProjectConfigPath();
+  const cfgFilename = configPath ? path.basename(configPath) : 'project config';
+
   if (framework === 'pytorch' && !config.pythonVersion) {
     addResult(summary, {
       category: 'config',
       severity: 'warning',
       message: 'PyTorch projects should specify Python version',
-      file: 'cirron.json',
+      file: cfgFilename,
       suggestion: 'Add "pythonVersion": "3.8" or appropriate version'
     });
   }
@@ -426,7 +432,7 @@ function validateFrameworkConfig(config: ProjectConfig, summary: LintSummary): v
       category: 'config',
       severity: 'info',
       message: 'Consider specifying GPU requirements for TensorFlow',
-      file: 'cirron.json'
+      file: cfgFilename
     });
   }
 }

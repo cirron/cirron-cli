@@ -8,6 +8,7 @@ import { CirronIgnore } from '../utils/ignore';
 import { executePythonFile, formatExecutionError, executeScript } from '../utils/execution';
 import { createInteractiveManager } from '../utils/interactive';
 import { ModelConfigManager } from '../utils/model-config';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ProjectConfig } from '../types';
 
 interface TestOptions {
@@ -34,15 +35,15 @@ export async function testCommand(options: TestOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron project config found'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const { config: projectConfig } = projectConfigResult;
     
     // Load model configuration
     const modelConfigManager = new ModelConfigManager();
@@ -569,16 +570,33 @@ import pandas as pd
 
 # Determine test data path from configuration
 import json
-config_path = 'cirron.json'
+config_path = None
+for _cfg_name in ['cirron.yaml', 'cirron.yml', 'cirron.json']:
+    if os.path.exists(_cfg_name):
+        config_path = _cfg_name
+        break
+
+_yaml_mod = None
+if config_path and not config_path.endswith('.json'):
+    try:
+        import yaml as _yaml_mod
+    except ImportError:
+        print("Warning: cirron.yaml/yml found but 'pyyaml' is not installed. "
+              "Install it ('pip install pyyaml') or switch to cirron.json.")
+        config_path = None
+
 test_data_path = None
 
 if "${dataPath}":
     test_data_path = "${dataPath}"
 else:
     # Load configuration
-    if os.path.exists(config_path):
+    if config_path and os.path.exists(config_path):
         with open(config_path, 'r') as f:
-            config = json.load(f)
+            if config_path.endswith('.json'):
+                config = json.load(f)
+            else:
+                config = _yaml_mod.safe_load(f)
         
         # Get test data paths from config
         test_config = config.get('test', {})
@@ -640,7 +658,7 @@ else:
 async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): Promise<void> {
   const chokidar = require('chokidar');
   
-  const watcher = chokidar.watch(['src/**/*.py', 'tests/**/*.py', 'cirron.json'], {
+  const watcher = chokidar.watch(['src/**/*.py', 'tests/**/*.py', 'cirron.json', 'cirron.yaml', 'cirron.yml'], {
     ignored: /(^|[/\\])\../,
     persistent: true
   });
@@ -715,12 +733,11 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
   if (!validationPath) {
     // Try to get validation path from configuration
     try {
-      const configPath = path.join(process.cwd(), 'cirron.json');
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        const testConfig = config.test || {};
+      const configResult = loadProjectConfig();
+      if (configResult) {
+        const testConfig = configResult.config.test || {};
         const dataPaths = testConfig.dataPaths || {};
-        
+
         if (dataPaths.validation && fs.existsSync(dataPaths.validation)) {
           validationPath = dataPaths.validation;
         } else if (dataPaths.sample && fs.existsSync(dataPaths.sample)) {
@@ -749,7 +766,7 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
     }
     
     if (!validationPath) {
-      throw new Error('No validation data found. Specify path with -p option or configure in cirron.json');
+      throw new Error('No validation data found. Specify path with -p option or configure in your project config');
     }
   }
 

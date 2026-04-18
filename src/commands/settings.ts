@@ -219,7 +219,7 @@ async function editGlobalSettings(_options: SettingsOptions): Promise<void> {
   
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'category',
       message: 'Which category would you like to edit?',
       choices: [
@@ -263,7 +263,7 @@ async function editProjectSettings(_options: SettingsOptions): Promise<void> {
   
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'category',
       message: 'Which category would you like to edit?',
       choices: [
@@ -300,7 +300,7 @@ async function editGeneralSettings(settings: any, scope: 'global' | 'project'): 
   if (scope === 'global') {
     const answers = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'defaultTemplate',
         message: 'Default project template:',
         default: settings.general.defaultTemplate,
@@ -388,7 +388,7 @@ async function editUISettings(settings: any): Promise<void> {
 async function editDevelopmentSettings(settings: any): Promise<void> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'defaultPythonVersion',
       message: 'Default Python version:',
       default: settings.development.defaultPythonVersion,
@@ -396,7 +396,7 @@ async function editDevelopmentSettings(settings: any): Promise<void> {
       loop: false
     },
     {
-      type: 'list',
+      type: 'select',
       name: 'preferredIDE',
       message: 'Preferred IDE:',
       default: settings.development.preferredIDE,
@@ -439,7 +439,7 @@ async function editCloudSettings(settings: any): Promise<void> {
         default: settings.cloud.defaultRegion
       },
       {
-        type: 'list',
+        type: 'select',
         name: 'preferredProvider',
         message: 'Preferred cloud provider:',
         default: settings.cloud.preferredProvider,
@@ -504,7 +504,7 @@ async function editAPISettings(settings: any): Promise<void> {
 async function editBuildSettings(settings: any): Promise<void> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'defaultArch',
       message: 'Default architecture:',
       default: settings.build.defaultArch,
@@ -574,7 +574,7 @@ async function editTestSettings(settings: any): Promise<void> {
 async function editDeploymentSettings(settings: any): Promise<void> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'defaultEnvironment',
       message: 'Default deployment environment:',
       default: settings.deployment.defaultEnvironment,
@@ -730,7 +730,7 @@ async function interactiveSettings(scope: 'global' | 'project', options: Setting
   
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'action',
       message: `What would you like to do with ${scope} settings?`,
       choices,
@@ -775,7 +775,7 @@ async function interactiveSettings(scope: 'global' | 'project', options: Setting
         const templates = settingsManager.listTemplates();
         const templateAnswers = await inquirer.prompt([
         {
-          type: 'list',
+          type: 'select',
           name: 'template',
           message: 'Select template:',
           choices: templates.map(t => ({ name: `${t.name} - ${t.description}`, value: t.name })),
