@@ -34,7 +34,12 @@ export class ModelConfigManager {
 
     // Fallback to cirron config metadata
     const { loadProjectConfig: loadCirronConfig } = require('./project-config');
-    const cirronResult = loadCirronConfig(this.projectPath);
+    let cirronResult: { config?: { metadata?: unknown } } | null = null;
+    try {
+      cirronResult = loadCirronConfig(this.projectPath);
+    } catch (error) {
+      console.warn('Could not load cirron project config:', error);
+    }
     if (cirronResult?.config?.metadata) {
       try {
         return this.convertMetadataToModelConfig(cirronResult.config.metadata);

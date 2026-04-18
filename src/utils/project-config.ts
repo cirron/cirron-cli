@@ -24,15 +24,20 @@ export interface ProjectConfigResult {
  * Returns null if no config file is found.
  */
 export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
-  const projectDir = dir || process.cwd();
+  const projectDir = path.resolve(dir || process.cwd());
 
   for (const filename of CONFIG_FILES) {
     const configPath = path.join(projectDir, filename);
     if (fs.existsSync(configPath)) {
       const raw = fs.readFileSync(configPath, 'utf8');
       const isYaml = filename.endsWith('.yaml') || filename.endsWith('.yml');
-      const config = isYaml ? (yaml.load(raw) as ProjectConfig) : JSON.parse(raw);
-      return { configPath, filename, config };
+      try {
+        const config = isYaml ? (yaml.load(raw) as ProjectConfig) : JSON.parse(raw);
+        return { configPath, filename, config };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to parse ${filename}: ${msg}`);
+      }
     }
   }
 
@@ -44,7 +49,7 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
  * Returns the path to the first config file found, or null.
  */
 export function findProjectConfigPath(dir?: string): string | null {
-  const projectDir = dir || process.cwd();
+  const projectDir = path.resolve(dir || process.cwd());
 
   for (const filename of CONFIG_FILES) {
     const configPath = path.join(projectDir, filename);
