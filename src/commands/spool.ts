@@ -13,6 +13,10 @@ import { ConfigManager } from '../utils/config';
 import { logger } from '../utils/logger';
 import { CLI_VERSION, USER_AGENT } from '../utils/version';
 
+// TODO allow for the user to conifugre the api path/endpoint for flushing and ingesting to keep the platform agnostic theme. 
+// Also, if the user isn't authenticated and the data doesn't upload anywhere, add a warning and allow the user to flush --force 
+// or something similar to clear out the data without uploading and confirming that they understand it won't be uploaded and will delete
+
 const SPOOL_FILENAME_RE = /^(\d+)-[0-9a-f]+\.json$/;
 const DEFAULT_SPOOL_SUBPATH = path.join('.cirron', 'spool');
 const INGEST_PATH = '/api/traces';
