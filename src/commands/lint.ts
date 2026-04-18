@@ -106,8 +106,8 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     addResult(summary, {
       category: 'config',
       severity: 'error',
-      message: 'Missing project configuration file (cirron.yaml or cirron.json)',
-      file: 'cirron.yaml / cirron.json',
+      message: 'Missing project configuration file',
+      file: 'project configuration',
       fixable: false,
       suggestion: 'Run "cirron init" to create a project configuration'
     });
@@ -414,7 +414,8 @@ async function lintCode(summary: LintSummary, _options: LintOptions): Promise<vo
 function validateFrameworkConfig(config: ProjectConfig, summary: LintSummary): void {
   const framework = config.framework;
   
-  const cfgFilename = findProjectConfigPath() ? path.basename(findProjectConfigPath()!) : 'cirron.json';
+  const configPath = findProjectConfigPath();
+  const cfgFilename = configPath ? path.basename(configPath) : 'project config';
 
   if (framework === 'pytorch' && !config.pythonVersion) {
     addResult(summary, {

@@ -38,7 +38,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
-      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
+      spinner.fail(chalk.red('No cirron project config found'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
@@ -570,12 +570,21 @@ import pandas as pd
 
 # Determine test data path from configuration
 import json
-import yaml as _yaml_mod
 config_path = None
 for _cfg_name in ['cirron.yaml', 'cirron.yml', 'cirron.json']:
     if os.path.exists(_cfg_name):
         config_path = _cfg_name
         break
+
+_yaml_mod = None
+if config_path and not config_path.endswith('.json'):
+    try:
+        import yaml as _yaml_mod
+    except ImportError:
+        print("Warning: cirron.yaml/yml found but 'pyyaml' is not installed. "
+              "Install it ('pip install pyyaml') or switch to cirron.json.")
+        config_path = None
+
 test_data_path = None
 
 if "${dataPath}":

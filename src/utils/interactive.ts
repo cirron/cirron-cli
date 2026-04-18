@@ -119,7 +119,7 @@ export class InteractiveManager {
       promptConfig.default = options.default;
     }
 
-    // Add loop: false for list types to prevent infinite carousel
+    // Add loop: false for select prompts to prevent infinite carousel
     if (options.type === 'select') {
       promptConfig.loop = false;
     }
