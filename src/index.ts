@@ -33,6 +33,11 @@ import {
 import { pushCommand } from './commands/push';
 import { pullCommand } from './commands/pull';
 import { syncCommand } from './commands/sync';
+import {
+  spoolInspectCommand,
+  spoolFlushCommand,
+  spoolClearCommand,
+} from './commands/spool';
 import { logger } from './utils/logger';
 
 const program = new Command();
@@ -532,6 +537,31 @@ envCmd
       process.exit(1);
     }
   });
+
+// Spool command
+const spoolCmd = program
+  .command('spool')
+  .description('Manage local SDK spool (./.cirron/spool/)');
+
+spoolCmd
+  .command('inspect')
+  .description('Show spool file count, size, oldest/newest timestamps')
+  .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--json', 'Output in JSON format')
+  .action(spoolInspectCommand);
+
+spoolCmd
+  .command('flush')
+  .description('Upload spool batches to the platform and delete on success')
+  .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
+  .action(spoolFlushCommand);
+
+spoolCmd
+  .command('clear')
+  .description('Delete all spool files (prompts for confirmation)')
+  .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--force', 'Skip confirmation prompt')
+  .action(spoolClearCommand);
 
 // Parse command line arguments
 program.parse();
