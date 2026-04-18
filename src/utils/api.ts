@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import { createWriteStream, createReadStream } from 'fs';
 import fs from 'fs-extra';
+import { USER_AGENT } from './version';
 import type {
   CirronConfig,
   ApiResponse,
@@ -361,7 +362,7 @@ export class CirronApi {
     // Don't send auth headers to external presigned URLs (S3/GCS) —
     // the presigned URL already contains its own auth credentials
     const headers: Record<string, string> = {
-      'User-Agent': 'cirron-cli/1.0.0',
+      'User-Agent': USER_AGENT,
     };
 
     let attempt = 0;
@@ -573,7 +574,7 @@ export class CirronApi {
     const totalSize = stat.size;
 
     const headers: Record<string, string> = {
-      'User-Agent': 'cirron-cli/1.0.0',
+      'User-Agent': USER_AGENT,
       'Content-Type': 'application/octet-stream',
       'Content-Length': totalSize.toString(),
     };
@@ -655,7 +656,7 @@ export class CirronApi {
     const length = end - start;
 
     const headers: Record<string, string> = {
-      'User-Agent': 'cirron-cli/1.0.0',
+      'User-Agent': USER_AGENT,
       'Content-Type': 'application/octet-stream',
       'Content-Length': length.toString(),
       'Content-Range': `bytes ${start}-${end - 1}/${totalSize}`,
@@ -808,7 +809,7 @@ export class CirronApi {
     const method = options.method || 'GET';
     
     const headers: Record<string, string> = {
-      'User-Agent': 'cirron-cli/1.0.0',
+      'User-Agent': USER_AGENT,
       ...options.headers
     };
 
