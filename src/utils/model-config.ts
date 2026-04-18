@@ -32,16 +32,19 @@ export class ModelConfigManager {
       }
     }
 
-    // Fallback to cirron.json metadata
-    const cirronConfigPath = path.join(this.projectPath, 'cirron.json');
-    if (fs.existsSync(cirronConfigPath)) {
+    // Fallback to cirron config metadata
+    const { loadProjectConfig: loadCirronConfig } = require('./project-config');
+    let cirronResult: { config?: { metadata?: unknown } } | null = null;
+    try {
+      cirronResult = loadCirronConfig(this.projectPath);
+    } catch (error) {
+      console.warn('Could not load cirron project config:', error);
+    }
+    if (cirronResult?.config?.metadata) {
       try {
-        const cirronConfig = JSON.parse(fs.readFileSync(cirronConfigPath, 'utf8'));
-        if (cirronConfig.metadata) {
-          return this.convertMetadataToModelConfig(cirronConfig.metadata);
-        }
+        return this.convertMetadataToModelConfig(cirronResult.config.metadata);
       } catch (error) {
-        console.warn('Could not load cirron.json metadata:', error);
+        console.warn('Could not load cirron config metadata:', error);
       }
     }
 

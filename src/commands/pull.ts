@@ -8,6 +8,7 @@ import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { CirronIgnore } from '../utils/ignore';
+import { loadProjectConfig as loadProjectConfigUtil } from '../utils/project-config';
 import type {
   PullOptions,
   PullArtifactInfo,
@@ -51,17 +52,11 @@ function parseNameTag(nameArg: string): { name: string; tag?: string } {
 }
 
 function loadProjectConfig(): ProjectConfig | null {
-  const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-  if (!fs.existsSync(projectConfigPath)) {
+  const result = loadProjectConfigUtil();
+  if (!result) {
     return null;
   }
-  try {
-    return fs.readJSONSync(projectConfigPath) as ProjectConfig;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    logger.error(`Failed to parse cirron.json: ${msg}`);
-    return null;
-  }
+  return result.config;
 }
 
 function formatSize(bytes: number): string {
@@ -387,7 +382,7 @@ async function pullAll(
 ): Promise<void> {
   const projectConfig = loadProjectConfig();
   if (!projectConfig) {
-    logger.error('No cirron.json found in current directory');
+    logger.error('No cirron config found (cirron.yaml or cirron.json) in current directory');
     logger.info(
       `Run ${chalk.cyan('cirron init')} to initialize a project, or use ${chalk.cyan('cirron pull <resource> <name>')} to pull a specific artifact`
     );

@@ -11,6 +11,7 @@ import { executePythonScript, formatExecutionError } from '../utils/execution';
 import { HardwareDetector } from '../utils/hardware';
 import { createInteractiveManager } from '../utils/interactive';
 import { ModelConfigManager } from '../utils/model-config';
+import { loadProjectConfig } from '../utils/project-config';
 import type { BuildOptions, ProjectConfig, HardwareConfig } from '../types';
 
 interface ValidationResult {
@@ -33,8 +34,8 @@ function categorizeValidationErrors(errors: string[]): ValidationResult {
   for (const error of errors) {
     // Critical errors that always cause build failure
     if (error.includes('Required file missing') ||
-        error.includes('Invalid cirron.json') ||
-        error.includes('No cirron.json found') ||
+        error.includes('Invalid cirron.json') || error.includes('Invalid cirron.yaml') ||
+        error.includes('No cirron config found') || error.includes('No cirron.json found') ||
         error.includes('Project configuration invalid')) {
       critical.push(error);
     } else {
@@ -124,16 +125,16 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
 
   try {
     // Load project configuration
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
       logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
       process.exit(1);
     }
 
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
-    
+    const { config: projectConfig } = projectConfigResult;
+
     // Check if this is an ML project
     const isMLProject = projectConfig.framework && ['pytorch', 'tensorflow', 'sklearn'].includes(projectConfig.framework);
     
@@ -150,10 +151,9 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
     
     // Report failure to API
     try {
-      const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-      if (fs.existsSync(projectConfigPath)) {
-        const projectConfig = await fs.readJSON(projectConfigPath);
-        await reportBuildStatus(projectConfig, options, 'failed', error);
+      const failConfigResult = loadProjectConfig();
+      if (failConfigResult) {
+        await reportBuildStatus(failConfigResult.config, options, 'failed', error);
       }
     } catch (apiError) {
       // Ignore API reporting errors
@@ -216,7 +216,7 @@ async function handleMLBuild(projectConfig: ProjectConfig, options: BuildOptions
     spinner.stop();
     const confirmedArch = await interactive.selectOption({
       message: 'Confirm target architecture',
-      type: 'list',
+      type: 'select',
       choices: [
         { name: `${architecture} (detected)`, value: architecture },
         { name: 'cpu', value: 'cpu' },
@@ -401,11 +401,11 @@ async function handleTraditionalBuild(projectConfig: ProjectConfig, options: Bui
 
   if (!buildConfig) {
     if (options.force) {
-      logger.warn('No build configuration found in cirron.json (continuing with --force)');
+      logger.warn('No build configuration found in project config (continuing with --force)');
       return; // Skip traditional build if no config and force is used
     } else {
       spinner.fail(chalk.red('No build configuration found'));
-      logger.error('Add build configuration to cirron.json');
+      logger.error('Add build configuration to your project config (cirron.yaml or cirron.json)');
       process.exit(1);
     }
   }

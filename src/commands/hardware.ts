@@ -1,14 +1,12 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
 import { logger } from '../utils/logger';
 import { HardwareDetector } from '../utils/hardware';
-import type { 
-  HardwareOptions, 
-  HardwareConfig,
-  ProjectConfig 
+import { findProjectConfigPath, loadProjectConfig, saveProjectConfig } from '../utils/project-config';
+import type {
+  HardwareOptions,
+  HardwareConfig
 } from '../types';
 
 export async function hardwareCommand(options: HardwareOptions): Promise<void> {
@@ -127,7 +125,7 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
       });
     }
     
-    if (fs.existsSync('cirron.json')) {
+    if (findProjectConfigPath()) {
       questions.push({
         type: 'confirm',
         name: 'shouldApplyToProject',
@@ -187,7 +185,7 @@ async function configCommand(options: HardwareOptions): Promise<void> {
   } else {
     const configAnswers = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'configType',
         message: 'How would you like to configure hardware?',
         choices: [
@@ -225,14 +223,14 @@ async function configCommand(options: HardwareOptions): Promise<void> {
   displayConfigSummary(hardwareConfig);
 
   // Ask what to do with the hardware configuration
-  const isProjectDirectory = fs.existsSync('cirron.json');
+  const isProjectDirectory = !!findProjectConfigPath();
   const questions: any[] = [];
 
   if (isProjectDirectory) {
     questions.push({
       type: 'confirm',
       name: 'shouldApplyToProject',
-      message: 'Apply this hardware configuration to current project (cirron.json)?',
+      message: 'Apply this hardware configuration to current project?',
       default: true
     });
   }
@@ -279,7 +277,7 @@ async function configureFromPreset(): Promise<HardwareConfig> {
   
   const { selectedProfile } = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'selectedProfile',
       message: 'Select a hardware profile:',
       choices: profiles.map(profile => ({
@@ -295,7 +293,7 @@ async function configureFromPreset(): Promise<HardwareConfig> {
 async function configureManually(): Promise<HardwareConfig> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'type',
       message: 'Select hardware type:',
       choices: [
@@ -421,7 +419,7 @@ async function listCommand(options: HardwareOptions): Promise<void> {
 async function interactiveCommand(options: HardwareOptions): Promise<void> {
   const answers = await inquirer.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'action',
       message: 'What would you like to do?',
       choices: [
@@ -493,17 +491,21 @@ function displayConfigSummary(config: HardwareConfig): void {
 
 async function applyToProject(hardwareConfig: HardwareConfig): Promise<void> {
   try {
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    const projectConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
-    
+    const projectConfigResult = loadProjectConfig();
+    if (!projectConfigResult) {
+      logger.error('No cirron config found (cirron.yaml or cirron.json)');
+      return;
+    }
+    const { configPath: projectConfigPath, config: projectConfig } = projectConfigResult;
+
     projectConfig.hardware = hardwareConfig;
-    
+
     // Update GPU required flag based on hardware type
     if (hardwareConfig.type === 'cuda' || hardwareConfig.type === 'gpu') {
       projectConfig.gpuRequired = true;
     }
-    
-    await fs.writeJSON(projectConfigPath, projectConfig, { spaces: 2 });
+
+    saveProjectConfig(projectConfigPath, projectConfig);
     logger.info(`${chalk.green('✓')} Hardware configuration applied to project`);
     
   } catch (error) {

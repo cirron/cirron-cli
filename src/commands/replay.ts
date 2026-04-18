@@ -1,11 +1,11 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import fs from 'fs-extra';
-import path from 'path';
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { PlanStorage } from '../utils/plan-storage';
 import { executePythonScript } from '../utils/execution';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ReplayOptions, ProjectConfig } from '../types';
 
 export async function replayCommand(options: ReplayOptions): Promise<void> {
@@ -30,15 +30,15 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
     spinner.text = `Replaying ${plan.command} plan from ${new Date(plan.timestamp).toLocaleString()}`;
     
     // Load current project configuration for comparison
-    const projectConfigPath = path.join(process.cwd(), 'cirron.json');
-    
-    if (!fs.existsSync(projectConfigPath)) {
-      spinner.fail(chalk.red('No cirron.json found in current directory'));
+    const projectConfigResult = loadProjectConfig();
+
+    if (!projectConfigResult) {
+      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json) in current directory'));
       logger.error('Navigate to a Cirron project directory to replay plans');
       process.exit(1);
     }
 
-    const currentConfig: ProjectConfig = await fs.readJSON(projectConfigPath);
+    const currentConfig: ProjectConfig = projectConfigResult.config;
     
     // Validate environment compatibility
     if (options.validate !== false) {

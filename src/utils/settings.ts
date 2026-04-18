@@ -80,8 +80,10 @@ export class SettingsManager {
       return null;
     }
 
-    // Try multiple config file formats
+    // Try multiple config file formats (YAML preferred)
     const configFiles = [
+      'cirron.yaml',
+      'cirron.yml',
       'cirron.json',
       '.cirronrc',
       '.cirronrc.json',
@@ -370,6 +372,8 @@ export class SettingsManager {
     
     while (currentPath !== path.dirname(currentPath)) {
       const configFiles = [
+        'cirron.yaml',
+        'cirron.yml',
         'cirron.json',
         '.cirronrc',
         '.cirronrc.json',
