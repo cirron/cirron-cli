@@ -110,9 +110,8 @@ export async function readSafetensorsInfo(
 
 // Decoded tensor payload — numeric tensors return a numeric typed array
 // (Float32Array etc.). 64-bit int types return BigInt64/BigUint64 arrays.
-// F16/BF16 are returned as Uint16Array; callers that want float values
-// can pass them through `float16ToFloat32` / `bfloat16ToFloat32`.
-export interface SafetensorsTensorData {
+// F16/BF16 are returned as Uint16Array; `tensorPreview` handles the upcast.
+interface SafetensorsTensorData {
   info: SafetensorsTensorInfo;
   values:
     | Float64Array | Float32Array | Uint16Array
@@ -184,7 +183,7 @@ function typedArrayForDtype(
   }
 }
 
-export function float16ToFloat32(h: number): number {
+function float16ToFloat32(h: number): number {
   const s = (h & 0x8000) >> 15;
   const e = (h & 0x7c00) >> 10;
   const f = h & 0x03ff;
@@ -193,7 +192,7 @@ export function float16ToFloat32(h: number): number {
   return (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / 1024);
 }
 
-export function bfloat16ToFloat32(h: number): number {
+function bfloat16ToFloat32(h: number): number {
   // BF16 is the top 16 bits of an F32 — shift into place and reinterpret.
   const buf = new ArrayBuffer(4);
   new Uint32Array(buf)[0] = (h << 16) >>> 0;
@@ -222,22 +221,67 @@ export function tensorPreview(
   return out;
 }
 
-// Check whether a tensor name lives in one of the two well-known blobs
-// the SDK writes per epoch (weights vs gradients — see spool-format.md).
-export function defaultSnapshotBlobs(spanDir: string): {
-  weights: string;
-  gradients: string;
-} {
-  return {
-    weights: `${spanDir}/weights.safetensors`,
-    gradients: `${spanDir}/gradients.safetensors`,
-  };
-}
-
 export function safetensorsFileExists(path: string): boolean {
   try {
     return fs.statSync(path).isFile();
   } catch {
     return false;
+  }
+}
+
+// Write a single-tensor safetensors file by extracting the named tensor
+// from an existing blob. Used by `cirron traces snapshot <span> <tensor>
+// --export <path>` so the user gets only what they asked for instead of
+// the entire span's weights.
+export async function writeSingleTensorSafetensors(
+  sourcePath: string,
+  tensorName: string,
+  destPath: string,
+): Promise<void> {
+  const info = await readSafetensorsInfo(sourcePath);
+  const tensor = info.tensors.find((t) => t.name === tensorName);
+  if (!tensor) {
+    throw new Error(
+      `Tensor "${tensorName}" not found in ${sourcePath}. Available: ${info.tensors
+        .map((t) => t.name)
+        .join(', ')}`,
+    );
+  }
+
+  // New header: tensor gets offsets [0, byteSize).
+  const newHeader: Record<string, unknown> = {
+    [tensorName]: {
+      dtype: tensor.dtype,
+      shape: tensor.shape,
+      data_offsets: [0, tensor.byteSize],
+    },
+  };
+  // Safetensors requires the JSON payload be 8-byte aligned after the
+  // leading uint64. We pad the JSON with spaces to the next 8-byte
+  // boundary to keep readers that rely on alignment happy.
+  let headerJson = JSON.stringify(newHeader);
+  while (headerJson.length % 8 !== 0) headerJson += ' ';
+  const headerBytes = Buffer.from(headerJson, 'utf-8');
+
+  // Read the source tensor bytes.
+  const absoluteStart = 8 + info.headerByteLen + tensor.dataOffsets[0];
+  const tensorBuf = Buffer.alloc(tensor.byteSize);
+  const srcFd = await fsp.open(sourcePath, 'r');
+  try {
+    await srcFd.read(tensorBuf, 0, tensor.byteSize, absoluteStart);
+  } finally {
+    await srcFd.close();
+  }
+
+  const lenBuf = Buffer.alloc(8);
+  lenBuf.writeBigUInt64LE(BigInt(headerBytes.length), 0);
+
+  const destFd = await fsp.open(destPath, 'w');
+  try {
+    await destFd.write(lenBuf);
+    await destFd.write(headerBytes);
+    await destFd.write(tensorBuf);
+  } finally {
+    await destFd.close();
   }
 }
