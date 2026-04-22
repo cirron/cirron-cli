@@ -5,7 +5,7 @@ export interface CirronConfig {
   auth?: {                  // New JWT auth structure
     accessToken: string;
     refreshToken: string;
-    expiresAt: string;
+    expiresAt?: string;
   };
   defaultEnv: string;
   timeout: number;

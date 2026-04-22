@@ -790,10 +790,36 @@ export class CirronApi {
       isFormData?: boolean;
     } = {}
   ): Promise<ApiResponse> {
-    // Ensure token is valid before making request
-    await this.ensureValidToken();
-    
-    return this.requestRaw(endpoint, options);
+    // Use the stored token until the server rejects it.
+    // On 401, refresh once and retry once. No proactive refresh.
+    try {
+      return await this.requestRaw(endpoint, options);
+    } catch (error) {
+      const isUnauthorized = error instanceof Error && error.message.includes('401');
+      if (!isUnauthorized || !this.config.auth?.refreshToken) {
+        throw error;
+      }
+
+      try {
+        const newTokens = await this.refreshToken(this.config.auth.refreshToken);
+        const { ConfigManager } = await import('./config');
+        const configManager = new ConfigManager();
+        const currentConfig = configManager.load();
+        currentConfig.auth = {
+          accessToken: newTokens.access_token,
+          refreshToken: newTokens.refresh_token,
+          ...(newTokens.expires_in
+            ? { expiresAt: new Date(Date.now() + newTokens.expires_in * 1000).toISOString() }
+            : {}),
+        };
+        configManager.save(currentConfig);
+        this.config = currentConfig;
+      } catch {
+        throw error;
+      }
+
+      return this.requestRaw(endpoint, options);
+    }
   }
 
   private async requestRaw(
@@ -862,10 +888,15 @@ export class CirronApi {
 
       } catch (error) {
         lastError = error as Error;
-        
+
         // Don't retry on authentication errors
-        if (error instanceof Error && 
+        if (error instanceof Error &&
             (error.message.includes('401') || error.message.includes('403'))) {
+          throw error;
+        }
+
+        // Don't retry refresh failures — let caller decide (fail fast, no 7s retry storm)
+        if (endpoint === '/api/cli/auth/refresh') {
           throw error;
         }
 
