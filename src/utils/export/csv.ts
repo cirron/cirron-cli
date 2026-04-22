@@ -2,7 +2,8 @@
 //
 // Flat spans-only CSV for quick analysis in Excel/Google Sheets. One row
 // per span; marks are excluded (use Parquet or JSON for full fidelity).
-// Hand-rolled writer — keeps the dependency surface small.
+// Streams rows to a WriteStream so very large spools (millions of spans)
+// don't balloon memory — we only hold one row in a string at a time.
 
 import fs from 'fs-extra';
 import path from 'path';
@@ -46,33 +47,46 @@ export async function exportCsv(
   outputPath: string,
 ): Promise<void> {
   await fs.ensureDir(path.dirname(path.resolve(outputPath)));
-  const lines: string[] = [];
-  lines.push(COLUMNS.join(','));
+  const stream = fs.createWriteStream(outputPath, { encoding: 'utf-8' });
 
-  for (const session of sessions) {
-    for (const span of session.spans.values()) {
-      const duration =
-        span.endNs === null ? null : span.endNs - span.startNs;
-      const row = [
-        cell(session.id),
-        cell(span.id),
-        cell(span.parentId),
-        cell(span.name),
-        cell(span.index),
-        cell(span.startNs),
-        cell(span.endNs),
-        cell(duration),
-        cell(span.cpuNs),
-        cell(span.gpuNs),
-        cell(span.memoryPeakBytes),
-        cell(span.threadId),
-        cell(span.pid),
-        cell(span.rank),
-        cell(JSON.stringify(span.attrs)),
-      ];
-      lines.push(row.join(','));
+  const writeLine = (line: string): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (stream.write(line + '\n')) {
+        resolve();
+      } else {
+        stream.once('drain', resolve);
+        stream.once('error', reject);
+      }
+    });
+
+  try {
+    await writeLine(COLUMNS.join(','));
+    for (const session of sessions) {
+      for (const span of session.spans.values()) {
+        const duration = span.endNs === null ? null : span.endNs - span.startNs;
+        const row = [
+          cell(session.id),
+          cell(span.id),
+          cell(span.parentId),
+          cell(span.name),
+          cell(span.index),
+          cell(span.startNs),
+          cell(span.endNs),
+          cell(duration),
+          cell(span.cpuNs),
+          cell(span.gpuNs),
+          cell(span.memoryPeakBytes),
+          cell(span.threadId),
+          cell(span.pid),
+          cell(span.rank),
+          cell(JSON.stringify(span.attrs)),
+        ];
+        await writeLine(row.join(','));
+      }
     }
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      stream.end((err?: Error | null) => (err ? reject(err) : resolve()));
+    });
   }
-
-  await fs.writeFile(outputPath, lines.join('\n') + '\n', 'utf-8');
 }

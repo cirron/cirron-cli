@@ -112,7 +112,11 @@ function encodeSpan(
         { key: 'kind', value: { stringValue: mark.kind } },
       ],
     })),
-    status: { code: hasError ? 2 : 1 },
+    // Per OTLP: default to UNSET (0); ERROR (2) when the span attr signals
+    // an error. We don't claim OK (1) proactively because the profiler
+    // doesn't model success/failure semantics — letting the backend keep
+    // spans "unset" reflects reality and avoids painting everything green.
+    status: { code: hasError ? 2 : 0 },
   };
   if (span.parentId !== null) {
     result.parentSpanId = toHex(span.parentId, 8);
