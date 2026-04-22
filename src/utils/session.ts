@@ -70,7 +70,7 @@ export interface SpoolSnapshot {
   attrs: Record<string, unknown>;
 }
 
-export interface SpoolBatch {
+interface SpoolBatch {
   schemaVersion: number;
   sdkVersion: string;
   batchId: string;
@@ -97,7 +97,7 @@ export interface Session {
   schemaVersion: number;
 }
 
-export interface LoadOptions {
+interface LoadOptions {
   onError?: 'warn' | 'throw' | 'skip';
 }
 
@@ -256,7 +256,9 @@ function parseBatch(file: SpoolFile, raw: unknown): SpoolBatch | null {
     schemaVersion: toNumberOrNull(obj['schema_version']) ?? 1,
     sdkVersion: typeof obj['sdk_version'] === 'string' ? (obj['sdk_version'] as string) : '',
     batchId: typeof obj['batch_id'] === 'string' ? (obj['batch_id'] as string) : '',
-    createdNs: toBigIntOrZero(obj['created_ns']) || file.createdNs,
+    // `??` rather than `||` so an explicit created_ns:0 (unlikely but
+    // possible in fixtures) doesn't collapse onto the filename timestamp.
+    createdNs: toBigIntOrNull(obj['created_ns']) ?? file.createdNs,
     sourceFile: file.fullPath,
     spans,
     marks,
@@ -264,7 +266,7 @@ function parseBatch(file: SpoolFile, raw: unknown): SpoolBatch | null {
   };
 }
 
-export async function* readBatches(
+async function* readBatches(
   spoolDir: string,
   opts: LoadOptions = {},
 ): AsyncIterable<SpoolBatch> {
@@ -317,15 +319,35 @@ function mergeSpans(a: SpoolSpan, b: SpoolSpan): SpoolSpan {
   return b;
 }
 
-async function snapshotDirSize(dir: string): Promise<number> {
-  if (!(await fs.pathExists(dir))) return 0;
-  let total = 0;
-  const entries = await fs.readdir(dir);
-  for (const entry of entries) {
-    const stat = await fs.stat(path.join(dir, entry));
-    if (stat.isFile()) total += stat.size;
-  }
-  return total;
+// One-shot scan of the snapshots root, returning a map spanId → total bytes.
+// Replaces the earlier per-span awaits that scaled O(spans) with serial disk
+// I/O. Large spools (thousands of epoch spans) were noticeably slow on
+// `traces list` / `view` as a result.
+async function scanSnapshotSizes(snapshotRoot: string): Promise<Map<string, number>> {
+  const sizes = new Map<string, number>();
+  if (!(await fs.pathExists(snapshotRoot))) return sizes;
+  const entries = await fs.readdir(snapshotRoot);
+  await Promise.all(
+    entries.map(async (entry) => {
+      const dir = path.join(snapshotRoot, entry);
+      try {
+        const stat = await fs.stat(dir);
+        if (!stat.isDirectory()) return;
+        const files = await fs.readdir(dir);
+        let total = 0;
+        const fileStats = await Promise.all(
+          files.map((f) => fs.stat(path.join(dir, f)).catch(() => null)),
+        );
+        for (const st of fileStats) {
+          if (st && st.isFile()) total += st.size;
+        }
+        sizes.set(entry, total);
+      } catch {
+        // Ignore unreadable dirs — they surface as 0 bytes, not a crash.
+      }
+    }),
+  );
+  return sizes;
 }
 
 export async function loadSessions(spoolDir: string, opts: LoadOptions = {}): Promise<Session[]> {
@@ -400,6 +422,7 @@ export async function loadSessions(spoolDir: string, opts: LoadOptions = {}): Pr
   }
 
   const snapshotRoot = resolveSnapshotDir(spoolDir);
+  const snapshotSizes = await scanSnapshotSizes(snapshotRoot);
 
   // Build Session objects.
   const sessions: Session[] = [];
@@ -445,9 +468,8 @@ export async function loadSessions(spoolDir: string, opts: LoadOptions = {}): Pr
 
     let totalBytes = 0;
     for (const f of batchFiles) totalBytes += byteAccum.get(f) ?? 0;
-    // Add snapshot dir sizes for spans in this session.
     for (const spanId of sessionSpanIds) {
-      totalBytes += await snapshotDirSize(path.join(snapshotRoot, spanId));
+      totalBytes += snapshotSizes.get(spanId) ?? 0;
     }
 
     sessions.push({

@@ -256,12 +256,16 @@ export async function writeSingleTensorSafetensors(
       data_offsets: [0, tensor.byteSize],
     },
   };
-  // Safetensors requires the JSON payload be 8-byte aligned after the
-  // leading uint64. We pad the JSON with spaces to the next 8-byte
-  // boundary to keep readers that rely on alignment happy.
-  let headerJson = JSON.stringify(newHeader);
-  while (headerJson.length % 8 !== 0) headerJson += ' ';
-  const headerBytes = Buffer.from(headerJson, 'utf-8');
+  // Safetensors requires the JSON payload's UTF-8 byte length to be a
+  // multiple of 8. Pad in BYTES, not JS string length — non-ASCII tensor
+  // names would otherwise produce a misaligned/invalid file (one code
+  // point can be 2–4 UTF-8 bytes).
+  const headerJson = JSON.stringify(newHeader);
+  let headerBytes = Buffer.from(headerJson, 'utf-8');
+  const pad = (8 - (headerBytes.length % 8)) % 8;
+  if (pad !== 0) {
+    headerBytes = Buffer.concat([headerBytes, Buffer.alloc(pad, 0x20)]);
+  }
 
   // Read the source tensor bytes.
   const absoluteStart = 8 + info.headerByteLen + tensor.dataOffsets[0];

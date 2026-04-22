@@ -8,7 +8,7 @@
 // features/sdk-traces-platform-read.md in the platform monorepo).
 
 import path from 'path';
-import chalk from 'chalk';
+import chalk, { Chalk } from 'chalk';
 import fs from 'fs-extra';
 import inquirer from 'inquirer';
 import Table from 'cli-table3';
@@ -656,6 +656,10 @@ export async function tracesSnapshotCommand(
   const span = match.session.spans.get(match.snapshots[0]!.spanId);
   const fullSpanId = match.snapshots[0]!.spanId;
   const useColor = shouldColor(process.stdout, options.noColor);
+  // Scoped chalk so --no-color actually disables ANSI across every code
+  // path in this command (table headers, inline labels, the helper
+  // below). A level=0 Chalk passes strings through untouched.
+  const c = new Chalk({ level: useColor ? 3 : 0 });
 
   // Figure out which safetensors files live under this span.
   const snapshotDir = resolveSnapshotDir(spoolDir);
@@ -676,34 +680,69 @@ export async function tracesSnapshotCommand(
   const targetTensor = tensorNameArg;
 
   if (options.export && !targetTensor) {
-    // Export the whole span dir or a specific blob.
-    const dest = path.resolve(options.export);
-    await fs.ensureDir(dest);
-    for (const blob of candidateBlobs) {
-      const destFile = path.join(dest, path.basename(blob.path));
-      await fs.copy(blob.path, destFile, { overwrite: true });
+    if (candidateBlobs.length === 0) {
+      logger.error(
+        `No safetensors blobs found under ${spanDir}. Nothing to export.`,
+      );
+      process.exitCode = 1;
+      return;
     }
-    logger.success(
-      `Copied ${candidateBlobs.length} safetensors blob${candidateBlobs.length === 1 ? '' : 's'} to ${dest}`,
-    );
+
+    const destInput = path.resolve(options.export);
+    // Decide file vs dir. Priority:
+    //   1. If the path exists on disk, use what's there.
+    //   2. If the path ends in .safetensors, treat as file.
+    //   3. If there's a single blob and the path has no extension, treat
+    //      as file; otherwise treat as a directory.
+    let destIsDir: boolean;
+    try {
+      const stat = await fs.stat(destInput);
+      destIsDir = stat.isDirectory();
+    } catch {
+      if (destInput.toLowerCase().endsWith('.safetensors')) {
+        destIsDir = false;
+      } else if (candidateBlobs.length === 1 && path.extname(destInput) === '') {
+        destIsDir = false;
+      } else {
+        destIsDir = true;
+      }
+    }
+
+    if (destIsDir) {
+      await fs.ensureDir(destInput);
+      for (const blob of candidateBlobs) {
+        const destFile = path.join(destInput, path.basename(blob.path));
+        await fs.copy(blob.path, destFile, { overwrite: true });
+      }
+      logger.success(
+        `Copied ${candidateBlobs.length} safetensors blob${candidateBlobs.length === 1 ? '' : 's'} to ${destInput}`,
+      );
+    } else {
+      if (candidateBlobs.length !== 1) {
+        logger.error(
+          `Destination ${destInput} is a single file but ${candidateBlobs.length} blobs were found (${candidateBlobs.map((b) => b.kind).join(', ')}). Pass a directory, or narrow the selection with --file.`,
+        );
+        process.exitCode = 2;
+        return;
+      }
+      await fs.ensureDir(path.dirname(destInput));
+      await fs.copy(candidateBlobs[0]!.path, destInput, { overwrite: true });
+      logger.success(`Copied ${candidateBlobs[0]!.path} → ${destInput}`);
+    }
     return;
   }
 
   // Render span header
   const headerLines: string[] = [];
-  headerLines.push(
-    `${useColor ? chalk.bold('Span') : 'Span'}     ${fullSpanId}`,
-  );
+  headerLines.push(`${c.bold('Span')}     ${fullSpanId}`);
   if (span) {
     headerLines.push(
-      `${useColor ? chalk.bold('Name') : 'Name'}     ${span.name}${span.index !== null ? `[${span.index}]` : ''}`,
+      `${c.bold('Name')}     ${span.name}${span.index !== null ? `[${span.index}]` : ''}`,
     );
   }
+  headerLines.push(`${c.bold('Session')}  ${match.session.id}`);
   headerLines.push(
-    `${useColor ? chalk.bold('Session') : 'Session'}  ${match.session.id}`,
-  );
-  headerLines.push(
-    `${useColor ? chalk.bold('Records') : 'Records'}  ${match.snapshots.length} snapshot record${match.snapshots.length === 1 ? '' : 's'}`,
+    `${c.bold('Records')}  ${match.snapshots.length} snapshot record${match.snapshots.length === 1 ? '' : 's'}`,
   );
   console.log(headerLines.join('\n'));
 
@@ -713,13 +752,13 @@ export async function tracesSnapshotCommand(
     const display = match.snapshots.slice(0, 40);
     const statsTable = new Table({
       head: [
-        chalk.cyan('TENSOR'),
-        chalk.cyan('DTYPE'),
-        chalk.cyan('SHAPE'),
-        chalk.cyan('MEAN'),
-        chalk.cyan('STD'),
-        chalk.cyan('NORM'),
-        chalk.cyan('MODE'),
+        c.cyan('TENSOR'),
+        c.cyan('DTYPE'),
+        c.cyan('SHAPE'),
+        c.cyan('MEAN'),
+        c.cyan('STD'),
+        c.cyan('NORM'),
+        c.cyan('MODE'),
       ],
       colAligns: ['left', 'left', 'left', 'right', 'right', 'right', 'left'],
     });
@@ -737,7 +776,7 @@ export async function tracesSnapshotCommand(
     console.log('\n' + statsTable.toString());
     if (match.snapshots.length > display.length) {
       logger.info(
-        chalk.gray(
+        c.gray(
           `… ${match.snapshots.length - display.length} more records not shown. Pass a tensor name to focus.`,
         ),
       );
@@ -747,7 +786,7 @@ export async function tracesSnapshotCommand(
     for (const blob of candidateBlobs) {
       try {
         const info = await readSafetensorsInfo(blob.path);
-        await printSafetensorsSummary(blob, info, useColor);
+        await printSafetensorsSummary(blob, info, c);
       } catch (err) {
         logger.warn(
           `Could not read ${blob.path}: ${(err as Error).message}`,
@@ -768,7 +807,7 @@ export async function tracesSnapshotCommand(
   }
 
   console.log(
-    `\n${useColor ? chalk.bold('Tensor') : 'Tensor'}   ${record.tensorName}  ${chalk.gray(`(${record.dtype}, shape=[${record.shape.join(',')}], mode=${record.mode})`)}`,
+    `\n${c.bold('Tensor')}   ${record.tensorName}  ${c.gray(`(${record.dtype}, shape=[${record.shape.join(',')}], mode=${record.mode})`)}`,
   );
 
   const stats = record.stats;
@@ -811,7 +850,7 @@ export async function tracesSnapshotCommand(
   if (blobForTensor) {
     const ti = blobForTensor.info.tensors.find((t) => t.name === record.tensorName)!;
     console.log(
-      `\n${useColor ? chalk.bold('Blob') : 'Blob'}     ${blobForTensor.path}` +
+      `\n${c.bold('Blob')}     ${blobForTensor.path}` +
         `\n  dtype=${ti.dtype} shape=[${ti.shape.join(',')}] bytes=${ti.byteSize}`,
     );
 
@@ -865,18 +904,18 @@ function formatPreviewVal(v: number | bigint): string {
 async function printSafetensorsSummary(
   blob: { kind: string; path: string },
   info: SafetensorsFileInfo,
-  useColor: boolean,
+  c: InstanceType<typeof Chalk>,
 ): Promise<void> {
   const totalBytes = info.tensors.reduce((a, t) => a + t.byteSize, 0);
   console.log(
-    `\n${useColor ? chalk.bold(blob.kind + '.safetensors') : blob.kind + '.safetensors'}  ${chalk.gray(`(${info.tensors.length} tensor${info.tensors.length === 1 ? '' : 's'}, ${humanBytes(totalBytes)}, file=${humanBytes(info.fileSize)})`)}`,
+    `\n${c.bold(blob.kind + '.safetensors')}  ${c.gray(`(${info.tensors.length} tensor${info.tensors.length === 1 ? '' : 's'}, ${humanBytes(totalBytes)}, file=${humanBytes(info.fileSize)})`)}`,
   );
   const table = new Table({
     head: [
-      chalk.cyan('NAME'),
-      chalk.cyan('DTYPE'),
-      chalk.cyan('SHAPE'),
-      chalk.cyan('BYTES'),
+      c.cyan('NAME'),
+      c.cyan('DTYPE'),
+      c.cyan('SHAPE'),
+      c.cyan('BYTES'),
     ],
     colAligns: ['left', 'left', 'left', 'right'],
   });
@@ -892,7 +931,7 @@ async function printSafetensorsSummary(
   console.log(table.toString());
   if (info.tensors.length > display.length) {
     logger.info(
-      chalk.gray(
+      c.gray(
         `… ${info.tensors.length - display.length} more tensors not shown.`,
       ),
     );
