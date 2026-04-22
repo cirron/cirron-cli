@@ -19,10 +19,16 @@ export interface RenderOptions {
   useColor?: boolean;
 }
 
-// Keys that users don't want echoed on every span line.
+// Keys that users don't want echoed on every span line — either internal
+// metadata, or fields we already render explicitly (pid/rank/thread_id)
+// so the SDK redundantly stashing them in attrs doesn't surface twice.
 const NOISY_ATTR_KEYS = new Set<string>([
   'cirron.internal',
   'cirron.scope.parent',
+  'pid',
+  'rank',
+  'thread_id',
+  'tid',
 ]);
 
 export function shouldColor(
@@ -131,8 +137,14 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
 
   const attrsStr = formatAttrs(span.attrs);
   const extras: string[] = [];
-  if (span.pid !== null) extras.push(`pid=${span.pid}`);
-  if (span.rank !== 0) extras.push(`rank=${span.rank}`);
+  // Only the session root carries pid/rank worth rendering — descendants
+  // inherit them, and echoing every line clutters the tree.
+  if (span.parentId === null) {
+    if (span.pid !== null) extras.push(`pid=${span.pid}`);
+    extras.push(`rank=${span.rank}`);
+  } else if (span.rank !== 0) {
+    extras.push(`rank=${span.rank}`);
+  }
   if (attrsStr) extras.push(attrsStr);
   const extrasStr = extras.length ? ' ' + (color ? chalk.gray(extras.join(' ')) : extras.join(' ')) : '';
 
@@ -158,12 +170,20 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
   const nextDepth = depth + 1;
 
   if (nextDepth > ctx.opts.maxDepth && children.length > 0) {
-    const { totalNs, spanCount } = aggregateSubtreeWallNs(ctx.session, spanId);
-    const subCount = spanCount - 1; // exclude self
-    if (subCount > 0) {
+    // Aggregate only the descendant subtrees — the current span's own
+    // duration is already rendered on the line above, so including it
+    // here would double-count and produce a total exceeding the parent.
+    let totalNs = 0n;
+    let spanCount = 0;
+    for (const childId of children) {
+      const r = aggregateSubtreeWallNs(ctx.session, childId);
+      totalNs += r.totalNs;
+      spanCount += r.spanCount;
+    }
+    if (spanCount > 0) {
       const tag = color
-        ? chalk.gray(`(${subCount} spans, collapsed)`)
-        : `(${subCount} spans, collapsed)`;
+        ? chalk.gray(`(${spanCount} spans, collapsed)`)
+        : `(${spanCount} spans, collapsed)`;
       ctx.out.push(
         `${'  '.repeat(depth + 1)}… ${formatDurationNs(totalNs)} ${tag}`,
       );
