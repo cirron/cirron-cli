@@ -38,6 +38,14 @@ import {
   spoolFlushCommand,
   spoolClearCommand,
 } from './commands/spool';
+import {
+  tracesViewCommand,
+  tracesListCommand,
+  tracesExportCommand,
+  tracesClearCommand,
+  tracesSnapshotsCommand,
+  tracesSnapshotCommand,
+} from './commands/traces';
 import { logger } from './utils/logger';
 import { CLI_VERSION } from './utils/version';
 
@@ -563,6 +571,82 @@ spoolCmd
   .option('--dir <path>', 'Override spool directory (default: ./.cirron/spool)')
   .option('--force', 'Skip confirmation prompt')
   .action(spoolClearCommand);
+
+// Traces command group (SDK-51) — semantic view of local spool sessions,
+// plus export to Parquet / OpenTelemetry / CSV / JSON. Reads the same
+// files as `cirron spool` but reconstructs the scope tree and handles
+// snapshot directories. See features/sdk-launch-stories.md SDK-51.
+const tracesCmd = program
+  .command('traces')
+  .description('View and export local trace sessions');
+
+tracesCmd
+  .command('view')
+  .description('Render the scope tree as a text flamegraph')
+  .option('--last <n>', 'Show the N most recent sessions (default: 1)')
+  .option('--name <substr>', 'Filter to spans whose name contains substring')
+  .option('--session <id>', 'Show a specific session by id (prefix match allowed)')
+  .option('--depth <n>', 'Collapse the tree below this depth')
+  .option('--min-wall <dur>', 'Hide spans shorter than duration (e.g. 1ms, 500us)')
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--no-color', 'Disable ANSI color output')
+  .option('--json', 'Emit tree as JSON instead of text')
+  .action(tracesViewCommand);
+
+tracesCmd
+  .command('list')
+  .description('List sessions in the local spool with counts and sizes')
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--json', 'Output in JSON format')
+  .action(tracesListCommand);
+
+tracesCmd
+  .command('export')
+  .description('Export local traces to parquet, otel, csv, or json')
+  .requiredOption('--format <fmt>', 'Output format: parquet | otel | csv | json')
+  .option('--output <path>', 'Output file (or directory for --format parquet)')
+  .option('--session <id>', 'Export a specific session (prefix match allowed)')
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .action(tracesExportCommand);
+
+tracesCmd
+  .command('clear')
+  .description('Delete sessions and their snapshot dirs')
+  .option('--before <iso-date>', 'Delete sessions started before this ISO date')
+  .option('--keep <n>', 'Keep the N most recent (non-live) sessions')
+  .option('--yes', 'Skip confirmation prompt')
+  .option('--no-prune-orphans', 'Do not sweep orphan snapshot directories')
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .action(tracesClearCommand);
+
+tracesCmd
+  .command('snapshots [spanId]')
+  .description('List weight/gradient snapshots grouped by span')
+  .option('--session <id>', 'Scope to a session id (prefix match allowed)')
+  .option('--span <id>', 'Scope to a span id (prefix match allowed)')
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--json', 'Output in JSON format')
+  .action(tracesSnapshotsCommand);
+
+tracesCmd
+  .command('snapshot <spanId> [tensorName]')
+  .description(
+    'Inspect snapshots for a span: stats, histogram, safetensors header, optional tensor preview/export',
+  )
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .option(
+    '--file <path>',
+    'Override which safetensors file to read (default: weights + gradients under the span dir)',
+  )
+  .option('--preview <n>', 'Print the first N values of the selected tensor')
+  .option('--tail <n>', 'Print the last N values of the selected tensor')
+  .option(
+    '--export <path>',
+    'Copy the safetensors blob(s) to this file or directory',
+  )
+  .option('--json', 'Output in JSON format')
+  .option('--no-color', 'Disable ANSI color output')
+  .action(tracesSnapshotCommand);
 
 // Parse command line arguments
 program.parse();

@@ -1,5 +1,4 @@
 // src/commands/spool.ts
-import path from 'path';
 import zlib from 'zlib';
 import chalk from 'chalk';
 import fs from 'fs-extra';
@@ -12,13 +11,18 @@ import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { logger } from '../utils/logger';
 import { CLI_VERSION, USER_AGENT } from '../utils/version';
+import {
+  humanBytes,
+  listSpoolFiles,
+  nsToIso,
+  resolveSpoolDir,
+  type SpoolFile,
+} from '../utils/spool';
 
-// TODO allow for the user to conifugre the api path/endpoint for flushing and ingesting to keep the platform agnostic theme. 
-// Also, if the user isn't authenticated and the data doesn't upload anywhere, add a warning and allow the user to flush --force 
+// TODO allow for the user to conifugre the api path/endpoint for flushing and ingesting to keep the platform agnostic theme.
+// Also, if the user isn't authenticated and the data doesn't upload anywhere, add a warning and allow the user to flush --force
 // or something similar to clear out the data without uploading and confirming that they understand it won't be uploaded and will delete
 
-const SPOOL_FILENAME_RE = /^(\d+)-[0-9a-f]+\.json$/;
-const DEFAULT_SPOOL_SUBPATH = path.join('.cirron', 'spool');
 const INGEST_PATH = '/api/traces';
 const GZIP_MIN_BYTES = 1024;
 
@@ -26,60 +30,6 @@ interface SpoolOptions {
   dir?: string;
   json?: boolean;
   force?: boolean;
-}
-
-interface SpoolFile {
-  name: string;
-  fullPath: string;
-  createdNs: bigint;
-  size: number;
-}
-
-function resolveSpoolDir(dir: string | undefined): string {
-  return path.resolve(dir ?? path.join(process.cwd(), DEFAULT_SPOOL_SUBPATH));
-}
-
-async function listSpoolFiles(spoolDir: string): Promise<SpoolFile[]> {
-  if (!(await fs.pathExists(spoolDir))) {
-    return [];
-  }
-  const entries = await fs.readdir(spoolDir);
-  const files = (
-    await Promise.all(
-      entries.map(async (name): Promise<SpoolFile | null> => {
-        const match = SPOOL_FILENAME_RE.exec(name);
-        if (!match) return null;
-        const fullPath = path.join(spoolDir, name);
-        const stat = await fs.stat(fullPath);
-        if (!stat.isFile()) return null;
-        return {
-          name,
-          fullPath,
-          createdNs: BigInt(match[1]!),
-          size: stat.size,
-        };
-      }),
-    )
-  ).filter((f): f is SpoolFile => f !== null);
-  files.sort((a, b) => (a.createdNs < b.createdNs ? -1 : a.createdNs > b.createdNs ? 1 : 0));
-  return files;
-}
-
-function humanBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(2)} ${units[i]}`;
-}
-
-function nsToIso(ns: bigint): string {
-  const ms = Number(ns / 1_000_000n);
-  return new Date(ms).toISOString();
 }
 
 async function drainResponse(response: Response): Promise<void> {
