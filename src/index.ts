@@ -43,6 +43,8 @@ import {
   tracesListCommand,
   tracesExportCommand,
   tracesClearCommand,
+  tracesSnapshotsCommand,
+  tracesSnapshotCommand,
 } from './commands/traces';
 import { logger } from './utils/logger';
 import { CLI_VERSION } from './utils/version';
@@ -616,6 +618,35 @@ tracesCmd
   .option('--no-prune-orphans', 'Do not sweep orphan snapshot directories')
   .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
   .action(tracesClearCommand);
+
+tracesCmd
+  .command('snapshots')
+  .description('List weight/gradient snapshots grouped by span')
+  .option('--session <id>', 'Scope to a session id (prefix match allowed)')
+  .option('--span <id>', 'Scope to a span id (prefix match allowed)')
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .option('--json', 'Output in JSON format')
+  .action(tracesSnapshotsCommand);
+
+tracesCmd
+  .command('snapshot <spanId> [tensorName]')
+  .description(
+    'Inspect snapshots for a span: stats, histogram, safetensors header, optional tensor preview/export',
+  )
+  .option('--spool <dir>', 'Override spool directory (default: ./.cirron/spool)')
+  .option(
+    '--file <path>',
+    'Override which safetensors file to read (default: weights + gradients under the span dir)',
+  )
+  .option('--preview <n>', 'Print the first N values of the selected tensor')
+  .option('--tail <n>', 'Print the last N values of the selected tensor')
+  .option(
+    '--export <path>',
+    'Copy the safetensors blob(s) to this file or directory',
+  )
+  .option('--json', 'Output in JSON format')
+  .option('--no-color', 'Disable ANSI color output')
+  .action(tracesSnapshotCommand);
 
 // Parse command line arguments
 program.parse();
