@@ -37,6 +37,7 @@ import {
   readSafetensorsTensor,
   safetensorsFileExists,
   tensorPreview,
+  writeSingleTensorSafetensors,
   type SafetensorsFileInfo,
 } from '../utils/safetensors';
 
@@ -523,8 +524,12 @@ function formatStat(v: unknown): string {
 }
 
 export async function tracesSnapshotsCommand(
+  spanArg: string | undefined,
   options: SnapshotsListOptions,
 ): Promise<void> {
+  // Treat a bare positional (`cirron traces snapshots <span>`) as sugar for
+  // `--span <span>` — less surprising than commander's "too many arguments".
+  const spanFilter = options.span ?? spanArg;
   const spoolDir = resolveSpoolDir(options.spool);
   const sessions = await loadSessions(spoolDir);
 
@@ -557,7 +562,7 @@ export async function tracesSnapshotsCommand(
   for (const session of targets) {
     const bySpan = new Map<string, Row>();
     for (const snap of session.snapshots) {
-      if (options.span && !snap.spanId.startsWith(options.span)) continue;
+      if (spanFilter && !snap.spanId.startsWith(spanFilter)) continue;
       let row = bySpan.get(snap.spanId);
       if (!row) {
         const span = session.spans.get(snap.spanId);
@@ -825,10 +830,22 @@ export async function tracesSnapshotCommand(
     }
 
     if (options.export) {
-      const dest = path.resolve(options.export);
+      // Extract just this tensor into a fresh single-tensor safetensors
+      // file, rather than copying the whole blob (which would contain
+      // every tensor for this span).
+      let dest = path.resolve(options.export);
+      try {
+        const stat = await fs.stat(dest);
+        if (stat.isDirectory()) {
+          const safeName = record.tensorName.replace(/[^A-Za-z0-9._-]/g, '_');
+          dest = path.join(dest, `${safeName}.safetensors`);
+        }
+      } catch {
+        // dest doesn't exist yet — treat the path as a file.
+      }
       await fs.ensureDir(path.dirname(dest));
-      await fs.copy(blobForTensor.path, dest, { overwrite: true });
-      logger.success(`Copied ${blobForTensor.path} → ${dest}`);
+      await writeSingleTensorSafetensors(blobForTensor.path, record.tensorName, dest);
+      logger.success(`Wrote single-tensor safetensors to ${dest}`);
     }
   } else if (record.mode !== 'stats') {
     logger.warn(
