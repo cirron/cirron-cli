@@ -25,12 +25,20 @@ import {
   loadSessions,
   spanDurationNs,
   type Session,
+  type SpoolSnapshot,
 } from '../utils/session';
 import { renderSessionTree, shouldColor, type RenderOptions } from '../utils/render';
 import { exportJson } from '../utils/export/json';
 import { exportCsv } from '../utils/export/csv';
 import { exportOtlp } from '../utils/export/otlp';
 import { exportParquet } from '../utils/export/parquet';
+import {
+  readSafetensorsInfo,
+  readSafetensorsTensor,
+  safetensorsFileExists,
+  tensorPreview,
+  type SafetensorsFileInfo,
+} from '../utils/safetensors';
 
 interface ViewOptions {
   last?: string;
@@ -61,6 +69,23 @@ interface ClearOptions {
   yes?: boolean;
   spool?: string;
   pruneOrphans?: boolean;
+}
+
+interface SnapshotsListOptions {
+  session?: string;
+  span?: string;
+  spool?: string;
+  json?: boolean;
+}
+
+interface SnapshotDetailOptions {
+  spool?: string;
+  file?: string; // override blob path (weights vs gradients)
+  preview?: string;
+  tail?: string;
+  export?: string;
+  json?: boolean;
+  noColor?: boolean;
 }
 
 function parseIntArg(s: string | undefined, fallback: number): number {
@@ -441,4 +466,418 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
         : '') +
       `.`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// snapshots (list) + snapshot (detail)
+// ---------------------------------------------------------------------------
+
+const HISTOGRAM_BLOCKS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+function findSession(sessions: Session[], idOrPrefix: string): Session | undefined {
+  return sessions.find((s) => s.id === idOrPrefix || s.id.startsWith(idOrPrefix));
+}
+
+function findSnapshotSpan(
+  sessions: Session[],
+  spanId: string,
+): { session: Session; snapshots: SpoolSnapshot[] } | undefined {
+  for (const session of sessions) {
+    const snaps = session.snapshots.filter(
+      (s) => s.spanId === spanId || s.spanId.startsWith(spanId),
+    );
+    if (snaps.length > 0) return { session, snapshots: snaps };
+  }
+  return undefined;
+}
+
+function renderHistogram(
+  bins: number[],
+  counts: number[],
+  width: number,
+): string {
+  const max = counts.reduce((a, b) => (b > a ? b : a), 0);
+  if (max <= 0) return '(empty)';
+  const bars = counts
+    .map((c) => {
+      const frac = c / max;
+      const idx = Math.min(
+        HISTOGRAM_BLOCKS.length - 1,
+        Math.max(0, Math.round(frac * (HISTOGRAM_BLOCKS.length - 1))),
+      );
+      return HISTOGRAM_BLOCKS[idx];
+    })
+    .join('');
+  const rangeLo = bins[0]?.toExponential(2) ?? '?';
+  const rangeHi = bins[bins.length - 1]?.toExponential(2) ?? '?';
+  void width; // reserved for future wider renderings
+  return `${bars}  [${rangeLo} … ${rangeHi}]  max_bucket=${max}`;
+}
+
+function formatStat(v: unknown): string {
+  if (typeof v !== 'number') return '—';
+  if (!Number.isFinite(v)) return String(v);
+  const abs = Math.abs(v);
+  if (abs !== 0 && (abs < 1e-3 || abs >= 1e6)) return v.toExponential(4);
+  return v.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+export async function tracesSnapshotsCommand(
+  options: SnapshotsListOptions,
+): Promise<void> {
+  const spoolDir = resolveSpoolDir(options.spool);
+  const sessions = await loadSessions(spoolDir);
+
+  if (sessions.length === 0) {
+    noTracesFound();
+    return;
+  }
+
+  let targets = sessions;
+  if (options.session) {
+    const match = findSession(sessions, options.session);
+    if (!match) {
+      logger.error(`No session found matching ${options.session}`);
+      process.exitCode = 1;
+      return;
+    }
+    targets = [match];
+  }
+
+  // Group by span for display. Span name comes from the session's span map.
+  interface Row {
+    sessionId: string;
+    spanId: string;
+    spanName: string;
+    count: number;
+    modes: Set<string>;
+    withBlob: number;
+  }
+  const rows: Row[] = [];
+  for (const session of targets) {
+    const bySpan = new Map<string, Row>();
+    for (const snap of session.snapshots) {
+      if (options.span && !snap.spanId.startsWith(options.span)) continue;
+      let row = bySpan.get(snap.spanId);
+      if (!row) {
+        const span = session.spans.get(snap.spanId);
+        row = {
+          sessionId: session.id,
+          spanId: snap.spanId,
+          spanName: span ? span.name + (span.index !== null ? `[${span.index}]` : '') : '(unknown)',
+          count: 0,
+          modes: new Set(),
+          withBlob: 0,
+        };
+        bySpan.set(snap.spanId, row);
+      }
+      row.count++;
+      row.modes.add(snap.mode);
+      if (snap.blobUri) row.withBlob++;
+    }
+    rows.push(...bySpan.values());
+  }
+
+  if (rows.length === 0) {
+    if (options.json) {
+      logger.json({ dir: spoolDir, snapshots: [] });
+    } else {
+      logger.info(chalk.yellow('No snapshots found.'));
+    }
+    return;
+  }
+
+  if (options.json) {
+    logger.json({
+      dir: spoolDir,
+      snapshots: rows.map((r) => ({
+        session_id: r.sessionId,
+        span_id: r.spanId,
+        span_name: r.spanName,
+        tensor_count: r.count,
+        modes: [...r.modes],
+        with_blob: r.withBlob,
+      })),
+    });
+    return;
+  }
+
+  logger.info(
+    `${chalk.bold('Spool:')} ${spoolDir}  ${chalk.gray(`(${rows.length} span${rows.length === 1 ? '' : 's'} with snapshots)`)}`,
+  );
+  const table = new Table({
+    head: [
+      chalk.cyan('SESSION'),
+      chalk.cyan('SPAN'),
+      chalk.cyan('NAME'),
+      chalk.cyan('TENSORS'),
+      chalk.cyan('MODES'),
+      chalk.cyan('WITH BLOB'),
+    ],
+    colAligns: ['left', 'left', 'left', 'right', 'left', 'right'],
+  });
+  for (const r of rows) {
+    table.push([
+      r.sessionId.slice(0, 8) + '…',
+      r.spanId.slice(0, 8) + '…',
+      r.spanName,
+      String(r.count),
+      [...r.modes].join(','),
+      String(r.withBlob),
+    ]);
+  }
+  console.log(table.toString());
+}
+
+export async function tracesSnapshotCommand(
+  spanIdArg: string,
+  tensorNameArg: string | undefined,
+  options: SnapshotDetailOptions,
+): Promise<void> {
+  const spoolDir = resolveSpoolDir(options.spool);
+  const sessions = await loadSessions(spoolDir);
+  if (sessions.length === 0) {
+    noTracesFound();
+    return;
+  }
+
+  const match = findSnapshotSpan(sessions, spanIdArg);
+  if (!match) {
+    logger.error(`No snapshots found for span ${spanIdArg}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const span = match.session.spans.get(match.snapshots[0]!.spanId);
+  const fullSpanId = match.snapshots[0]!.spanId;
+  const useColor = shouldColor(process.stdout, options.noColor);
+
+  // Figure out which safetensors files live under this span.
+  const snapshotDir = resolveSnapshotDir(spoolDir);
+  const spanDir = path.join(snapshotDir, fullSpanId);
+  const candidateBlobs: { kind: string; path: string }[] = [];
+  if (options.file) {
+    candidateBlobs.push({ kind: path.basename(options.file), path: options.file });
+  } else {
+    for (const fname of ['weights.safetensors', 'gradients.safetensors']) {
+      const full = path.join(spanDir, fname);
+      if (safetensorsFileExists(full)) {
+        candidateBlobs.push({ kind: fname.replace('.safetensors', ''), path: full });
+      }
+    }
+  }
+
+  // If a specific tensor was requested, try to locate it across blobs.
+  const targetTensor = tensorNameArg;
+
+  if (options.export && !targetTensor) {
+    // Export the whole span dir or a specific blob.
+    const dest = path.resolve(options.export);
+    await fs.ensureDir(dest);
+    for (const blob of candidateBlobs) {
+      const destFile = path.join(dest, path.basename(blob.path));
+      await fs.copy(blob.path, destFile, { overwrite: true });
+    }
+    logger.success(
+      `Copied ${candidateBlobs.length} safetensors blob${candidateBlobs.length === 1 ? '' : 's'} to ${dest}`,
+    );
+    return;
+  }
+
+  // Render span header
+  const headerLines: string[] = [];
+  headerLines.push(
+    `${useColor ? chalk.bold('Span') : 'Span'}     ${fullSpanId}`,
+  );
+  if (span) {
+    headerLines.push(
+      `${useColor ? chalk.bold('Name') : 'Name'}     ${span.name}${span.index !== null ? `[${span.index}]` : ''}`,
+    );
+  }
+  headerLines.push(
+    `${useColor ? chalk.bold('Session') : 'Session'}  ${match.session.id}`,
+  );
+  headerLines.push(
+    `${useColor ? chalk.bold('Records') : 'Records'}  ${match.snapshots.length} snapshot record${match.snapshots.length === 1 ? '' : 's'}`,
+  );
+  console.log(headerLines.join('\n'));
+
+  // Stats view: either for a single tensor, or a summary if no tensor named.
+  if (!targetTensor) {
+    // Summary: show per-tensor stats table for the first N (up to 40) records.
+    const display = match.snapshots.slice(0, 40);
+    const statsTable = new Table({
+      head: [
+        chalk.cyan('TENSOR'),
+        chalk.cyan('DTYPE'),
+        chalk.cyan('SHAPE'),
+        chalk.cyan('MEAN'),
+        chalk.cyan('STD'),
+        chalk.cyan('NORM'),
+        chalk.cyan('MODE'),
+      ],
+      colAligns: ['left', 'left', 'left', 'right', 'right', 'right', 'left'],
+    });
+    for (const snap of display) {
+      statsTable.push([
+        snap.tensorName,
+        snap.dtype,
+        `[${snap.shape.join(',')}]`,
+        formatStat(snap.stats?.['mean']),
+        formatStat(snap.stats?.['std']),
+        formatStat(snap.stats?.['norm']),
+        snap.mode,
+      ]);
+    }
+    console.log('\n' + statsTable.toString());
+    if (match.snapshots.length > display.length) {
+      logger.info(
+        chalk.gray(
+          `… ${match.snapshots.length - display.length} more records not shown. Pass a tensor name to focus.`,
+        ),
+      );
+    }
+
+    // Safetensors header listing if blobs exist
+    for (const blob of candidateBlobs) {
+      try {
+        const info = await readSafetensorsInfo(blob.path);
+        await printSafetensorsSummary(blob, info, useColor);
+      } catch (err) {
+        logger.warn(
+          `Could not read ${blob.path}: ${(err as Error).message}`,
+        );
+      }
+    }
+    return;
+  }
+
+  // Targeted tensor view
+  const record = match.snapshots.find((s) => s.tensorName === targetTensor);
+  if (!record) {
+    logger.error(
+      `No snapshot record for tensor "${targetTensor}" on this span.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(
+    `\n${useColor ? chalk.bold('Tensor') : 'Tensor'}   ${record.tensorName}  ${chalk.gray(`(${record.dtype}, shape=[${record.shape.join(',')}], mode=${record.mode})`)}`,
+  );
+
+  const stats = record.stats;
+  if (stats) {
+    const lines = [
+      `  mean = ${formatStat(stats['mean'])}`,
+      `  std  = ${formatStat(stats['std'])}`,
+      `  min  = ${formatStat(stats['min'])}`,
+      `  max  = ${formatStat(stats['max'])}`,
+      `  norm = ${formatStat(stats['norm'])}`,
+    ];
+    console.log(lines.join('\n'));
+
+    const hist = stats['histogram'] as
+      | { bins?: number[]; counts?: number[] }
+      | undefined;
+    if (hist && Array.isArray(hist.bins) && Array.isArray(hist.counts)) {
+      console.log(
+        `\n  histogram: ${renderHistogram(hist.bins, hist.counts, 40)}`,
+      );
+    }
+  } else {
+    console.log('  (no stats recorded)');
+  }
+
+  // Safetensors blob side: locate the tensor in whichever blob holds it.
+  let blobForTensor: { kind: string; info: SafetensorsFileInfo; path: string } | null = null;
+  for (const blob of candidateBlobs) {
+    try {
+      const info = await readSafetensorsInfo(blob.path);
+      if (info.tensors.some((t) => t.name === record.tensorName)) {
+        blobForTensor = { kind: blob.kind, info, path: blob.path };
+        break;
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+
+  if (blobForTensor) {
+    const ti = blobForTensor.info.tensors.find((t) => t.name === record.tensorName)!;
+    console.log(
+      `\n${useColor ? chalk.bold('Blob') : 'Blob'}     ${blobForTensor.path}` +
+        `\n  dtype=${ti.dtype} shape=[${ti.shape.join(',')}] bytes=${ti.byteSize}`,
+    );
+
+    const previewN = options.preview ? parseIntArg(options.preview, 0) : 0;
+    const tailN = options.tail ? parseIntArg(options.tail, 0) : 0;
+    if (previewN > 0 || tailN > 0) {
+      const data = await readSafetensorsTensor(blobForTensor.path, record.tensorName);
+      if (previewN > 0) {
+        const head = tensorPreview(data, previewN, 'head');
+        console.log(`  first ${head.length}: [${head.map(formatPreviewVal).join(', ')}]`);
+      }
+      if (tailN > 0) {
+        const tail = tensorPreview(data, tailN, 'tail');
+        console.log(`  last  ${tail.length}: [${tail.map(formatPreviewVal).join(', ')}]`);
+      }
+    }
+
+    if (options.export) {
+      const dest = path.resolve(options.export);
+      await fs.ensureDir(path.dirname(dest));
+      await fs.copy(blobForTensor.path, dest, { overwrite: true });
+      logger.success(`Copied ${blobForTensor.path} → ${dest}`);
+    }
+  } else if (record.mode !== 'stats') {
+    logger.warn(
+      `Record mode is "${record.mode}" but no local safetensors blob was found under ${spanDir}. The blob may be uploaded to the platform only.`,
+    );
+  }
+}
+
+function formatPreviewVal(v: number | bigint): string {
+  if (typeof v === 'bigint') return v.toString();
+  if (!Number.isFinite(v)) return String(v);
+  const abs = Math.abs(v);
+  if (abs !== 0 && (abs < 1e-3 || abs >= 1e4)) return v.toExponential(3);
+  return v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+async function printSafetensorsSummary(
+  blob: { kind: string; path: string },
+  info: SafetensorsFileInfo,
+  useColor: boolean,
+): Promise<void> {
+  const totalBytes = info.tensors.reduce((a, t) => a + t.byteSize, 0);
+  console.log(
+    `\n${useColor ? chalk.bold(blob.kind + '.safetensors') : blob.kind + '.safetensors'}  ${chalk.gray(`(${info.tensors.length} tensor${info.tensors.length === 1 ? '' : 's'}, ${humanBytes(totalBytes)}, file=${humanBytes(info.fileSize)})`)}`,
+  );
+  const table = new Table({
+    head: [
+      chalk.cyan('NAME'),
+      chalk.cyan('DTYPE'),
+      chalk.cyan('SHAPE'),
+      chalk.cyan('BYTES'),
+    ],
+    colAligns: ['left', 'left', 'left', 'right'],
+  });
+  const display = info.tensors.slice(0, 25);
+  for (const t of display) {
+    table.push([
+      t.name,
+      t.dtype,
+      `[${t.shape.join(',')}]`,
+      humanBytes(t.byteSize),
+    ]);
+  }
+  console.log(table.toString());
+  if (info.tensors.length > display.length) {
+    logger.info(
+      chalk.gray(
+        `… ${info.tensors.length - display.length} more tensors not shown.`,
+      ),
+    );
+  }
 }
