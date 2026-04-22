@@ -26,7 +26,7 @@ import {
   spanDurationNs,
   type Session,
 } from '../utils/session';
-import { renderSessionTree, shouldColor } from '../utils/render';
+import { renderSessionTree, shouldColor, type RenderOptions } from '../utils/render';
 import { exportJson } from '../utils/export/json';
 import { exportCsv } from '../utils/export/csv';
 import { exportOtlp } from '../utils/export/otlp';
@@ -127,7 +127,7 @@ export async function tracesViewCommand(options: ViewOptions): Promise<void> {
     return;
   }
 
-  const renderOpts: import('../utils/render').RenderOptions = {
+  const renderOpts: RenderOptions = {
     maxDepth,
     minWallNs,
     useColor,
