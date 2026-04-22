@@ -620,7 +620,7 @@ tracesCmd
   .action(tracesClearCommand);
 
 tracesCmd
-  .command('snapshots')
+  .command('snapshots [spanId]')
   .description('List weight/gradient snapshots grouped by span')
   .option('--session <id>', 'Scope to a session id (prefix match allowed)')
   .option('--span <id>', 'Scope to a span id (prefix match allowed)')
