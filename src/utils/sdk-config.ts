@@ -115,7 +115,7 @@ interface TomlLayer {
   found: boolean;
 }
 
-export function readHomeConfigToml(homedir: string = os.homedir()): TomlLayer {
+function readHomeConfigToml(homedir: string = os.homedir()): TomlLayer {
   const cfgPath = path.join(homedir, '.cirron', 'config.toml');
   const layer: TomlLayer = { values: {}, path: cfgPath, found: false };
   if (!fs.existsSync(cfgPath)) return layer;

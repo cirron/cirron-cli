@@ -56,7 +56,7 @@ export function findInstalledPackage(
  * Parse a METADATA file's header block (RFC 822). Stops at the first blank
  * line — everything after is the long description.
  */
-export function readMetadata(metadataPath: string): InstalledPackage | null {
+function readMetadata(metadataPath: string): InstalledPackage | null {
   let text: string;
   try {
     text = fs.readFileSync(metadataPath, 'utf8');
@@ -111,7 +111,7 @@ function parseRequiresDist(line: string): RequiresDistEntry {
 }
 
 /** Grab just the project-name token from a PEP 508 requirement string. */
-export function extractDistName(requirement: string): string {
+function extractDistName(requirement: string): string {
   const trimmed = requirement.trim();
   const match = trimmed.match(/^([A-Za-z0-9][A-Za-z0-9._-]*)/);
   return match?.[1] ?? trimmed;
