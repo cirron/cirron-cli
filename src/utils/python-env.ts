@@ -76,7 +76,7 @@ export function discoverPythonEnv(
  *   POSIX  : {root}/lib/pythonX.Y/site-packages
  *   Windows: {root}/Lib/site-packages
  */
-export function resolveSitePackages(root: string): string | null {
+function resolveSitePackages(root: string): string | null {
   if (!fs.existsSync(root)) return null;
 
   if (os.platform() === 'win32') {
@@ -107,7 +107,7 @@ interface PyvenvCfg {
 }
 
 /** Parse pyvenv.cfg at the root of a venv. */
-export function readPyvenvCfg(root: string): PyvenvCfg {
+function readPyvenvCfg(root: string): PyvenvCfg {
   const cfgPath = path.join(root, 'pyvenv.cfg');
   const result: PyvenvCfg = { version: null, executable: null };
   if (!fs.existsSync(cfgPath)) return result;

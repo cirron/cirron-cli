@@ -8,8 +8,6 @@
  * bottom so newer SDK extras keep rendering with an older CLI.
  */
 
-import type { RequiresDistEntry } from '../utils/dist-info';
-
 export type Section =
   | 'core'
   | 'core_optional'
@@ -18,14 +16,14 @@ export type Section =
   | 'snapshots'
   | 'other';
 
-export interface ExtraDisplay {
+interface ExtraDisplay {
   section: Section;
   /** Short note rendered in the right-hand column when installed. */
   installedNote?: string;
 }
 
 /** Per-extras-group display metadata. Keys match pyproject extras names. */
-export const EXTRA_DISPLAY: Record<string, ExtraDisplay> = {
+const EXTRA_DISPLAY: Record<string, ExtraDisplay> = {
   dotenv: { section: 'core_optional', installedNote: '.env file support' },
 
   torch: { section: 'frameworks', installedNote: 'hooks available' },
@@ -50,7 +48,7 @@ export const EXTRA_DISPLAY: Record<string, ExtraDisplay> = {
  * dist name. Used when an extras group bundles more than one dist and we
  * want a friendly note on a specific one (e.g. "datasets" inside [hf]).
  */
-export const DIST_DISPLAY: Record<string, { installedNote?: string }> = {
+const DIST_DISPLAY: Record<string, { installedNote?: string }> = {
   pandas: { installedNote: 'default ci.load() backend' },
   datasets: { installedNote: 'HuggingFace datasets' },
   safetensors: { installedNote: 'sampled/full snapshot capture' },
@@ -107,4 +105,3 @@ export function noteForPackage(
   return undefined;
 }
 
-export type { RequiresDistEntry };
