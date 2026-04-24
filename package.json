@@ -48,11 +48,12 @@
     "LICENSE"
   ],
   "dependencies": {
+    "@dsnp/parquetjs": "^1.8.7",
+    "@iarna/toml": "^2.2.5",
     "@types/form-data": "^2.5.2",
     "@types/js-yaml": "^4.0.9",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "@dsnp/parquetjs": "^1.8.7",
     "chalk": "^5.6.2",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
@@ -68,6 +69,7 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
+    "@types/iarna__toml": "^2.0.5",
     "@types/inquirer": "^9.0.9",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.10.1",

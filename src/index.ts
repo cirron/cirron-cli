@@ -12,6 +12,7 @@ import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
 import { hardwareCommand } from './commands/hardware';
 import { diagnosticsCommand } from './commands/diagnostics';
+import { doctorCommand } from './commands/doctor';
 import { listCommand } from './commands/list';
 import {
   planCompileCommand,
@@ -84,7 +85,7 @@ authCmd
   .command('login')
   .description('Login to Cirron')
   .option('-t, --token <token>', 'API token')
-  .option('-u, --url <url>', 'API URL (default: https://api.cirron.com)')
+  .option('-u, --url <url>', 'API URL (default: https://app.cirron.com)')
   .action(loginCommand);
 
 authCmd
@@ -248,6 +249,16 @@ program
     }
     return infoCommand(options);
   });
+
+// Doctor command
+program
+  .command('doctor')
+  .description('Diagnose the local Cirron SDK environment: installed extras, config, spool, platform connectivity')
+  .option('--json', 'Output diagnostic report as JSON')
+  .option('--venv <path>', 'Override the Python environment to inspect')
+  .option('--no-color', 'Disable colored output')
+  .option('--strict', 'Exit non-zero when no Python environment is detected')
+  .action((options) => doctorCommand({ ...options, noColor: options.color === false }));
 
 // Lint command
 program
