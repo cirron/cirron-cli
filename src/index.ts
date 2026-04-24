@@ -12,6 +12,7 @@ import { infoCommand } from './commands/info';
 import { lintCommand } from './commands/lint';
 import { hardwareCommand } from './commands/hardware';
 import { diagnosticsCommand } from './commands/diagnostics';
+import { doctorCommand } from './commands/doctor';
 import { listCommand } from './commands/list';
 import {
   planCompileCommand,
@@ -248,6 +249,16 @@ program
     }
     return infoCommand(options);
   });
+
+// Doctor command
+program
+  .command('doctor')
+  .description('Diagnose the local Cirron SDK environment: installed extras, config, spool, platform connectivity')
+  .option('--json', 'Output diagnostic report as JSON')
+  .option('--venv <path>', 'Override the Python environment to inspect')
+  .option('--no-color', 'Disable colored output')
+  .option('--strict', 'Exit non-zero when no Python environment is detected')
+  .action(doctorCommand);
 
 // Lint command
 program
