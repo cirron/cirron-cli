@@ -6,6 +6,8 @@ import fetch from 'node-fetch';
 
 import { CLI_VERSION } from '../utils/version';
 import { logger } from '../utils/logger';
+import { ConfigManager } from '../utils/config';
+import type { CirronConfig } from '../types';
 import {
   discoverPythonEnv,
   type PythonEnv,
@@ -36,6 +38,9 @@ import { HardwareDetector } from '../utils/hardware';
 
 const CIRRON_YAML_NAMES = ['cirron.yaml', 'cirron.yml', 'cirron.json'];
 const HEALTH_TIMEOUT_MS = 3000;
+// Meta-extras that re-aggregate other groups in pyproject.toml — skipping
+// them avoids duplicating every package under "Other extras".
+const META_EXTRAS = new Set(['all', 'sql']);
 
 interface DoctorOptions {
   json?: boolean;
@@ -57,7 +62,9 @@ interface DepRow {
 interface PlatformReport {
   configured: boolean;
   endpoint: string;
+  endpointSource: 'cli' | 'sdk';
   workspaceId: string | null;
+  authSource: 'cli' | 'sdk' | 'env' | 'api' | null;
   reachable: boolean | null;
   latencyMs: number | null;
   status: string | null;
@@ -77,8 +84,11 @@ interface SpoolReport {
 }
 
 interface LocalReport {
-  configTomlPath: string;
-  configTomlFound: boolean;
+  cliConfigPath: string;
+  cliConfigFound: boolean;
+  cliAuthenticated: boolean;
+  sdkConfigTomlPath: string;
+  sdkConfigTomlFound: boolean;
   cirronYamlPath: string | null;
   dotenvPath: string | null;
 }
@@ -142,6 +152,9 @@ async function collect(options: DoctorOptions): Promise<DoctorReport> {
   const env = discoverPythonEnv(options.venv, cwd);
 
   const sdkConfig = resolveSdkConfig();
+  const cliConfigManager = new ConfigManager();
+  const cliConfig = cliConfigManager.load();
+  const cliConfigFound = cliConfigManager.exists();
 
   const pythonEnvInfo = buildPythonEnvInfo(env);
   const sdkPkg = env.root ? findInstalledPackage(env.sitePackages, 'cirron-sdk') : null;
@@ -151,9 +164,9 @@ async function collect(options: DoctorOptions): Promise<DoctorReport> {
     : buildDepRowsWithoutSdk(env);
 
   const spool = buildSpoolReport(sdkConfig.outputDir.value, cwd);
-  const local = buildLocalReport(sdkConfig, cwd);
+  const local = buildLocalReport(sdkConfig, cliConfigManager, cliConfigFound, cliConfig, cwd);
   const gpu = await detectGpu();
-  const platformApi = await probePlatform(sdkConfig);
+  const platformApi = await probePlatform(sdkConfig, cliConfig, cliConfigFound);
 
   const exitCode = determineExitCode({
     envMissing: env.root === null,
@@ -225,7 +238,13 @@ function buildDepRowsFromSdk(
   rowsBySection.core.push(sdkRow);
 
   const unknownExtras = new Set<string>();
+  const seen = new Set<string>();
   for (const req of reqs) {
+    // Skip meta-extras that re-aggregate other groups (would duplicate rows).
+    if (req.extra !== null && META_EXTRAS.has(req.extra)) continue;
+    const key = `${req.extra ?? '-'}::${normalizeDistName(req.distName)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     const installed = findInstalledPackage(env.sitePackages, req.distName);
     const row = makeRow(req, installed);
     rowsBySection[row.section].push(row);
@@ -341,15 +360,32 @@ function buildSpoolReport(outputDir: string, cwd: string): SpoolReport {
   return report;
 }
 
-function buildLocalReport(cfg: ResolvedSdkConfig, cwd: string): LocalReport {
+function buildLocalReport(
+  cfg: ResolvedSdkConfig,
+  cliMgr: ConfigManager,
+  cliConfigFound: boolean,
+  cliConfig: CirronConfig,
+  cwd: string,
+): LocalReport {
   const cirronYamlPath = findUpwards(cwd, CIRRON_YAML_NAMES);
   const dotenvPath = fs.existsSync(path.join(cwd, '.env')) ? path.join(cwd, '.env') : null;
   return {
-    configTomlPath: cfg.configTomlPath,
-    configTomlFound: cfg.configTomlFound,
+    cliConfigPath: cliMgr.getConfigPath(),
+    cliConfigFound,
+    cliAuthenticated: cliHasAuth(cliConfig),
+    sdkConfigTomlPath: cfg.configTomlPath,
+    sdkConfigTomlFound: cfg.configTomlFound,
     cirronYamlPath,
     dotenvPath,
   };
+}
+
+function cliHasAuth(cfg: CirronConfig): boolean {
+  return Boolean(cfg.auth?.accessToken);
+}
+
+function cliAuthHeader(cfg: CirronConfig): string | null {
+  return cfg.auth?.accessToken ? `Bearer ${cfg.auth.accessToken}` : null;
 }
 
 function findUpwards(start: string, names: string[]): string | null {
@@ -371,27 +407,50 @@ async function detectGpu(): Promise<GpuReport> {
     if (!gpu) {
       return { available: false, vendor: null, model: null, memory: null, detail: null };
     }
+    const model = gpu.model && gpu.model !== 'Unknown' ? gpu.model : null;
+    const memory = gpu.memory && gpu.memory !== 'Unknown' ? gpu.memory : null;
     return {
-      available: true,
+      available: Boolean(model || memory),
       vendor: null,
-      model: gpu.model ?? null,
-      memory: gpu.memory ?? null,
-      detail: [gpu.model, gpu.memory].filter(Boolean).join(' ') || null,
+      model,
+      memory,
+      detail: [model, memory].filter(Boolean).join(' ') || null,
     };
   } catch {
     return { available: false, vendor: null, model: null, memory: null, detail: null };
   }
 }
 
-async function probePlatform(cfg: ResolvedSdkConfig): Promise<PlatformReport> {
-  const endpoint = cfg.apiEndpoint.value;
+async function probePlatform(
+  cfg: ResolvedSdkConfig,
+  cliConfig: CirronConfig,
+  cliConfigFound: boolean,
+): Promise<PlatformReport> {
+  // The CLI's ~/.cirron/config.json is the source of truth for auth
+  // when `cirron auth login` has been run; the SDK's ~/.cirron/config.toml
+  // is a separate layer for the Python SDK. Prefer the CLI config here so
+  // `cirron doctor` reflects what `cirron auth status` reports.
+  const cliAuthed = cliConfigFound && cliHasAuth(cliConfig);
+  const endpoint = cliAuthed ? cliConfig.apiUrl : cfg.apiEndpoint.value;
+  const endpointSource: 'cli' | 'sdk' = cliAuthed ? 'cli' : 'sdk';
   const workspaceId = cfg.workspaceId.value;
+  const authSource: PlatformReport['authSource'] = cliConfig.auth?.accessToken
+    ? 'cli'
+    : cfg.apiKeyConfigured.source === 'env'
+      ? 'env'
+      : cfg.apiKeyConfigured.source === 'config.toml'
+        ? 'sdk'
+        : cfg.apiKeyConfigured.value
+          ? 'api'
+          : null;
 
-  if (!cfg.apiKeyConfigured.value) {
+  if (!cliAuthed && !cfg.apiKeyConfigured.value) {
     return {
       configured: false,
       endpoint,
+      endpointSource,
       workspaceId,
+      authSource: null,
       reachable: null,
       latencyMs: null,
       status: null,
@@ -405,9 +464,12 @@ async function probePlatform(cfg: ResolvedSdkConfig): Promise<PlatformReport> {
   const start = performance.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+  const headers: Record<string, string> = {};
+  const bearer = cliAuthHeader(cliConfig);
+  if (bearer) headers['Authorization'] = bearer;
 
   try {
-    const resp = await fetch(url, { method: 'GET', signal: controller.signal as AbortSignal });
+    const resp = await fetch(url, { method: 'GET', headers, signal: controller.signal as AbortSignal });
     const latency = Math.round(performance.now() - start);
     let body: { status?: string; version?: string } = {};
     try {
@@ -420,7 +482,9 @@ async function probePlatform(cfg: ResolvedSdkConfig): Promise<PlatformReport> {
     return {
       configured: true,
       endpoint,
+      endpointSource,
       workspaceId,
+      authSource,
       reachable,
       latencyMs: latency,
       status: statusStr,
@@ -434,7 +498,9 @@ async function probePlatform(cfg: ResolvedSdkConfig): Promise<PlatformReport> {
     return {
       configured: true,
       endpoint,
+      endpointSource,
       workspaceId,
+      authSource,
       reachable: false,
       latencyMs: latency,
       status: null,
@@ -589,7 +655,12 @@ function renderDepRow(row: DepRow, nameWidth: number): void {
 
 function renderPlatformSection(report: DoctorReport): void {
   console.log(chalk.cyan('Platform:'));
-  console.log(`  Endpoint         ${report.platformApi.endpoint}`);
+  const endpointTag = chalk.gray(
+    report.platformApi.endpointSource === 'cli'
+      ? '(from ~/.cirron/config.json)'
+      : '(from SDK config)',
+  );
+  console.log(`  Endpoint         ${report.platformApi.endpoint} ${endpointTag}`);
   if (!report.platformApi.configured) {
     console.log(`  Authentication   ${statusGlyph('warn')} ${report.platformApi.message}`);
     console.log();
@@ -598,9 +669,20 @@ function renderPlatformSection(report: DoctorReport): void {
   const glyph = report.platformApi.reachable && report.platformApi.status !== 'unhealthy'
     ? statusGlyph('ok')
     : statusGlyph('missing');
-  console.log(
-    `  Workspace        ${report.platformApi.workspaceId ?? chalk.gray('(not set)')}`,
-  );
+  const authLabel =
+    report.platformApi.authSource === 'cli'
+      ? 'CLI'
+      : report.platformApi.authSource === 'sdk'
+        ? 'SDK'
+        : report.platformApi.authSource === 'env'
+          ? 'Environment'
+          : report.platformApi.authSource === 'api'
+            ? 'API key'
+            : 'unknown';
+  console.log(`  Authentication   ${statusGlyph('ok')}  ${authLabel}`);
+  if (report.platformApi.workspaceId) {
+    console.log(`  Workspace        ${report.platformApi.workspaceId}`);
+  }
   console.log(`  Connection       ${glyph}  ${report.platformApi.message}`);
   if (report.platformApi.platformVersion) {
     console.log(chalk.gray(`  Platform version ${report.platformApi.platformVersion}`));
@@ -611,11 +693,16 @@ function renderPlatformSection(report: DoctorReport): void {
 function renderLocalSection(report: DoctorReport): void {
   console.log(chalk.cyan('Local:'));
   const cfg = report.sdkConfig;
-  console.log(
-    `  Config           ${report.local.configTomlPath} ${
-      report.local.configTomlFound ? chalk.gray('(found)') : chalk.gray('(not found)')
-    }`,
-  );
+  const cliTag = report.local.cliAuthenticated
+    ? chalk.gray('(authenticated)')
+    : report.local.cliConfigFound
+      ? chalk.gray('(not authenticated)')
+      : chalk.gray('(not found)');
+  console.log(`  CLI config       ${report.local.cliConfigPath} ${cliTag}`);
+  const sdkTag = report.local.sdkConfigTomlFound
+    ? chalk.gray('(found)')
+    : chalk.gray('(not found)');
+  console.log(`  SDK config       ${report.local.sdkConfigTomlPath} ${sdkTag}`);
   if (report.local.cirronYamlPath) {
     console.log(`  Project config   ${report.local.cirronYamlPath}`);
   }
@@ -660,14 +747,14 @@ function renderSummary(report: DoctorReport): void {
       console.log(chalk.green('Environment looks good.'));
     }
   } else {
-    if (!report.sdk.installed && report.pythonEnv.found) {
+    if (!report.pythonEnv.found) {
+      logger.error('No Python environment detected (--strict).');
+    } else if (!report.sdk.installed) {
       logger.error("cirron-sdk is not installed in the target environment. Run: pip install 'cirron-sdk'");
     } else if (report.deps.missingCore.length > 0) {
       logger.error(`Missing core dependencies: ${report.deps.missingCore.join(', ')}`);
     } else if (report.platformApi.configured && report.platformApi.reachable === false) {
       logger.error(`Platform unreachable at ${report.platformApi.endpoint}: ${report.platformApi.error ?? 'unknown error'}`);
-    } else if (!report.pythonEnv.found) {
-      logger.error('No Python environment detected (--strict).');
     }
   }
   if (report.deps.unknownExtras.length > 0) {
