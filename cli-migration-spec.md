@@ -695,7 +695,7 @@ Key implementation details:
 
 *Pages updated (docs-vs-CLI audit fixes):*
 - `commands/env.mdx` — Fixed colon syntax (`env:list` → `env list`, `env:set` → `env set`, `env:delete` → `env delete`), fixed `cirron.config.json` → `cirron.json`
-- `commands/auth.mdx` — Added `refresh` subcommand section, fixed `--url` default to `https://api.cirron.com`
+- `commands/auth.mdx` — Added `refresh` subcommand section, fixed `--url` default to `https://app.cirron.com`
 - `commands/test.mdx` — Added `--json`, `--strict`, `-i, --interactive` to options table; added short forms `-w`, `-v`, `-p`, `-e`
 - `commands/build.mdx` — Added `--strict`, `-f, --force`, `-i, --interactive`; removed phantom `-i` short form on `--index`
 - `commands/compile.mdx` — Added `-i, --interactive`; removed phantom short forms (`-v`, `-s`, `-i`) and phantom `--verbose` flag

@@ -84,7 +84,7 @@ authCmd
   .command('login')
   .description('Login to Cirron')
   .option('-t, --token <token>', 'API token')
-  .option('-u, --url <url>', 'API URL (default: https://api.cirron.com)')
+  .option('-u, --url <url>', 'API URL (default: https://app.cirron.com)')
   .action(loginCommand);
 
 authCmd

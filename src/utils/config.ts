@@ -11,7 +11,7 @@ export class ConfigManager {
   constructor() {
     this.configPath = path.join(os.homedir(), '.cirron', 'config.json');
     this.defaultConfig = {
-      apiUrl: 'https://api.cirron.com',
+      apiUrl: 'https://app.cirron.com',
       defaultEnv: 'production',
       timeout: 30000,
       retries: 3

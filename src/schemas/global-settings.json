@@ -122,7 +122,7 @@
         "url": {
           "type": "string",
           "format": "uri",
-          "default": "https://api.cirron.com",
+          "default": "https://app.cirron.com",
           "description": "Cirron API base URL"
         },
         "timeout": {
