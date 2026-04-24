@@ -258,7 +258,7 @@ program
   .option('--venv <path>', 'Override the Python environment to inspect')
   .option('--no-color', 'Disable colored output')
   .option('--strict', 'Exit non-zero when no Python environment is detected')
-  .action(doctorCommand);
+  .action((options) => doctorCommand({ ...options, noColor: options.color === false }));
 
 // Lint command
 program

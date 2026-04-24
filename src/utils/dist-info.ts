@@ -71,10 +71,11 @@ function readMetadata(metadataPath: string): InstalledPackage | null {
 }
 
 /**
- * Parse all `Requires-Dist:` lines from a METADATA file, splitting off the
- * `; extra == "group"` marker when present. Other markers
- * (`python_version`, `sys_platform`, etc.) are preserved inside the
- * requirement string but do not flag an extras group.
+ * Parse all `Requires-Dist:` lines from a METADATA file. Any marker after
+ * the first `;` is dropped from the `requirement` field; if the marker is
+ * `extra == "group"`, that group name is captured in `extra`. Other PEP 508
+ * markers (`python_version`, `sys_platform`, etc.) are discarded because
+ * doctor only consumes `distName` + `extra` — the version spec isn't used.
  */
 export function readRequiresDist(metadataPath: string): RequiresDistEntry[] {
   let text: string;
