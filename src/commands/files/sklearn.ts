@@ -4,13 +4,13 @@ import getModelCode from './models';
 import getDataLoaderCode from './data';
 
 export async function createSklearnFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
-    const requirements = `scikit-learn>=1.3.0
-numpy>=1.21.0,<1.26.0
-pandas>=1.5.0
-matplotlib>=3.5.0
-seaborn>=0.11.0
-joblib>=1.2.0
-scipy>=1.4.1,<1.12.0
+    const requirements = `scikit-learn>=1.5.0
+numpy>=2.1.0
+pandas>=2.2.0
+matplotlib>=3.9.0
+seaborn>=0.13.0
+joblib>=1.4.0
+scipy>=1.14.0
 `;
   
     await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
@@ -59,11 +59,11 @@ metadata:
     - "ensemble"
 
 dependencies:
-  python: ">=3.8"
+  python: ">=3.11"
   packages:
-    scikit-learn: ">=1.3.0"
-    numpy: ">=1.21.0"
-    pandas: ">=1.5.0"
+    scikit-learn: ">=1.5.0"
+    numpy: ">=2.1.0"
+    pandas: ">=2.2.0"
 `;
 
     await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);

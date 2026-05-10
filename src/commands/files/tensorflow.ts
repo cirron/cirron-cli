@@ -4,12 +4,12 @@ import getModelCode from './models';
 import getDataLoaderCode from './data';
 
 export async function createTensorFlowFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
-  const requirements = `tensorflow>=2.12.0
-numpy>=1.21.0
-scikit-learn>=1.3.0
-matplotlib>=3.5.0
-Pillow>=9.0.0
-requests>=2.28.0
+  const requirements = `tensorflow>=2.18.0
+numpy>=2.1.0
+scikit-learn>=1.5.0
+matplotlib>=3.9.0
+Pillow>=10.4.0
+requests>=2.32.0
 `;
 
   await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
@@ -60,10 +60,10 @@ metadata:
     - "${options.modelType || 'classification'}"
 
 dependencies:
-  python: ">=3.8"
+  python: ">=3.11"
   packages:
-    tensorflow: ">=2.12.0"
-    numpy: ">=1.21.0"
+    tensorflow: ">=2.18.0"
+    numpy: ">=2.1.0"
 `;
 
   await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
