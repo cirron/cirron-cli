@@ -1,8 +1,8 @@
+import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
-import path from "path";
 import type {
   ProjectConfig,
   PullArtifactInfo,

@@ -1,5 +1,5 @@
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import type { ProjectConfig } from "../types";
 
 export interface ArtifactPlan {
@@ -66,8 +66,8 @@ export interface PlanFile {
 
 export class PlanGenerator {
   constructor(
-    private projectConfig: ProjectConfig,
-    private projectPath: string = process.cwd()
+    private readonly projectConfig: ProjectConfig,
+    private readonly projectPath: string = process.cwd()
   ) {}
 
   async generatePlan(
@@ -97,7 +97,7 @@ export class PlanGenerator {
       if (modelShape) {
         plan.modelShape = modelShape;
       }
-    } catch (error) {
+    } catch {
       plan.warnings?.push(
         "Could not analyze model shape: model files may not exist yet"
       );

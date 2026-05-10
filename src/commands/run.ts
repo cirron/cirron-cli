@@ -1,9 +1,9 @@
+import path from "node:path";
 import chalk from "chalk";
 import Table from "cli-table3";
 import fs from "fs-extra";
 import yaml from "js-yaml";
 import ora from "ora";
-import path from "path";
 import type {
   PipelineConfig,
   RunCancelOptions,
@@ -292,7 +292,7 @@ export async function runPipelineCommand(
         } else if (finalRun.status === "CANCELLED") {
           watchSpinner.warn(`Run ${run.id} was cancelled`);
         }
-      } catch (error) {
+      } catch {
         watchSpinner.fail("Watch timed out");
         logger.info(
           `Check status: ${chalk.cyan(`cirron run status ${run.id}`)}`
@@ -367,7 +367,7 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
 
     runs.forEach((run: RunInfo) => {
       const displayId =
-        run.id.length > 12 ? run.id.substring(0, 12) + "..." : run.id;
+        run.id.length > 12 ? `${run.id.substring(0, 12)}...` : run.id;
       table.push([
         displayId,
         run.type || "N/A",

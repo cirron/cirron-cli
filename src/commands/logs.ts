@@ -24,9 +24,7 @@ export async function logsCommand(options: LogsOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       return;
     }
 
@@ -38,9 +36,7 @@ export async function logsCommand(options: LogsOptions): Promise<void> {
 
     if (!currentConfig.token) {
       spinner.fail(chalk.red("Not authenticated"));
-      logger.error(
-        "Run " + chalk.cyan("cirron auth login") + " to authenticate"
-      );
+      logger.error(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
       return;
     }
 

@@ -277,7 +277,7 @@ export class PlanDiffAnalyzer {
       if (valueA !== valueB) {
         const change =
           typeof valueA === "number" && typeof valueB === "number"
-            ? (((valueB - valueA) / valueA) * 100).toFixed(1) + "%"
+            ? `${(((valueB - valueA) / valueA) * 100).toFixed(1)}%`
             : "changed";
 
         differences.push({
@@ -468,7 +468,7 @@ export class PlanDiffAnalyzer {
         if (!byCategory[diff.category]) {
           byCategory[diff.category] = [];
         }
-        byCategory[diff.category]!.push(diff);
+        byCategory[diff.category]?.push(diff);
       }
 
       for (const [category, diffs] of Object.entries(byCategory)) {

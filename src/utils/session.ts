@@ -8,8 +8,8 @@
 // fields are preserved per the forward-compat rule so minor SDK bumps don't
 // break the CLI.
 
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import { logger } from "./logger";
 import { listSpoolFiles, resolveSnapshotDir, type SpoolFile } from "./spool";
 

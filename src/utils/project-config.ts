@@ -2,9 +2,10 @@
  * Unified project configuration loader.
  * Resolves cirron.yaml, cirron.yml, or cirron.json (YAML preferred).
  */
+
+import path from "node:path";
 import fs from "fs-extra";
 import yaml from "js-yaml";
-import path from "path";
 import type { ProjectConfig } from "../types";
 
 const CONFIG_FILES = ["cirron.yaml", "cirron.yml", "cirron.json"] as const;

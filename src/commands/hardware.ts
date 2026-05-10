@@ -513,7 +513,7 @@ async function loadExistingConfig(): Promise<void> {
       return;
     }
 
-    logger.info(chalk.green("✓") + " Hardware configuration loaded");
+    logger.info(`${chalk.green("✓")} Hardware configuration loaded`);
     displayConfigSummary(config);
   } catch (error) {
     logger.error("Failed to load hardware configuration:", error);

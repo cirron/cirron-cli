@@ -302,7 +302,7 @@ async function setConfig(
   let parsedValue: any = value;
   if (key === "timeout" || key === "retries") {
     parsedValue = Number.parseInt(value, 10);
-    if (isNaN(parsedValue)) {
+    if (Number.isNaN(parsedValue)) {
       logger.error(`${key} must be a number`);
       process.exit(1);
     }
@@ -351,7 +351,7 @@ async function deleteConfig(config: ConfigManager, key: string): Promise<void> {
   } else {
     logger.error(`Cannot delete configuration key: ${key}`);
     logger.info(
-      "Use " + chalk.cyan("cirron auth logout") + " to clear authentication"
+      `Use ${chalk.cyan("cirron auth logout")} to clear authentication`
     );
     process.exit(1);
   }
@@ -441,7 +441,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
           validate: (input: string) => {
             const num = Number.parseInt(input, 10);
             return (
-              (!isNaN(num) && num >= 1000 && num <= 300_000) ||
+              (!Number.isNaN(num) && num >= 1000 && num <= 300_000) ||
               "Timeout must be between 1000 and 300000 ms"
             );
           },
@@ -461,7 +461,7 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
           validate: (input: string) => {
             const num = Number.parseInt(input, 10);
             return (
-              (!isNaN(num) && num >= 0 && num <= 10) ||
+              (!Number.isNaN(num) && num >= 0 && num <= 10) ||
               "Retries must be between 0 and 10"
             );
           },

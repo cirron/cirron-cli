@@ -10,7 +10,11 @@
         // Autofix rewrites obj["foo"] -> obj.foo, but tsconfig sets
         // noPropertyAccessFromIndexSignature: true, which requires bracket
         // access on index-signature types. The fix breaks the build.
-        "useLiteralKeys": "off"
+        "useLiteralKeys": "off",
+        // Autofix rewrites `arr[0]!.foo` to `arr[0]?.foo`, which is
+        // semantically wrong — the non-null assertion encoded an invariant
+        // that optional chaining loses, and the result becomes undefined-tainted.
+        "useOptionalChain": "off"
       },
       "correctness": {
         // tsconfig targets module:commonjs, so __dirname/__filename are required;
@@ -20,12 +24,22 @@
       "performance": {
         // CLI regexes are typically cold (run once per invocation). Hoisting them
         // to module scope is noise without measurable perf impact.
-        "useTopLevelRegex": "off"
+        "useTopLevelRegex": "off",
+        // Autofix rewrites `delete x.foo` to `x.foo = undefined`, which is
+        // illegal under tsconfig's exactOptionalPropertyTypes: true.
+        "noDelete": "off"
       },
       "style": {
         // Autofix rewrites arr[arr.length - 1] -> arr.at(-1), but Array.at
         // requires ES2022 while tsconfig targets ES2020 (lib: ["ES2020"]).
-        "useAtIndex": "off"
+        "useAtIndex": "off",
+        // The unsafe autofix rewrites `arr[0]!.foo` to `arr[0]?.foo`, which
+        // silently changes semantics — `!` asserts an invariant the dev
+        // verified, while `?.` defers to runtime undefined. Replacing real
+        // validation with optional chaining downstream type-taints everything.
+        // Manual review is required, so disable the rule rather than letting
+        // its unsafe fix corrupt code.
+        "noNonNullAssertion": "off"
       },
       "suspicious": {
         // Bitwise ops are intentional in flag/permission/hash code paths.

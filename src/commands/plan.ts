@@ -1,9 +1,9 @@
+import os from "node:os";
+import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
-import os from "os";
-import path from "path";
 import type {
   PlanCompareOptions,
   PlanOptions,
@@ -34,9 +34,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(CLIErrorCode.PROJECT_NOT_FOUND);
     }
 
@@ -206,7 +204,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
         showDetails: options.verbose ?? false,
         compact: false,
       };
-      console.log("\n" + PlanFormatter.formatConsole(plan, formatOptions));
+      console.log(`\n${PlanFormatter.formatConsole(plan, formatOptions)}`);
     }
   } catch (error) {
     spinner.fail(chalk.red("Plan generation failed"));
@@ -248,9 +246,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(1);
     }
 
@@ -408,7 +404,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
         showDetails: options.verbose ?? false,
         compact: false,
       };
-      console.log("\n" + PlanFormatter.formatConsole(plan, formatOptions));
+      console.log(`\n${PlanFormatter.formatConsole(plan, formatOptions)}`);
     }
   } catch (error) {
     spinner.fail(chalk.red("Build plan generation failed"));
@@ -435,9 +431,7 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(1);
     }
 
@@ -483,9 +477,7 @@ export async function planTestCommand(options: PlanOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(1);
     }
 
@@ -643,7 +635,7 @@ async function runValidationChecks(
       if (!result.success) {
         validationErrors.push("CUDA not available for PyTorch");
       }
-    } catch (error) {
+    } catch {
       validationErrors.push("CUDA not available for PyTorch");
     }
   }
@@ -847,7 +839,7 @@ function formatLintPlan(lintPlan: any, options: PlanOptions): void {
   const colorize = (text: string, colorFn: (text: string) => string) =>
     useColors ? colorFn(text) : text;
 
-  console.log("\n" + colorize("Lint Plan:", chalk.bold.blue));
+  console.log(`\n${colorize("Lint Plan:", chalk.bold.blue)}`);
   console.log(colorize(`  • Project: ${lintPlan.projectName}`, chalk.gray));
   console.log(colorize(`  • Framework: ${lintPlan.framework}`, chalk.cyan));
   console.log(
@@ -891,7 +883,7 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   const colorize = (text: string, colorFn: (text: string) => string) =>
     useColors ? colorFn(text) : text;
 
-  console.log("\n" + colorize("Test Plan:", chalk.bold.blue));
+  console.log(`\n${colorize("Test Plan:", chalk.bold.blue)}`);
   console.log(colorize(`  • Project: ${testPlan.projectName}`, chalk.gray));
   console.log(colorize(`  • Framework: ${testPlan.framework}`, chalk.cyan));
   console.log(
@@ -975,7 +967,7 @@ export async function planCompareCommand(
       spinner.succeed(chalk.green(`Found ${savedPlans.length} saved plans`));
 
       // Interactive plan selection
-      console.log("\n" + chalk.bold.blue("Select Plans to Compare:"));
+      console.log(`\n${chalk.bold.blue("Select Plans to Compare:")}`);
 
       const planChoices = savedPlans.map((plan, index) => ({
         name: `${plan.plan.command} • ${plan.plan.framework} • ${new Date(plan.metadata.savedAt).toLocaleString()} ${plan.metadata.description ? `• ${plan.metadata.description}` : ""}`,
@@ -1068,7 +1060,7 @@ export async function planSaveCommand(
         return;
       }
 
-      console.log("\n" + chalk.bold.blue("Saved Plans:"));
+      console.log(`\n${chalk.bold.blue("Saved Plans:")}`);
       for (const [index, savedPlan] of savedPlans.entries()) {
         const date = new Date(savedPlan.metadata.savedAt).toLocaleString();
         const tags = savedPlan.metadata.tags?.join(", ") || "";
@@ -1118,9 +1110,7 @@ export async function planSaveCommand(
     logger.error(
       chalk.red("No cirron config found (cirron.yaml or cirron.json)")
     );
-    logger.error(
-      "Run " + chalk.cyan("cirron init") + " to initialize a project"
-    );
+    logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
     process.exit(1);
   }
 
@@ -1216,7 +1206,7 @@ export async function planSaveCommand(
       );
 
       if (options.verbose) {
-        console.log("\n" + chalk.bold.blue(" Saved Plans:"));
+        console.log(`\n${chalk.bold.blue(" Saved Plans:")}`);
         for (const savedPath of savedPaths) {
           console.log(`  • ${path.basename(savedPath)}`);
         }
@@ -1321,7 +1311,7 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
   );
 
   if (depChanges.length > 0) {
-    console.log("\n" + colorize("Dependencies Changed:", chalk.bold.blue));
+    console.log(`\n${colorize("Dependencies Changed:", chalk.bold.blue)}`);
 
     for (const change of depChanges) {
       if (change.type === "changed") {
@@ -1347,7 +1337,7 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
   );
 
   if (modelChanges.length > 0) {
-    console.log("\n" + colorize("Model Params:", chalk.bold.magenta));
+    console.log(`\n${colorize("Model Params:", chalk.bold.magenta)}`);
 
     for (const change of modelChanges) {
       if (
@@ -1373,10 +1363,10 @@ function formatEnhancedDiff(comparison: any, _verbose: boolean): void {
 
 function formatNumber(num: number): string {
   if (num >= 1_000_000) {
-    return (num / 1_000_000).toFixed(1) + "M";
+    return `${(num / 1_000_000).toFixed(1)}M`;
   }
   if (num >= 1000) {
-    return (num / 1000).toFixed(1) + "K";
+    return `${(num / 1000).toFixed(1)}K`;
   }
   return num.toString();
 }

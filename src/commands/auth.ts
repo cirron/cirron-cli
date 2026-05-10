@@ -246,9 +246,7 @@ export async function authCommand(): Promise<void> {
 
     if (!(currentConfig.token || currentConfig.auth?.accessToken)) {
       logger.info(chalk.yellow("Not authenticated"));
-      logger.info(
-        "Run " + chalk.cyan("cirron auth login") + " to authenticate"
-      );
+      logger.info(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
       return;
     }
 
@@ -300,15 +298,13 @@ export async function authCommand(): Promise<void> {
       } else {
         spinner.fail(chalk.red("Token is invalid or expired"));
         logger.info(
-          "Run " + chalk.cyan("cirron auth login") + " to re-authenticate"
+          `Run ${chalk.cyan("cirron auth login")} to re-authenticate`
         );
       }
     } catch (error) {
       spinner.fail(chalk.red("Failed to verify authentication"));
       logger.error("Error verifying token:", error);
-      logger.info(
-        "Run " + chalk.cyan("cirron auth login") + " to re-authenticate"
-      );
+      logger.info(`Run ${chalk.cyan("cirron auth login")} to re-authenticate`);
     }
   } catch (error) {
     logger.error("Error checking authentication status:", error);
@@ -326,7 +322,7 @@ export async function refreshCommand(): Promise<void> {
     if (!currentConfig.auth?.refreshToken) {
       spinner.fail(chalk.red("No refresh token available"));
       logger.error(
-        "Please log in again with: " + chalk.cyan("cirron auth login")
+        `Please log in again with: ${chalk.cyan("cirron auth login")}`
       );
       process.exit(1);
     }
@@ -352,7 +348,7 @@ export async function refreshCommand(): Promise<void> {
       logger.error("Unknown error occurred");
     }
 
-    logger.info("Please log in again with: " + chalk.cyan("cirron auth login"));
+    logger.info(`Please log in again with: ${chalk.cyan("cirron auth login")}`);
     process.exit(1);
   }
 }

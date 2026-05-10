@@ -1,6 +1,6 @@
+import path from "node:path";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import path from "path";
 import type { SettingsOptions } from "../types";
 import { logger } from "../utils/logger";
 import { settingsManager } from "../utils/settings";
@@ -523,7 +523,7 @@ async function editAPISettings(settings: any): Promise<void> {
       validate: (input: string) => {
         const num = Number.parseInt(input, 10);
         return (
-          (!isNaN(num) && num >= 1000 && num <= 300_000) ||
+          (!Number.isNaN(num) && num >= 1000 && num <= 300_000) ||
           "Timeout must be between 1000 and 300000 ms"
         );
       },
@@ -536,7 +536,7 @@ async function editAPISettings(settings: any): Promise<void> {
       validate: (input: string) => {
         const num = Number.parseInt(input, 10);
         return (
-          (!isNaN(num) && num >= 0 && num <= 10) ||
+          (!Number.isNaN(num) && num >= 0 && num <= 10) ||
           "Retries must be between 0 and 10"
         );
       },
@@ -614,7 +614,7 @@ async function editTestSettings(settings: any): Promise<void> {
       validate: (input: string) => {
         const num = Number.parseFloat(input);
         return (
-          (!isNaN(num) && num >= 0 && num <= 100) ||
+          (!Number.isNaN(num) && num >= 0 && num <= 100) ||
           "Coverage threshold must be between 0 and 100"
         );
       },
@@ -655,7 +655,7 @@ async function editDeploymentSettings(settings: any): Promise<void> {
       validate: (input: string) => {
         const num = Number.parseInt(input, 10);
         return (
-          (!isNaN(num) && num >= 5 && num <= 300) ||
+          (!Number.isNaN(num) && num >= 5 && num <= 300) ||
           "Timeout must be between 5 and 300 seconds"
         );
       },

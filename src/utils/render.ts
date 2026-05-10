@@ -193,7 +193,7 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
     extras.push(attrsStr);
   }
   const extrasStr = extras.length
-    ? " " + (color ? chalk.gray(extras.join(" ")) : extras.join(" "))
+    ? ` ${color ? chalk.gray(extras.join(" ")) : extras.join(" ")}`
     : "";
 
   const liveTag =

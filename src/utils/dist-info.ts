@@ -1,5 +1,5 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 export interface InstalledPackage {
   metadataPath: string;
@@ -156,7 +156,7 @@ function* iterHeaderLines(
       return;
     }
     if ((line.startsWith(" ") || line.startsWith("\t")) && current) {
-      current.value += "\n" + line.trim();
+      current.value += `\n${line.trim()}`;
       continue;
     }
     if (current) {

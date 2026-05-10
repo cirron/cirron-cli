@@ -1,8 +1,8 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import chalk from "chalk";
-import fs from "fs";
 import fetch from "node-fetch";
-import os from "os";
-import path from "path";
 import type { CirronConfig } from "../types";
 import { ConfigManager } from "../utils/config";
 import {
@@ -524,7 +524,7 @@ async function probePlatform(
     };
   }
 
-  const url = trimTrailingSlash(endpoint) + "/api/health";
+  const url = `${trimTrailingSlash(endpoint)}/api/health`;
   const start = performance.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);

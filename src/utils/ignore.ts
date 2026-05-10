@@ -1,6 +1,6 @@
+import path from "node:path";
 import fs from "fs-extra";
 import { minimatch } from "minimatch";
-import path from "path";
 
 export interface IgnoreOptions {
   cwd?: string;
@@ -10,8 +10,8 @@ export interface IgnoreOptions {
 
 export class CirronIgnore {
   private patterns: string[] = [];
-  private cwd: string;
-  private ignoreFilePath: string;
+  private readonly cwd: string;
+  private readonly ignoreFilePath: string;
 
   constructor(options: IgnoreOptions = {}) {
     this.cwd = options.cwd || process.cwd();
@@ -29,7 +29,7 @@ export class CirronIgnore {
         const filePatterns = this.parseIgnoreFile(content);
         this.patterns = [...this.patterns, ...filePatterns];
       }
-    } catch (error) {
+    } catch {
       // Silently ignore file read errors
     }
   }
@@ -47,7 +47,7 @@ export class CirronIgnore {
 
         // Normalize directory patterns
         if (line.endsWith("/")) {
-          return line + "**";
+          return `${line}**`;
         }
 
         return line;
@@ -87,7 +87,7 @@ export class CirronIgnore {
     // Handle directory patterns
     if (pattern.endsWith("/**")) {
       const dirPattern = pattern.slice(0, -3);
-      if (filePath.startsWith(dirPattern + "/") || filePath === dirPattern) {
+      if (filePath.startsWith(`${dirPattern}/`) || filePath === dirPattern) {
         return true;
       }
     }

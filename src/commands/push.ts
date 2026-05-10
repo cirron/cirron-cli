@@ -1,9 +1,9 @@
+import crypto from "node:crypto";
+import os from "node:os";
+import path from "node:path";
 import chalk from "chalk";
-import crypto from "crypto";
 import fs from "fs-extra";
 import ora from "ora";
-import os from "os";
-import path from "path";
 import type {
   ProjectConfig,
   PushArtifactInfo,

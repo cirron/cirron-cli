@@ -1,12 +1,13 @@
 // src/utils/config.ts
+
+import os from "node:os";
+import path from "node:path";
 import fs from "fs-extra";
-import os from "os";
-import path from "path";
 import type { CirronConfig } from "../types";
 
 export class ConfigManager {
-  private configPath: string;
-  private defaultConfig: CirronConfig;
+  private readonly configPath: string;
+  private readonly defaultConfig: CirronConfig;
 
   constructor() {
     this.configPath = path.join(os.homedir(), ".cirron", "config.json");
@@ -30,7 +31,7 @@ export class ConfigManager {
           ...config,
         };
       }
-    } catch (error) {
+    } catch {
       // If config is corrupted, fall back to defaults
       console.warn("Warning: Could not load config file, using defaults");
     }

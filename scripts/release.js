@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require("fs");
-const path = require("path");
-const { execSync } = require("child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+const { execSync } = require("node:child_process");
 const semver = require("semver");
 
 const packageJsonPath = path.join(import.meta.dirname, "..", "package.json");
@@ -25,7 +25,7 @@ function exec(command, options = {}) {
       encoding: "utf8",
       ...options,
     });
-  } catch (err) {
+  } catch {
     error(`Command failed: ${command}`);
   }
 }
@@ -60,7 +60,7 @@ function updateVersion(newVersion) {
   packageJson.version = newVersion;
   fs.writeFileSync(
     packageJsonPath,
-    JSON.stringify(packageJson, null, 2) + "\n"
+    `${JSON.stringify(packageJson, null, 2)}\n`
   );
 
   // Update other version references if needed
@@ -131,7 +131,7 @@ function generateChangelog(version) {
 }
 
 function showInstructions(version) {
-  console.log("\n" + "=".repeat(50));
+  console.log(`\n${"=".repeat(50)}`);
   console.log("Release process completed!");
   console.log("=".repeat(50));
   console.log();
@@ -167,7 +167,7 @@ function main() {
   console.log();
 
   // Confirm with user
-  const readline = require("readline");
+  const readline = require("node:readline");
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

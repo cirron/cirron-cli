@@ -1,7 +1,7 @@
+import os from "node:os";
+import path from "node:path";
 import fs from "fs-extra";
 import yaml from "js-yaml";
-import os from "os";
-import path from "path";
 import type {
   CirronConfig,
   GlobalSettings,
@@ -16,8 +16,8 @@ import { ConfigManager } from "./config";
 import { schemaValidator } from "./schema";
 
 export class SettingsManager {
-  private globalSettingsPath: string;
-  private configManager: ConfigManager;
+  private readonly globalSettingsPath: string;
+  private readonly configManager: ConfigManager;
 
   constructor() {
     const configDir = path.join(os.homedir(), ".cirron");

@@ -163,7 +163,7 @@ function analyzeTokenStatus(config: CirronConfig): DiagnosticResult {
       message: "Authenticated with legacy token",
       details: {
         type: "legacy",
-        tokenPrefix: config.token.substring(0, 8) + "...",
+        tokenPrefix: `${config.token.substring(0, 8)}...`,
       },
     };
   }

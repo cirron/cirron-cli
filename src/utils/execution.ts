@@ -1,5 +1,5 @@
+import { spawn } from "node:child_process";
 import chalk from "chalk";
-import { spawn } from "child_process";
 import { CLIError, CLIErrorCode } from "./errors";
 import { logger } from "./logger";
 
@@ -109,7 +109,7 @@ export async function executeScript(
 
 async function executeOnce(
   command: string,
-  args: string[] = [],
+  args: string[],
   options: {
     cwd: string;
     timeout: number;
@@ -164,11 +164,11 @@ async function executeOnce(
           success: false,
           exitCode: -1,
           stdout,
-          stderr: stderr + "\nProcess timed out",
+          stderr: `${stderr}\nProcess timed out`,
           command: commandStr,
           duration,
         };
-        result.parsedErrors = parseErrors(stderr + "\nProcess timed out");
+        result.parsedErrors = parseErrors(`${stderr}\nProcess timed out`);
         result.cliError = new CLIError({
           code: CLIErrorCode.TIMEOUT,
           message: `Operation timed out after ${options.timeout}ms`,
@@ -211,7 +211,7 @@ async function executeOnce(
         success: false,
         exitCode: -1,
         stdout,
-        stderr: stderr + `\nProcess error: ${error.message}`,
+        stderr: `${stderr}\nProcess error: ${error.message}`,
         command: commandStr,
         duration,
       };

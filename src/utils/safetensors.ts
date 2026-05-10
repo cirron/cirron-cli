@@ -21,7 +21,7 @@
 //     ...
 //   }
 
-import fs, { promises as fsp } from "fs";
+import fs, { promises as fsp } from "node:fs";
 
 export type SafetensorsDtype =
   | "F64"

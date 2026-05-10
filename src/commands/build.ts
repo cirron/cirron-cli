@@ -1,8 +1,8 @@
+import { execSync, spawn } from "node:child_process";
+import path from "node:path";
 import chalk from "chalk";
-import { execSync, spawn } from "child_process";
 import fs from "fs-extra";
 import ora from "ora";
-import path from "path";
 import type { BuildOptions, HardwareConfig, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
@@ -127,7 +127,7 @@ async function checkMetadataMismatches(
             severity: "warning",
           });
         }
-      } catch (error) {
+      } catch {
         // Git not available or not a git repo - not critical
       }
     }
@@ -150,9 +150,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(1);
     }
 
@@ -184,7 +182,7 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
           error
         );
       }
-    } catch (apiError) {
+    } catch {
       // Ignore API reporting errors
     }
 
@@ -598,9 +596,7 @@ async function handleTraditionalBuild(
     logger.info(`Environment: ${chalk.cyan(options.env)}`);
 
     if (options.env !== "production") {
-      logger.info(
-        "Run " + chalk.cyan("cirron deploy") + " to deploy this build"
-      );
+      logger.info(`Run ${chalk.cyan("cirron deploy")} to deploy this build`);
     }
   }
 }
@@ -1076,7 +1072,7 @@ function formatBytes(bytes: number): string {
   const sizes = ["Bytes", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  return Number.parseFloat((bytes / k ** i).toFixed(2)) + " " + sizes[i];
+  return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
 
 // ML-specific build functions
@@ -1217,11 +1213,11 @@ async function runValidationChecks(
 
     if (versionMatch && versionMatch[1]) {
       const versionParts = versionMatch[1].split(".");
-      const major = Number.parseInt(versionParts[0] || "0");
-      const minor = Number.parseInt(versionParts[1] || "0");
+      const major = Number.parseInt(versionParts[0] || "0", 10);
+      const minor = Number.parseInt(versionParts[1] || "0", 10);
       const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
-      const requiredMajor = Number.parseInt(requiredParts[0] || "3");
-      const requiredMinor = Number.parseInt(requiredParts[1] || "9");
+      const requiredMajor = Number.parseInt(requiredParts[0] || "3", 10);
+      const requiredMinor = Number.parseInt(requiredParts[1] || "9", 10);
 
       if (
         major < requiredMajor ||
@@ -1232,7 +1228,7 @@ async function runValidationChecks(
         );
       }
     }
-  } catch (error) {
+  } catch {
     validationErrors.push("Python3 not available");
   }
 
@@ -1256,7 +1252,7 @@ async function runValidationChecks(
           );
         }
       }
-    } catch (error) {
+    } catch {
       validationErrors.push("CUDA not available for PyTorch");
     }
   }
@@ -1286,7 +1282,7 @@ async function runValidationChecks(
         }
       }
     }
-  } catch (error) {
+  } catch {
     validationErrors.push("Model creation failed during validation");
   }
 
@@ -1536,7 +1532,7 @@ async function createDockerIgnoreFromCirronIgnore(): Promise<string | null> {
       ...patterns.map((pattern) => {
         // Convert some common .cirronignore patterns to .dockerignore format
         if (pattern.endsWith("/**")) {
-          return pattern.slice(0, -3) + "/";
+          return `${pattern.slice(0, -3)}/`;
         }
         return pattern;
       }),
@@ -1549,12 +1545,12 @@ async function createDockerIgnoreFromCirronIgnore(): Promise<string | null> {
 
     // Replace original .dockerignore temporarily
     if (fs.existsSync(dockerIgnorePath)) {
-      await fs.move(dockerIgnorePath, dockerIgnorePath + ".backup");
+      await fs.move(dockerIgnorePath, `${dockerIgnorePath}.backup`);
     }
     await fs.move(tempDockerIgnorePath, dockerIgnorePath);
 
     logger.debug("Created temporary .dockerignore with .cirronignore patterns");
-    return dockerIgnorePath + ".backup";
+    return `${dockerIgnorePath}.backup`;
   } catch (error) {
     logger.debug("Failed to create temporary .dockerignore:", error);
     // Clean up any partial files

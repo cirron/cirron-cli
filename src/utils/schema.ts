@@ -11,7 +11,7 @@ import type {
 } from "../types";
 
 export class SchemaValidator {
-  private ajv: Ajv;
+  private readonly ajv: Ajv;
 
   constructor() {
     this.ajv = new Ajv({
@@ -209,7 +209,7 @@ export class SchemaValidator {
     const result = this.validateGlobalSettings(migrated);
     if (!result.valid) {
       throw new Error(
-        "Migration failed: " + result.errors.map((e) => e.message).join(", ")
+        `Migration failed: ${result.errors.map((e) => e.message).join(", ")}`
       );
     }
 
@@ -228,7 +228,7 @@ export class SchemaValidator {
     const result = this.validateProjectSettings(migrated);
     if (!result.valid) {
       throw new Error(
-        "Migration failed: " + result.errors.map((e) => e.message).join(", ")
+        `Migration failed: ${result.errors.map((e) => e.message).join(", ")}`
       );
     }
 

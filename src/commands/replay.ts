@@ -1,5 +1,5 @@
+import { execSync } from "node:child_process";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig, ReplayOptions } from "../types";
@@ -148,7 +148,7 @@ async function validateEnvironmentCompatibility(
             issues.push("CUDA not available for PyTorch (plan requires GPU)");
           }
         }
-      } catch (error) {
+      } catch {
         if (options.force) {
           logger.warn("Could not verify CUDA availability");
         } else {
@@ -169,7 +169,7 @@ async function validateEnvironmentCompatibility(
             issues.push("GPU not available for TensorFlow (plan requires GPU)");
           }
         }
-      } catch (error) {
+      } catch {
         if (options.force) {
           logger.warn("Could not verify GPU availability for TensorFlow");
         } else {
@@ -445,7 +445,7 @@ function displayReplayPlan(
   const colorize = (text: string, colorFn: (text: string) => string) =>
     useColors ? colorFn(text) : text;
 
-  console.log("\n" + colorize(" Replay Plan:", chalk.bold.blue));
+  console.log(`\n${colorize(" Replay Plan:", chalk.bold.blue)}`);
   console.log(colorize(`  • Command: ${plan.command}`, chalk.cyan));
   console.log(colorize(`  • Framework: ${plan.framework}`, chalk.green));
   console.log(colorize(`  • Architecture: ${plan.architecture}`, chalk.yellow));

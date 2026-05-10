@@ -1,6 +1,6 @@
+import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
-import path from "path";
 import type { ModelConfig, ProjectConfig } from "../types";
 import { getRepositoryInfo, getShortCommitHash } from "../utils/git";
 import { logger } from "../utils/logger";

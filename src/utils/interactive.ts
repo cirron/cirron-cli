@@ -23,7 +23,7 @@ export interface StepConfirmationOptions {
 
 export class InteractiveManager {
   private continueAll = false;
-  private interactive: boolean;
+  private readonly interactive: boolean;
 
   constructor(isInteractive = false) {
     this.interactive = isInteractive;
@@ -44,7 +44,7 @@ export class InteractiveManager {
     }
 
     // Display step information
-    console.log("\n" + chalk.bold.blue(`${options.stepName}`));
+    console.log(`\n${chalk.bold.blue(`${options.stepName}`)}`);
     console.log(chalk.gray(`   ${options.description}`));
 
     if (options.estimatedTime) {
@@ -109,7 +109,7 @@ export class InteractiveManager {
     }
 
     if (options.description) {
-      console.log("\n" + chalk.gray(options.description));
+      console.log(`\n${chalk.gray(options.description)}`);
     }
 
     const promptConfig: any = {
@@ -148,7 +148,7 @@ export class InteractiveManager {
     }
 
     if (description) {
-      console.log("\n" + chalk.gray(description));
+      console.log(`\n${chalk.gray(description)}`);
     }
 
     const { input } = await inquirer.prompt([
@@ -175,7 +175,7 @@ export class InteractiveManager {
       return true;
     }
 
-    console.log("\n" + chalk.bold.yellow(`${operationName}`));
+    console.log(`\n${chalk.bold.yellow(`${operationName}`)}`);
 
     if (details.length > 0) {
       console.log(chalk.gray("This operation will:"));
@@ -185,7 +185,7 @@ export class InteractiveManager {
     }
 
     if (warning) {
-      console.log("\n" + chalk.red(`Warning: ${warning}`));
+      console.log(`\n${chalk.red(`Warning: ${warning}`)}`);
     }
 
     const { confirmed } = await inquirer.prompt([
@@ -282,7 +282,7 @@ export class InteractiveManager {
       return true;
     }
 
-    console.log("\n" + chalk.bold.blue("Progress Update"));
+    console.log(`\n${chalk.bold.blue("Progress Update")}`);
 
     // Show completed steps
     if (completedSteps.length > 0) {

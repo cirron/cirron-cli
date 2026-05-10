@@ -7,11 +7,11 @@
 // platform. Remote/run-scoped reads are a follow-on ticket (see
 // features/sdk-traces-platform-read.md in the platform monorepo).
 
+import path from "node:path";
 import chalk, { Chalk } from "chalk";
 import Table from "cli-table3";
 import fs from "fs-extra";
 import inquirer from "inquirer";
-import path from "path";
 import { exportCsv } from "../utils/export/csv";
 import { exportJson } from "../utils/export/json";
 import { exportOtlp } from "../utils/export/otlp";
@@ -276,7 +276,7 @@ export async function tracesListCommand(options: ListOptions): Promise<void> {
         ? chalk.magenta("(live)")
         : formatDurationNs(s.endedNs - s.startedNs);
     table.push([
-      s.id.slice(0, 8) + "…",
+      `${s.id.slice(0, 8)}…`,
       nsToIso(s.startedNs),
       dur,
       String(s.spans.size),
@@ -676,8 +676,8 @@ export async function tracesSnapshotsCommand(
   });
   for (const r of rows) {
     table.push([
-      r.sessionId.slice(0, 8) + "…",
-      r.spanId.slice(0, 8) + "…",
+      `${r.sessionId.slice(0, 8)}…`,
+      `${r.spanId.slice(0, 8)}…`,
       r.spanName,
       String(r.count),
       [...r.modes].join(","),
@@ -835,7 +835,7 @@ export async function tracesSnapshotCommand(
         snap.mode,
       ]);
     }
-    console.log("\n" + statsTable.toString());
+    console.log(`\n${statsTable.toString()}`);
     if (match.snapshots.length > display.length) {
       logger.info(
         c.gray(
@@ -991,7 +991,7 @@ async function printSafetensorsSummary(
 ): Promise<void> {
   const totalBytes = info.tensors.reduce((a, t) => a + t.byteSize, 0);
   console.log(
-    `\n${c.bold(blob.kind + ".safetensors")}  ${c.gray(`(${info.tensors.length} tensor${info.tensors.length === 1 ? "" : "s"}, ${humanBytes(totalBytes)}, file=${humanBytes(info.fileSize)})`)}`
+    `\n${c.bold(`${blob.kind}.safetensors`)}  ${c.gray(`(${info.tensors.length} tensor${info.tensors.length === 1 ? "" : "s"}, ${humanBytes(totalBytes)}, file=${humanBytes(info.fileSize)})`)}`
   );
   const table = new Table({
     head: [c.cyan("NAME"), c.cyan("DTYPE"), c.cyan("SHAPE"), c.cyan("BYTES")],

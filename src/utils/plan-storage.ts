@@ -1,6 +1,6 @@
+import os from "node:os";
+import path from "node:path";
 import fs from "fs-extra";
-import os from "os";
-import path from "path";
 import type { SavedPlan } from "../types";
 import { logger } from "./logger";
 import type { PlanFile } from "./plan";
@@ -200,7 +200,7 @@ export class PlanStorage {
       parts.push(suffix);
     }
 
-    return parts.join("-") + ".json";
+    return `${parts.join("-")}.json`;
   }
 
   static async saveBatchPlans(
@@ -337,7 +337,7 @@ export class PlanStorage {
       try {
         const stat = await require("fs-extra").stat(savedPlan.filePath);
         stats.totalSize += stat.size;
-      } catch (error) {
+      } catch {
         // File might not exist, skip size calculation
       }
 

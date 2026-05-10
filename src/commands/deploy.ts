@@ -1,9 +1,9 @@
+import { execSync } from "node:child_process";
+import path from "node:path";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
-import path from "path";
 import type { DeploymentInfo, DeployOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
@@ -22,9 +22,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(1);
     }
 
@@ -36,9 +34,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
 
     if (!currentConfig.token) {
       spinner.fail(chalk.red("Not authenticated"));
-      logger.error(
-        "Run " + chalk.cyan("cirron auth login") + " to authenticate"
-      );
+      logger.error(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
       process.exit(1);
     }
 
@@ -166,7 +162,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
             stdio: process.env["CIRRON_VERBOSE"] ? "inherit" : "pipe",
             cwd: process.cwd(),
           });
-        } catch (error) {
+        } catch {
           logger.warn(`Post-deploy command failed: ${command}`);
         }
       }
@@ -197,7 +193,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
         });
         console.log();
         logger.info(
-          "Run " + chalk.cyan("cirron logs") + " to view full deployment logs"
+          `Run ${chalk.cyan("cirron logs")} to view full deployment logs`
         );
       }
 

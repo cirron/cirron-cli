@@ -5,8 +5,8 @@
 // single-batch spool shape (§spool-format.md) so downstream tools can
 // read it with their existing spool parsers.
 
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import type { Session, SpoolMark, SpoolSnapshot, SpoolSpan } from "../session";
 
 function replacer(_key: string, value: unknown): unknown {
