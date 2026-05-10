@@ -14,7 +14,13 @@
         // Autofix rewrites `arr[0]!.foo` to `arr[0]?.foo`, which is
         // semantically wrong — the non-null assertion encoded an invariant
         // that optional chaining loses, and the result becomes undefined-tainted.
-        "useOptionalChain": "off"
+        "useOptionalChain": "off",
+        // Static-only classes are used as namespaces in this codebase
+        // (PlanStorage, HardwareDetector, etc.). Refactoring them all to
+        // bare functions is a much larger change than the rule warrants.
+        "noStaticOnlyClass": "off",
+        // `void promise` is used intentionally to mark fire-and-forget calls.
+        "noVoid": "off"
       },
       "correctness": {
         // tsconfig targets module:commonjs, so __dirname/__filename are required;
@@ -27,7 +33,9 @@
         "useTopLevelRegex": "off",
         // Autofix rewrites `delete x.foo` to `x.foo = undefined`, which is
         // illegal under tsconfig's exactOptionalPropertyTypes: true.
-        "noDelete": "off"
+        "noDelete": "off",
+        // Single-file aggregator modules are intentional in this codebase.
+        "noBarrelFile": "off"
       },
       "style": {
         // Autofix rewrites arr[arr.length - 1] -> arr.at(-1), but Array.at
@@ -39,7 +47,11 @@
         // validation with optional chaining downstream type-taints everything.
         // Manual review is required, so disable the rule rather than letting
         // its unsafe fix corrupt code.
-        "noNonNullAssertion": "off"
+        "noNonNullAssertion": "off",
+        // CLIErrorCode enum is part of the public API surface.
+        "noEnum": "off",
+        // TS parameter properties are an idiomatic constructor shorthand.
+        "noParameterProperties": "off"
       },
       "suspicious": {
         // Bitwise ops are intentional in flag/permission/hash code paths.
