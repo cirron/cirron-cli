@@ -19,7 +19,7 @@ export async function createCommonMLFiles(projectPath: string, projectName: stri
     }
   
     // Dockerfile
-    const dockerfile = `FROM python:3.9-slim
+    const dockerfile = `FROM python:3.11-slim
   
   WORKDIR /app
   
@@ -233,7 +233,7 @@ htmlcov/
   ├── logs/                 # Training logs
   ${options.includeSampleData ? '├── data/sample/         # Sample data\n' : ''}${options.includeNotebook ? '├── notebooks/           # Jupyter notebooks\n' : ''}├── requirements.txt      # Python dependencies
   ├── Dockerfile           # Container definition
-  └── cirron.json         # Cirron configuration
+  └── cirron.yaml         # Cirron configuration
   \`\`\`
   
   ## Cirron Commands
@@ -260,7 +260,7 @@ htmlcov/
   
   - **Framework**: ${options.template}
   - **Model Type**: ${options.modelType}
-  - **Python Version**: 3.9+
+  - **Python Version**: 3.11+
   
   ## Development
   
@@ -597,7 +597,7 @@ async function createNotebook(projectPath: string, projectName: string, options:
           name: 'python',
           nbconvert_exporter: 'python',
           pygments_lexer: 'ipython3',
-          version: '3.9.0'
+          version: '3.11.0'
         }
       },
       nbformat: 4,
