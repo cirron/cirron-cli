@@ -431,7 +431,7 @@ async function handleTraditionalBuild(projectConfig: ProjectConfig, options: Bui
   };
 
   // Load environment-specific variables
-  const envConfig = projectConfig.environments[options.env];
+  const envConfig = projectConfig.environments?.[options.env];
   if (envConfig?.variables) {
     Object.assign(env, envConfig.variables);
   }

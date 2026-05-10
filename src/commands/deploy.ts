@@ -39,10 +39,10 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
     const api = new CirronApi(currentConfig);
 
     // Validate environment
-    const envConfig = projectConfig.environments[options.env];
+    const envConfig = projectConfig.environments?.[options.env];
     if (!envConfig) {
       spinner.fail(chalk.red(`Environment '${options.env}' not found`));
-      logger.error('Available environments:', Object.keys(projectConfig.environments).join(', '));
+      logger.error('Available environments:', Object.keys(projectConfig.environments ?? {}).join(', '));
       process.exit(1);
     }
 
