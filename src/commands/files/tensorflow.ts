@@ -6,6 +6,7 @@ import getDataLoaderCode from './data';
 export async function createTensorFlowFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
   const requirements = `tensorflow>=2.18.0
 numpy>=2.1.0
+pandas>=2.2.0
 scikit-learn>=1.5.0
 matplotlib>=3.9.0
 Pillow>=10.4.0

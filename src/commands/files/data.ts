@@ -31,13 +31,18 @@ export default function getDataLoaderCode(framework: string, _modelType: string)
           def __getitem__(self, idx):
               if hasattr(self.data, 'iloc'):
                   row = self.data.iloc[idx]
-                  features = row[:-1].values.astype(np.float32)
-                  target = row[-1]
+                  features = row.iloc[:-1].to_numpy().astype(np.float32)
+                  target_val = row.iloc[-1]
 
                   if self.transform:
                       features = self.transform(features)
 
-                  return torch.tensor(features), torch.tensor(target)
+                  target_tensor = (
+                      torch.tensor(int(target_val), dtype=torch.long)
+                      if float(target_val).is_integer()
+                      else torch.tensor(float(target_val), dtype=torch.float32)
+                  )
+                  return torch.from_numpy(features), target_tensor
 
               return torch.randn(10), torch.tensor(0)
 

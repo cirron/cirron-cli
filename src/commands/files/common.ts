@@ -399,54 +399,29 @@ if __name__ == '__main__':
   }
   
 async function createSampleData(projectPath: string, modelType: string): Promise<void> {
-    if (modelType === 'classification') {
-      const sampleData = `feature1,feature2,feature3,feature4,feature5,target
-0.5,1.2,0.8,2.1,1.5,0
-1.1,0.9,1.3,1.7,0.8,1
-0.7,1.8,0.6,2.3,1.2,0
-1.4,0.6,1.9,1.1,2.1,1
-0.9,1.5,1.1,1.9,0.7,0
-1.7,0.4,2.2,0.9,1.8,1
-0.3,2.1,0.4,2.7,1.3,0
-1.9,0.2,2.5,0.6,2.4,1
-0.6,1.7,0.9,2.2,1.1,0
-2.1,0.1,2.8,0.4,2.7,1
-0.8,1.4,1.2,1.8,0.9,0
-1.6,0.7,2.1,1.2,2.0,1
-0.4,2.0,0.7,2.5,1.4,0
-2.0,0.3,2.6,0.7,2.5,1
-1.0,1.1,1.5,1.6,1.6,1
-0.2,2.3,0.3,2.9,1.0,0
-1.8,0.5,2.4,1.0,2.2,1
-0.9,1.6,1.0,2.0,1.2,0
-1.5,0.8,2.0,1.3,1.9,1
-0.7,1.9,0.8,2.4,1.1,0
-`;
-      await fs.writeFile(path.join(projectPath, 'data', 'sample', 'sample_data.csv'), sampleData);
-    } else if (modelType === 'regression') {
-      const sampleData = `feature1,feature2,feature3,feature4,feature5,target
-0.5,1.2,0.8,2.1,1.5,10.5
-1.1,0.9,1.3,1.7,0.8,15.2
-0.7,1.8,0.6,2.3,1.2,18.7
-1.4,0.6,1.9,1.1,2.1,22.1
-0.9,1.5,1.1,1.9,0.7,25.8
-1.7,0.4,2.2,0.9,1.8,30.2
-0.3,2.1,0.4,2.7,1.3,35.1
-1.9,0.2,2.5,0.6,2.4,40.3
-0.6,1.7,0.9,2.2,1.1,45.7
-2.1,0.1,2.8,0.4,2.7,50.9
-0.8,1.4,1.2,1.8,0.9,55.4
-1.6,0.7,2.1,1.2,2.0,60.1
-0.4,2.0,0.7,2.5,1.4,65.8
-2.0,0.3,2.6,0.7,2.5,70.2
-1.0,1.1,1.5,1.6,1.6,75.6
-0.2,2.3,0.3,2.9,1.0,80.3
-1.8,0.5,2.4,1.0,2.2,85.7
-0.9,1.6,1.0,2.0,1.2,90.1
-1.5,0.8,2.0,1.3,1.9,95.4
-0.7,1.9,0.8,2.4,1.1,100.2
-`;
-      await fs.writeFile(path.join(projectPath, 'data', 'sample', 'sample_data.csv'), sampleData);
+    // Default training architectures use input_dim=10, so generate 10 features
+    // here. Deterministic LCG so the file is stable across regenerations.
+    const numFeatures = 10;
+    const numRows = 120;
+    const featureNames = Array.from({ length: numFeatures }, (_, i) => `feature${i + 1}`);
+
+    let seed = 0xC0FFEE;
+    const rand = (): number => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0xFFFFFFFF;
+    };
+
+    if (modelType === 'classification' || modelType === 'regression') {
+      const lines = [[...featureNames, 'target'].join(',')];
+      for (let i = 0; i < numRows; i++) {
+        const features = Array.from({ length: numFeatures }, () => Number((rand() * 3).toFixed(3)));
+        const featureSum = features.reduce((s, v) => s + v, 0);
+        const target = modelType === 'classification'
+          ? (featureSum > numFeatures * 1.5 ? 1 : 0)
+          : Number((featureSum + rand() * 0.5).toFixed(3));
+        lines.push([...features, target].join(','));
+      }
+      await fs.writeFile(path.join(projectPath, 'data', 'sample', 'sample_data.csv'), lines.join('\n') + '\n');
     }
     
     // Create data README
