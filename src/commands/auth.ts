@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import open from "open";
 import ora from "ora";
-import type { DeviceTokenResponse } from "../types";
+import type { CirronConfig, DeviceTokenResponse } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
@@ -41,7 +41,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
 
 async function legacyTokenLogin(
   options: LoginOptions,
-  currentConfig: any,
+  currentConfig: CirronConfig,
   config: ConfigManager
 ): Promise<void> {
   const spinner = ora("Verifying token...").start();
@@ -83,7 +83,7 @@ async function legacyTokenLogin(
 }
 
 async function deviceFlowLogin(
-  currentConfig: any,
+  currentConfig: CirronConfig,
   config: ConfigManager
 ): Promise<void> {
   const spinner = ora("Starting device authorization...").start();
@@ -198,7 +198,7 @@ async function pollForAuthorization(
 
 async function saveTokens(
   tokens: DeviceTokenResponse,
-  currentConfig: any,
+  currentConfig: CirronConfig,
   config: ConfigManager
 ): Promise<void> {
   const expiresAt = new Date(

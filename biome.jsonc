@@ -63,7 +63,15 @@
         // Command handlers are intentionally async to match the Commander.js
         // contract even when their current body has no await — Commander
         // expects async handlers, and callers may chain Promise methods.
-        "useAwait": "off"
+        "useAwait": "off",
+        // This CLI wraps a JSON API and reads user-supplied JSON/YAML config.
+        // Most `any` sites are genuinely dynamic data: API response payloads,
+        // settings values, inquirer answers, generic ApiResponse<T> defaults.
+        // Replacing with `unknown` cascades type guards into every consumer
+        // without improving safety, since the runtime data really is unknown
+        // shape until validated. Type the values where a domain type exists,
+        // but don't force `unknown` blanket-replacement.
+        "noExplicitAny": "off"
       }
     }
   }
