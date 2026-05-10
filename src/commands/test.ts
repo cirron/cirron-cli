@@ -35,7 +35,7 @@ interface TestOptions {
 
 export async function testCommand(options: TestOptions): Promise<void> {
   const spinner = ora("Preparing tests...").start();
-  const interactive = createInteractiveManager(options.interactive);
+  const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
     // Load project configuration

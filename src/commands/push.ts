@@ -735,7 +735,7 @@ async function pushResourceTyped(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun([fileInfo], resolvedTag, options.json);
+      printDryRun([fileInfo], resolvedTag, options.json ?? false);
       return;
     }
 
@@ -834,7 +834,7 @@ async function pushPathBased(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun(fileInfos, resolvedTag, options.json);
+      printDryRun(fileInfos, resolvedTag, options.json ?? false);
       return;
     }
 
@@ -972,7 +972,7 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun(fileInfos, resolvedTag, options.json);
+      printDryRun(fileInfos, resolvedTag, options.json ?? false);
       return;
     }
 

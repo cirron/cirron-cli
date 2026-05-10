@@ -317,13 +317,13 @@ async function pullResourceTyped(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun([artifact], outputDir, options.json);
+      printDryRun([artifact], outputDir, options.json ?? false);
       return;
     }
 
     const destPath = await resolveOutputPath(artifact, options.output);
 
-    const shouldProceed = await checkConflict(destPath, options.force);
+    const shouldProceed = await checkConflict(destPath, options.force ?? false);
     if (!shouldProceed) {
       spinner.info(`Skipped ${artifact.name} (file exists)`);
       return;
@@ -385,13 +385,13 @@ async function pullPathBased(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun([artifact], outputDir, options.json);
+      printDryRun([artifact], outputDir, options.json ?? false);
       return;
     }
 
     const destPath = await resolveOutputPath(artifact, options.output);
 
-    const shouldProceed = await checkConflict(destPath, options.force);
+    const shouldProceed = await checkConflict(destPath, options.force ?? false);
     if (!shouldProceed) {
       spinner.info(`Skipped ${artifact.name} (file exists)`);
       return;
@@ -472,7 +472,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun(filteredArtifacts, outputDir, options.json);
+      printDryRun(filteredArtifacts, outputDir, options.json ?? false);
       return;
     }
 
@@ -491,7 +491,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
       try {
         const destPath = await resolveOutputPath(artifact, options.output);
 
-        const shouldProceed = await checkConflict(destPath, options.force);
+        const shouldProceed = await checkConflict(destPath, options.force ?? false);
         if (!shouldProceed) {
           itemSpinner.info(`Skipped ${artifact.name} (file exists)`);
           skipCount++;

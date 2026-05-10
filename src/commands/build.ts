@@ -203,7 +203,7 @@ async function handleMLBuild(
   options: BuildOptions,
   spinner: ReturnType<typeof ora>
 ): Promise<void> {
-  const interactive = createInteractiveManager(options.interactive);
+  const interactive = createInteractiveManager(options.interactive ?? false);
 
   // Load model configuration
   const modelConfigManager = new ModelConfigManager();
