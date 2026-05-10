@@ -9,6 +9,7 @@ export async function createPyTorchFiles(projectPath: string, _projectName: stri
     torch>=2.5.0
     torchvision>=0.20.0
     numpy>=2.1.0
+    pandas>=2.2.0
     scikit-learn>=1.5.0
     matplotlib>=3.9.0
     tqdm>=4.66.0
