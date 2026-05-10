@@ -9,6 +9,8 @@ import {
 const PYTORCH_REQUIREMENTS = dedent(`
   torch>=2.5.0
   numpy>=2.1.0
+  onnx>=1.16.0
+  onnxscript>=0.1.0
   onnxruntime>=1.20.0
 `);
 
@@ -16,6 +18,8 @@ const PYTORCH_REQUIREMENTS_TRAIN = dedent(`
   torch>=2.5.0
   numpy>=2.1.0
   tqdm>=4.66.0
+  onnx>=1.16.0
+  onnxscript>=0.1.0
   onnxruntime>=1.20.0
 `);
 
@@ -25,101 +29,101 @@ function buildPyTorchTrainScript(modelType: string, withTrainingLoop: boolean): 
   const lossFn = isRegression ? 'nn.MSELoss()' : 'nn.CrossEntropyLoss()';
   const targetDtype = isRegression ? 'torch.float32' : 'torch.long';
   const outputDim = isRegression ? '1' : '2';
+  const yLine = isRegression
+    ? 'weights = rng.normal(size=NUM_FEATURES).astype(np.float32)\n    y = (X @ weights + rng.normal(scale=0.1, size=n)).astype(np.float32)'
+    : 'y = (X.sum(axis=1) > 0).astype(np.int64)';
 
-  const trainingLoop = withTrainingLoop
-    ? dedent(`
-            num_epochs = 8
-            for epoch in range(num_epochs):
-                model.train()
-                running = 0.0
-                for xb, yb in tqdm(train_loader, desc=f"epoch {epoch + 1}/{num_epochs}"):
-                    optimizer.zero_grad()
-                    pred = model(xb)
-                    target = yb.unsqueeze(1) if pred.shape == yb.unsqueeze(1).shape else yb
-                    loss = loss_fn(pred, target)
-                    loss.backward()
-                    optimizer.step()
-                    running += loss.item() * xb.size(0)
-                print(f"epoch {epoch + 1}: train_loss={running / len(train_loader.dataset):.4f}")
-      `)
-    : dedent(`
-            for _ in range(3):
-                for xb, yb in train_loader:
-                    optimizer.zero_grad()
-                    pred = model(xb)
-                    target = yb.unsqueeze(1) if pred.shape == yb.unsqueeze(1).shape else yb
-                    loss = loss_fn(pred, target)
-                    loss.backward()
-                    optimizer.step()
-      `);
+  const trainBody = withTrainingLoop
+    ? [
+        '    num_epochs = 8',
+        '    for epoch in range(num_epochs):',
+        '        model.train()',
+        '        running = 0.0',
+        '        for xb, yb in tqdm(train_loader, desc=f"epoch {epoch + 1}/{num_epochs}"):',
+        '            optimizer.zero_grad()',
+        '            pred = model(xb)',
+        '            target = yb.unsqueeze(1) if pred.shape == yb.unsqueeze(1).shape else yb',
+        '            loss = loss_fn(pred, target)',
+        '            loss.backward()',
+        '            optimizer.step()',
+        '            running += loss.item() * xb.size(0)',
+        '        print(f"epoch {epoch + 1}: train_loss={running / len(train_loader.dataset):.4f}")',
+      ].join('\n')
+    : [
+        '    for _ in range(3):',
+        '        for xb, yb in train_loader:',
+        '            optimizer.zero_grad()',
+        '            pred = model(xb)',
+        '            target = yb.unsqueeze(1) if pred.shape == yb.unsqueeze(1).shape else yb',
+        '            loss = loss_fn(pred, target)',
+        '            loss.backward()',
+        '            optimizer.step()',
+      ].join('\n');
 
   const tqdmImport = withTrainingLoop ? 'from tqdm import tqdm\n' : '';
 
-  return dedent(`
-    """Train a small PyTorch model and export it to ONNX for serving."""
-    import os
-    import numpy as np
-    import torch
-    import torch.nn as nn
-    from torch.utils.data import DataLoader, TensorDataset
-    ${tqdmImport}
-    ARTIFACTS_DIR = os.path.join(os.path.dirname(__file__), "artifacts")
-    NUM_FEATURES = 10
-    OUTPUT_DIM = ${outputDim}
-
-
-    def make_synthetic_data(n: int = 1000, seed: int = 42):
-        rng = np.random.default_rng(seed)
-        X = rng.normal(size=(n, NUM_FEATURES)).astype(np.float32)
-        ${
-          isRegression
-            ? "weights = rng.normal(size=NUM_FEATURES).astype(np.float32)\n        y = (X @ weights + rng.normal(scale=0.1, size=n)).astype(np.float32)"
-            : "y = (X.sum(axis=1) > 0).astype(np.int64)"
-        }
-        return X, y
-
-
-    def build_model():
-        return nn.Sequential(
-            nn.Linear(NUM_FEATURES, 64),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(64, OUTPUT_DIM)${finalActivation},
-        )
-
-
-    def train():
-        X, y = make_synthetic_data()
-        X_t = torch.from_numpy(X)
-        y_t = torch.tensor(y, dtype=${targetDtype})
-        train_loader = DataLoader(TensorDataset(X_t, y_t), batch_size=32, shuffle=True)
-
-        model = build_model()
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-        loss_fn = ${lossFn}
-
-        print("Training...")
-${trainingLoop}
-
-        model.eval()
-        os.makedirs(ARTIFACTS_DIR, exist_ok=True)
-        onnx_path = os.path.join(ARTIFACTS_DIR, "model.onnx")
-        dummy = torch.randn(1, NUM_FEATURES)
-        torch.onnx.export(
-            model,
-            dummy,
-            onnx_path,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-            opset_version=17,
-        )
-        print(f"ONNX model exported to {onnx_path}")
-
-
-    if __name__ == "__main__":
-        train()
-  `);
+  return [
+    '"""Train a small PyTorch model and export it to ONNX for serving."""',
+    'import os',
+    'import numpy as np',
+    'import torch',
+    'import torch.nn as nn',
+    'from torch.utils.data import DataLoader, TensorDataset',
+    tqdmImport,
+    'ARTIFACTS_DIR = os.path.join(os.path.dirname(__file__), "artifacts")',
+    'NUM_FEATURES = 10',
+    `OUTPUT_DIM = ${outputDim}`,
+    '',
+    '',
+    'def make_synthetic_data(n: int = 1000, seed: int = 42):',
+    '    rng = np.random.default_rng(seed)',
+    '    X = rng.normal(size=(n, NUM_FEATURES)).astype(np.float32)',
+    `    ${yLine}`,
+    '    return X, y',
+    '',
+    '',
+    'def build_model():',
+    '    return nn.Sequential(',
+    '        nn.Linear(NUM_FEATURES, 64),',
+    '        nn.ReLU(),',
+    '        nn.Dropout(0.2),',
+    `        nn.Linear(64, OUTPUT_DIM)${finalActivation},`,
+    '    )',
+    '',
+    '',
+    'def train():',
+    '    X, y = make_synthetic_data()',
+    '    X_t = torch.from_numpy(X)',
+    `    y_t = torch.tensor(y, dtype=${targetDtype})`,
+    '    train_loader = DataLoader(TensorDataset(X_t, y_t), batch_size=32, shuffle=True)',
+    '',
+    '    model = build_model()',
+    '    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)',
+    `    loss_fn = ${lossFn}`,
+    '',
+    '    print("Training...")',
+    trainBody,
+    '',
+    '    model.eval()',
+    '    os.makedirs(ARTIFACTS_DIR, exist_ok=True)',
+    '    onnx_path = os.path.join(ARTIFACTS_DIR, "model.onnx")',
+    '    dummy = torch.randn(1, NUM_FEATURES)',
+    '    torch.onnx.export(',
+    '        model,',
+    '        dummy,',
+    '        onnx_path,',
+    '        input_names=["input"],',
+    '        output_names=["output"],',
+    '        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},',
+    '        opset_version=17,',
+    '    )',
+    '    print(f"ONNX model exported to {onnx_path}")',
+    '',
+    '',
+    'if __name__ == "__main__":',
+    '    train()',
+    '',
+  ].join('\n');
 }
 
 function buildCirronYaml(projectName: string, modelType: string, description: string): string {
