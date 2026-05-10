@@ -179,8 +179,8 @@ async function analyzeModelFile(
     ];
 
     for (const pattern of shapePatterns) {
-      let match;
-      while ((match = pattern.exec(trimmedLine)) !== null) {
+      const matches = trimmedLine.matchAll(pattern);
+      for (const match of matches) {
         const shape = match[1]?.trim();
         if (shape && !analysis.inputShapes.includes(shape)) {
           analysis.inputShapes.push(shape);

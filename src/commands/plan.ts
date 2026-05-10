@@ -1139,7 +1139,11 @@ export async function planSaveCommand(
         spinner.text = `Generating ${planType} plan...`;
         const planGenerator = new PlanGenerator(projectConfig, process.cwd());
 
-        let plan;
+        let plan:
+          | Awaited<ReturnType<PlanGenerator["generatePlan"]>>
+          | Awaited<ReturnType<typeof generateLintPlan>>
+          | Awaited<ReturnType<typeof generateTestPlan>>
+          | undefined;
         if (planType === "compile" || planType === "build") {
           const architecture =
             await determineDefaultArchitecture(projectConfig);
@@ -1240,7 +1244,11 @@ export async function planSaveCommand(
   const spinner = ora(`Generating and saving ${type} plan...`).start();
 
   try {
-    let plan;
+    let plan:
+      | Awaited<ReturnType<PlanGenerator["generatePlan"]>>
+      | Awaited<ReturnType<typeof generateLintPlan>>
+      | Awaited<ReturnType<typeof generateTestPlan>>
+      | undefined;
 
     if (type === "compile" || type === "build") {
       const architecture = await determineDefaultArchitecture(projectConfig);

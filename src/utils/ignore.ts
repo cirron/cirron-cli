@@ -72,11 +72,9 @@ export class CirronIgnore {
         if (this.matchPattern(normalizedPath, negationPattern)) {
           ignored = false;
         }
-      } else {
+      } else if (this.matchPattern(normalizedPath, pattern)) {
         // Regular pattern - if it matches, file is ignored
-        if (this.matchPattern(normalizedPath, pattern)) {
-          ignored = true;
-        }
+        ignored = true;
       }
     }
 

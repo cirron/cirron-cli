@@ -57,21 +57,22 @@ export class PlanStorage {
   }
 
   static async loadPlan(filePath: string): Promise<SavedPlan> {
-    if (!fs.existsSync(filePath)) {
+    let resolvedPath = filePath;
+    if (!fs.existsSync(resolvedPath)) {
       // Try to find it in plans directory if not absolute path
-      if (path.isAbsolute(filePath)) {
-        throw new Error(`Plan file not found: ${filePath}`);
+      if (path.isAbsolute(resolvedPath)) {
+        throw new Error(`Plan file not found: ${resolvedPath}`);
       }
-      const fullPath = path.join(PlanStorage.PLANS_DIR, filePath);
+      const fullPath = path.join(PlanStorage.PLANS_DIR, resolvedPath);
       if (fs.existsSync(fullPath)) {
-        filePath = fullPath;
+        resolvedPath = fullPath;
       } else {
-        throw new Error(`Plan file not found: ${filePath}`);
+        throw new Error(`Plan file not found: ${resolvedPath}`);
       }
     }
 
     try {
-      const savedPlan = (await fs.readJson(filePath)) as SavedPlan;
+      const savedPlan = (await fs.readJson(resolvedPath)) as SavedPlan;
       return savedPlan;
     } catch (error) {
       throw new Error(
@@ -109,20 +110,21 @@ export class PlanStorage {
   }
 
   static async deletePlan(filePath: string): Promise<void> {
-    if (!fs.existsSync(filePath)) {
-      if (path.isAbsolute(filePath)) {
-        throw new Error(`Plan file not found: ${filePath}`);
+    let resolvedPath = filePath;
+    if (!fs.existsSync(resolvedPath)) {
+      if (path.isAbsolute(resolvedPath)) {
+        throw new Error(`Plan file not found: ${resolvedPath}`);
       }
-      const fullPath = path.join(PlanStorage.PLANS_DIR, filePath);
+      const fullPath = path.join(PlanStorage.PLANS_DIR, resolvedPath);
       if (fs.existsSync(fullPath)) {
-        filePath = fullPath;
+        resolvedPath = fullPath;
       } else {
-        throw new Error(`Plan file not found: ${filePath}`);
+        throw new Error(`Plan file not found: ${resolvedPath}`);
       }
     }
 
-    await fs.remove(filePath);
-    logger.info(`Plan deleted: ${filePath}`);
+    await fs.remove(resolvedPath);
+    logger.info(`Plan deleted: ${resolvedPath}`);
   }
 
   static async cleanupOldPlans(maxAge = 30): Promise<number> {

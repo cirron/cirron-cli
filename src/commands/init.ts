@@ -116,7 +116,8 @@ export async function initCommand(
     }
 
     // Get project name if not provided
-    if (!projectName) {
+    let resolvedName = projectName;
+    if (!resolvedName) {
       const answers = await inquirer.prompt([
         {
           type: "input",
@@ -134,12 +135,12 @@ export async function initCommand(
           },
         },
       ]);
-      projectName = answers.name;
+      resolvedName = answers.name;
     }
 
-    const projectPath = path.resolve(process.cwd(), projectName!);
+    const projectPath = path.resolve(process.cwd(), resolvedName!);
     // Use only the final path segment as the project name (the input may be a relative path).
-    projectName = path.basename(projectPath);
+    resolvedName = path.basename(projectPath);
 
     // Check for existing project/model with the same name in the current directory
     const existingProjectPath = projectPath;
@@ -158,7 +159,7 @@ export async function initCommand(
           {
             type: "select",
             name: "action",
-            message: `Directory "${projectName}" already has a Cirron config. What would you like to do?`,
+            message: `Directory "${resolvedName}" already has a Cirron config. What would you like to do?`,
             choices: [
               {
                 name: "Register existing project with Cirron (no file changes)",
@@ -187,7 +188,7 @@ export async function initCommand(
           {
             type: "confirm",
             name: "proceed",
-            message: `WARNING: There is already a model with this name (${projectName}) and this action will overwrite existing files. This cannot be undone. Continue anyway?`,
+            message: `WARNING: There is already a model with this name (${resolvedName}) and this action will overwrite existing files. This cannot be undone. Continue anyway?`,
             default: false,
           },
         ]);
@@ -256,7 +257,7 @@ export async function initCommand(
       await fs.ensureDir(projectPath);
 
       // Create project files based on template
-      await createProjectFiles(projectPath, projectName!, template, {
+      await createProjectFiles(projectPath, resolvedName!, template, {
         modelType,
         includeSampleData,
         includeNotebook,
@@ -332,7 +333,7 @@ export async function initCommand(
         try {
           const api = new CirronApi(currentConfig);
           await api.createProject({
-            name: projectName!,
+            name: resolvedName!,
             framework: deriveFramework(template),
             path: projectPath,
           });
@@ -345,13 +346,13 @@ export async function initCommand(
       }
 
       spinner.succeed(
-        chalk.green(`Project ${projectName} created successfully!`)
+        chalk.green(`Project ${resolvedName} created successfully!`)
       );
 
       // Show next steps
       console.log();
       logger.info(chalk.bold("Next steps:"));
-      logger.info(`  ${chalk.cyan(`cd ${projectName}`)}`);
+      logger.info(`  ${chalk.cyan(`cd ${resolvedName}`)}`);
 
       if (
         !options.install &&
