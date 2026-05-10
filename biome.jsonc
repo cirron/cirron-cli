@@ -1,4 +1,22 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite/biome/core", "ultracite/biome/vitest"]
+  "extends": ["ultracite/biome/core", "ultracite/biome/vitest"],
+  "linter": {
+    "rules": {
+      "complexity": {
+        // CLI command handlers are inherently branchy (option parsing, validation,
+        // error paths). Hitting this score doesn't indicate a real defect.
+        "noExcessiveCognitiveComplexity": "off"
+      },
+      "performance": {
+        // CLI regexes are typically cold (run once per invocation). Hoisting them
+        // to module scope is noise without measurable perf impact.
+        "useTopLevelRegex": "off"
+      },
+      "suspicious": {
+        // Bitwise ops are intentional in flag/permission/hash code paths.
+        "noBitwiseOperators": "off"
+      }
+    }
+  }
 }
