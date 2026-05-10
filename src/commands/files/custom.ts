@@ -1,146 +1,78 @@
-import fs from 'fs-extra';
-import path from 'path';
-import getDataLoaderCode from './data';
+import yaml from 'js-yaml';
 import { dedent } from '../../utils/dedent';
+import {
+  buildSklearnJoblibServeScript,
+  buildSyntheticTabularServingConfig,
+  writeProjectFiles,
+} from './shared';
 
-export async function createCustomFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
-  const requirements = dedent(`
-    numpy>=2.1.0
-    pandas>=2.2.0
-    scikit-learn>=1.5.0
-    matplotlib>=3.9.0
-    requests>=2.32.0
-  `);
+const CUSTOM_REQUIREMENTS = dedent(`
+  scikit-learn>=1.5.0
+  numpy>=2.1.0
+  joblib>=1.4.0
+`);
 
-  await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
+const CUSTOM_TRAIN_SCRIPT = dedent(`
+  """Custom-framework scaffold.
 
-  const modelType = options.modelType || 'custom';
+  Trains a minimal sklearn stub on synthetic data so the artifact is
+  loadable end-to-end via serve.py. Replace the model + training logic
+  with your own framework while keeping the joblib output contract.
+  """
+  import os
+  import joblib
+  import numpy as np
+  from sklearn.ensemble import RandomForestClassifier
 
-  const modelConfig = dedent(`
-    # Model Configuration for Custom Framework
-    version: 1
-    name: "custom_model"
-    architecture: "CustomModel"
-    framework: custom
-    modelType: "${modelType}"
-
-    parameters:
-      total: 1000  # Update based on your model
-      trainable: 1000
-      nonTrainable: 0
-
-    inputShape: "(samples, features)"  # Update based on your input
-    outputShape: "(samples, outputs)"  # Update based on your output
-
-    training:
-      epochs: 10
-      batchSize: 32
-      learningRate: 0.001
-
-    inference:
-      device: "cpu"
-      precision: "fp32"
-      batchSize: 1
-
-    data:
-      inputFormat: "custom"
-      outputFormat: "custom"
-      preprocessing:
-        - "custom_preprocessing"
-
-    metadata:
-      description: "Custom model implementation - modify as needed"
-      created: "${new Date().toISOString()}"
-      tags:
-        - "custom"
-        - "${modelType}"
-
-    dependencies:
-      python: ">=3.11"
-      packages:
-        numpy: ">=2.1.0"
-        pandas: ">=2.2.0"
-  `);
-
-  await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
-  await fs.ensureDir(path.join(projectPath, 'src'));
-
-  const modelCode = dedent(`
-    """Custom model scaffold. Replace this stub with your own architecture."""
-
-    import numpy as np
+  ARTIFACTS_DIR = os.path.join(os.path.dirname(__file__), "artifacts")
+  FEATURE_NAMES = [f"feature{i + 1}" for i in range(10)]
 
 
-    class CustomModel:
-        def __init__(self):
-            self.is_trained = False
-
-        def train(self, X, y):
-            """Stub: mark the model as trained. Replace with real training."""
-            self.is_trained = True
-            return self
-
-        def predict(self, X):
-            """Stub: return zeros shaped like the input. Replace with a real forward pass."""
-            arr = np.asarray(X)
-            if arr.ndim == 0:
-                return np.zeros(1)
-            return np.zeros(arr.shape[0] if arr.ndim > 1 else 1)
-
-        def save(self, filepath):
-            """Save the model. Replace with framework-specific serialization."""
-            import joblib
-
-            joblib.dump(self, filepath)
-
-        def load(self, filepath):
-            """Load a saved model."""
-            import joblib
-
-            loaded = joblib.load(filepath)
-            self.__dict__.update(loaded.__dict__)
+  def make_synthetic_data(n: int = 500, seed: int = 42):
+      rng = np.random.default_rng(seed)
+      X = rng.normal(size=(n, len(FEATURE_NAMES)))
+      y = (X.sum(axis=1) > 0).astype(int)
+      return X, y
 
 
-    def create_model():
-        """Factory for model instances."""
-        return CustomModel()
-  `);
+  def train():
+      print("Generating synthetic data...")
+      X, y = make_synthetic_data()
 
-  await fs.writeFile(path.join(projectPath, 'src', 'model.py'), modelCode);
+      model = RandomForestClassifier(n_estimators=50, random_state=42)
+      model.fit(X, y)
 
-  const inferenceCode = dedent(`
-    import numpy as np
-    from model import create_model
-
-
-    class ModelInference:
-        def __init__(self, model_path: str = None):
-            self.model = create_model()
-
-            if model_path:
-                self.load_model(model_path)
-
-        def load_model(self, model_path: str):
-            """Load a trained model."""
-            self.model.load(model_path)
-            print(f"Model loaded from {model_path}")
-
-        def preprocess(self, input_data):
-            """Identity preprocess. Override for your data format."""
-            return np.asarray(input_data)
-
-        def predict(self, input_data):
-            """Make a prediction."""
-            return self.model.predict(self.preprocess(input_data))
+      os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+      model_path = os.path.join(ARTIFACTS_DIR, "model.joblib")
+      joblib.dump(model, model_path)
+      print(f"Stub model saved to {model_path}")
 
 
-    if __name__ == "__main__":
-        inference = ModelInference()
-        sample_input = [[1, 2, 3, 4, 5]]
-        result = inference.predict(sample_input)
-        print(f"Prediction: {result}")
-  `);
+  if __name__ == "__main__":
+      train()
+`);
 
-  await fs.writeFile(path.join(projectPath, 'src', 'inference.py'), inferenceCode);
-  await fs.writeFile(path.join(projectPath, 'src', 'data_loader.py'), getDataLoaderCode('custom', options.modelType));
+function buildCirronYaml(projectName: string, modelType: string): string {
+  const cfg = {
+    name: projectName,
+    framework: 'custom',
+    type: modelType,
+    version: '1.0.0',
+    description: `Custom ${modelType} scaffold from Cirron CLI. Stubbed with a sklearn model so the joblib serving contract works end-to-end.`,
+    servingConfig: buildSyntheticTabularServingConfig('sklearn-joblib', modelType),
+  };
+  return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
+}
+
+export async function createCustomFiles(
+  projectPath: string,
+  projectName: string,
+  options: { modelType: string },
+): Promise<void> {
+  await writeProjectFiles(projectPath, {
+    'cirron.yaml': buildCirronYaml(projectName, options.modelType),
+    'requirements.txt': CUSTOM_REQUIREMENTS,
+    'train.py': CUSTOM_TRAIN_SCRIPT,
+    'serve.py': buildSklearnJoblibServeScript(),
+  });
 }
