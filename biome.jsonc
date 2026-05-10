@@ -51,11 +51,19 @@
         // CLIErrorCode enum is part of the public API surface.
         "noEnum": "off",
         // TS parameter properties are an idiomatic constructor shorthand.
-        "noParameterProperties": "off"
+        "noParameterProperties": "off",
+        // Nested ternaries are usually status-color or single-line status
+        // mappings here. Refactoring them to if/else doesn't improve clarity
+        // and trades expression-style code for statement-style boilerplate.
+        "noNestedTernary": "off"
       },
       "suspicious": {
         // Bitwise ops are intentional in flag/permission/hash code paths.
-        "noBitwiseOperators": "off"
+        "noBitwiseOperators": "off",
+        // Command handlers are intentionally async to match the Commander.js
+        // contract even when their current body has no await — Commander
+        // expects async handlers, and callers may chain Promise methods.
+        "useAwait": "off"
       }
     }
   }
