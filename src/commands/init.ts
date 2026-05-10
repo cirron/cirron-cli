@@ -3,6 +3,7 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
+import yaml from 'js-yaml';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
@@ -25,7 +26,7 @@ import {
 import { findProjectConfigPath } from '../utils/project-config';
 import { getRepositoryInfo } from '../utils/git';
 
-const TEMPLATES: Record<string, Template> = {
+export const TEMPLATES: Record<string, Template> = {
   pytorch: {
     name: 'PyTorch',
     description: 'PyTorch model with training and inference',
@@ -432,16 +433,16 @@ async function createProjectFiles(
     initialMetadata.gitCommitHash = gitInfo.commitHash;
   }
 
-  // Create cirron.json
+  // Build cirron.yaml config
   const projectConfig: ProjectConfig = {
     name: projectName,
     projectVersion: '1.0.0',
     template,
-    framework: template.includes('pytorch') ? 'pytorch' : 
+    framework: template.includes('pytorch') ? 'pytorch' :
                template.includes('tensorflow') ? 'tensorflow' :
                template.includes('sklearn') ? 'sklearn' : 'custom',
     modelType: options.modelType,
-    pythonVersion: '3.9', // TODO: get python version from user
+    pythonVersion: '3.11',
     gpuRequired: false,
     environments: {
       development: {
@@ -477,7 +478,8 @@ async function createProjectFiles(
     metadata: initialMetadata
   };
 
-  await fs.writeJSON(path.join(projectPath, 'cirron.json'), projectConfig, { spaces: 2 });
+  const yamlBody = yaml.dump(projectConfig, { indent: 2, lineWidth: 100, noRefs: true });
+  await fs.writeFile(path.join(projectPath, 'cirron.yaml'), yamlBody);
 
   // Create template-specific files
   switch (template) {
