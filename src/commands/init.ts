@@ -3,28 +3,26 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
-import yaml from 'js-yaml';
 import { logger } from '../utils/logger';
 import { CirronApi } from '../utils/api';
 import { ConfigManager } from '../utils/config';
 import { executeScript, formatExecutionError } from '../utils/execution';
-import type { 
-  InitOptions, 
-  ProjectConfig, 
-  Template 
+import type {
+  InitOptions,
+  ProjectConfig,
+  Template,
 } from '../types';
-import { 
-  createTensorFlowFiles, 
+import {
+  createTensorFlowFiles,
   createTensorFlowTrainingFiles,
   createCommonMLFiles,
-  createPyTorchFiles, 
+  createPyTorchFiles,
   createPyTorchTrainingFiles,
-  createSklearnFiles, 
+  createSklearnFiles,
   createSklearnPipelineFiles,
-  createCustomFiles 
+  createCustomFiles,
 } from './files';
 import { findProjectConfigPath } from '../utils/project-config';
-import { getRepositoryInfo } from '../utils/git';
 
 export const TEMPLATES: Record<string, Template> = {
   pytorch: {
@@ -363,8 +361,8 @@ function deriveType(modelType: string): string {
 }
 
 async function createProjectFiles(
-  projectPath: string, 
-  projectName: string, 
+  projectPath: string,
+  projectName: string,
   template: string,
   options: {
     modelType: string;
@@ -372,189 +370,35 @@ async function createProjectFiles(
     includeNotebook: boolean;
   }
 ): Promise<void> {
-  // Get initial metadata
-  const gitInfo = getRepositoryInfo(projectPath);
-  const initialMetadata: any = {
-    modelClassName: getDefaultModelClassName(template, options.modelType),
-    architecture: getDefaultArchitecture(template),
-    lastUpdated: new Date().toISOString(),
-    inputShape: getDefaultInputShape(template),
-    detectedPatterns: []
-  };
+  const framework = deriveFramework(template);
+  const modelType = deriveType(options.modelType || 'classification');
 
-  // Only add gitCommitHash if it exists
-  if (gitInfo.commitHash) {
-    initialMetadata.gitCommitHash = gitInfo.commitHash;
-  }
-
-  // Build cirron.yaml config
-  const projectConfig: ProjectConfig = {
-    name: projectName,
-    projectVersion: '1.0.0',
-    template,
-    framework: template.includes('pytorch') ? 'pytorch' :
-               template.includes('tensorflow') ? 'tensorflow' :
-               template.includes('sklearn') ? 'sklearn' : 'custom',
-    modelType: options.modelType,
-    pythonVersion: '3.11',
-    gpuRequired: false,
-    environments: {
-      development: {
-        name: 'development',
-        url: 'http://localhost:8000'
-      },
-      staging: {
-        name: 'staging'
-      },
-      production: {
-        name: 'production'
-      }
-    },
-    build: {
-      outputDir: 'dist',
-      command: 'docker build -t ${PROJECT_NAME} .',
-      include: ['src/**', 'requirements.txt', 'Dockerfile'],
-      exclude: ['*.pyc', '__pycache__', '.pytest_cache', 'data/raw/**']
-    },
-    deploy: {
-      provider: 'custom',
-      settings: {
-        containerRegistry: 'harbor',
-        imageTag: '${VERSION}'
-      }
-    },
-    artifacts: {
-      modelPath: 'models/',
-      checkpointPath: 'checkpoints/',
-      logsPath: 'logs/'
-    },
-    test: getTemplateTestConfig(template),
-    metadata: initialMetadata
-  };
-
-  const yamlBody = yaml.dump(projectConfig, { indent: 2, lineWidth: 100, noRefs: true });
-  await fs.writeFile(path.join(projectPath, 'cirron.yaml'), yamlBody);
-
-  // Create template-specific files
+  // Per-template servingConfig + cirron.yaml are produced by the framework
+  // file generator, since input/output schemas are framework-specific.
   switch (template) {
     case 'pytorch':
-      await createPyTorchFiles(projectPath, projectName, options);
+      await createPyTorchFiles(projectPath, projectName, { ...options, modelType });
       break;
     case 'pytorch-train':
-      await createPyTorchTrainingFiles(projectPath, projectName, options);
+      await createPyTorchTrainingFiles(projectPath, projectName, { ...options, modelType });
       break;
     case 'tensorflow':
-      await createTensorFlowFiles(projectPath, projectName, options);
+      await createTensorFlowFiles(projectPath, projectName, { ...options, modelType });
       break;
     case 'tensorflow-train':
-      await createTensorFlowTrainingFiles(projectPath, projectName, options);
+      await createTensorFlowTrainingFiles(projectPath, projectName, { ...options, modelType });
       break;
     case 'sklearn':
-      await createSklearnFiles(projectPath, projectName, options);
+      await createSklearnFiles(projectPath, projectName, { ...options, modelType });
       break;
     case 'sklearn-pipeline':
-      await createSklearnPipelineFiles(projectPath, projectName, options);
+      await createSklearnPipelineFiles(projectPath, projectName, { ...options, modelType });
       break;
     case 'custom':
-      await createCustomFiles(projectPath, projectName, options);
+      await createCustomFiles(projectPath, projectName, { ...options, modelType });
       break;
   }
 
-  // Create common ML files
-  await createCommonMLFiles(projectPath, projectName, options);
+  await createCommonMLFiles(projectPath, projectName, { ...options, framework, modelType });
 }
 
-/**
- * Get default model class name based on template and model type
- */
-function getDefaultModelClassName(template: string, modelType: string): string {
-  const baseNames = {
-    'pytorch': {
-      'classification': 'ClassificationModel',
-      'regression': 'RegressionModel', 
-      'computer_vision': 'CNNModel',
-      'nlp': 'TransformerModel',
-      'time_series': 'LSTMModel',
-      'custom': 'CustomModel'
-    },
-    'pytorch-train': {
-      'classification': 'ClassificationModel',
-      'regression': 'RegressionModel',
-      'computer_vision': 'CNNModel',
-      'nlp': 'TransformerModel',
-      'time_series': 'LSTMModel',
-      'custom': 'CustomModel'
-    },
-    'tensorflow': {
-      'classification': 'ClassificationModel',
-      'regression': 'RegressionModel',
-      'computer_vision': 'CNNModel', 
-      'nlp': 'TransformerModel',
-      'time_series': 'LSTMModel',
-      'custom': 'CustomModel'
-    },
-    'tensorflow-train': {
-      'classification': 'ClassificationModel',
-      'regression': 'RegressionModel',
-      'computer_vision': 'CNNModel',
-      'nlp': 'TransformerModel', 
-      'time_series': 'LSTMModel',
-      'custom': 'CustomModel'
-    },
-    'sklearn': {
-      'classification': 'ClassificationPipeline',
-      'regression': 'RegressionPipeline',
-      'custom': 'MLPipeline'
-    },
-    'sklearn-pipeline': {
-      'classification': 'ClassificationPipeline',
-      'regression': 'RegressionPipeline',
-      'custom': 'MLPipeline'
-    },
-    'custom': {
-      'classification': 'Model',
-      'regression': 'Model',
-      'custom': 'Model'
-    }
-  };
-
-  const templateMap = baseNames[template as keyof typeof baseNames];
-  if (templateMap) {
-    return templateMap[modelType as keyof typeof templateMap] || templateMap['custom'] || 'Model';
-  }
-  return 'Model';
-}
-
-/**
- * Get default architecture based on template
- */
-function getDefaultArchitecture(template: string): string {
-  const architectures = {
-    'pytorch': 'Neural Network',
-    'pytorch-train': 'Neural Network',
-    'tensorflow': 'Keras Model',
-    'tensorflow-train': 'Keras Model', 
-    'sklearn': 'Scikit-learn Pipeline',
-    'sklearn-pipeline': 'Scikit-learn Pipeline',
-    'custom': 'Custom Model'
-  };
-
-  return architectures[template as keyof typeof architectures] || 'Custom Model';
-}
-
-/**
- * Get default input shape based on template
- */
-function getDefaultInputShape(template: string): string {
-  const shapes = {
-    'pytorch': '(1, 3, 224, 224)',
-    'pytorch-train': '(1, 3, 224, 224)',
-    'tensorflow': '(224, 224, 3)',
-    'tensorflow-train': '(224, 224, 3)',
-    'sklearn': 'Varies by dataset',
-    'sklearn-pipeline': 'Varies by dataset', 
-    'custom': 'Not specified'
-  };
-
-  return shapes[template as keyof typeof shapes] || 'Not specified';
-}
