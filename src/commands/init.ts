@@ -135,9 +135,11 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     }
 
     const projectPath = path.resolve(process.cwd(), projectName!);
+    // Use only the final path segment as the project name (the input may be a relative path).
+    projectName = path.basename(projectPath);
 
     // Check for existing project/model with the same name in the current directory
-    const existingProjectPath = path.resolve(process.cwd(), projectName!);
+    const existingProjectPath = projectPath;
     if (fs.existsSync(existingProjectPath)) {
       // Check for cirron config (cirron.yaml/yml/json) or model.py as a sign of an existing project/model
       const cirronConfigExists = !!findProjectConfigPath(existingProjectPath);
