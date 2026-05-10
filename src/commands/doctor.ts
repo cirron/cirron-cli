@@ -903,6 +903,8 @@ function statusGlyph(kind: "ok" | "missing" | "warn"): string {
       return chalk.red("[X] ");
     case "warn":
       return chalk.yellow("[!] ");
+    default:
+      return "";
   }
 }
 
@@ -916,6 +918,8 @@ function sourceTag(source: ResolutionSource, envVar: string | null): string {
       return chalk.gray(`(env: ${envVar ?? "CIRRON_*"})`);
     case "unset":
       return chalk.gray("(unset)");
+    default:
+      return "";
   }
 }
 

@@ -466,6 +466,8 @@ function estimateParameterCount(
         return 100; // Sklearn models typically have fewer parameters
       }
       break;
+    default:
+      break;
   }
 
   return 0;

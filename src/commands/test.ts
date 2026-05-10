@@ -218,6 +218,8 @@ export async function testCommand(options: TestOptions): Promise<void> {
           case "pipeline":
             await runPipelineTests(projectConfig, options.path);
             break;
+          default:
+            break;
         }
 
         results.push({ test, status: "pass" });
@@ -260,7 +262,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     logger.info(chalk.bold("Test Results"));
     console.log();
 
-    results.forEach((result) => {
+    for (const result of results) {
       const icon = result.status === "pass" ? chalk.green("✓") : chalk.red("✗");
       const testName =
         result.test.charAt(0).toUpperCase() + result.test.slice(1);
@@ -269,7 +271,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
       if (result.status === "fail" && result.message) {
         logger.info(`   ${chalk.gray(result.message)}`);
       }
-    });
+    }
 
     console.log();
 
@@ -832,6 +834,8 @@ async function watchTests(
               await runLintTests();
               logger.info(chalk.green("✓ Lint tests passed"));
               break;
+            default:
+              break;
           }
         } catch (error) {
           logger.error(chalk.red(`✗ ${test} tests failed: ${error}`));
@@ -1230,8 +1234,8 @@ async function runPipelineTests(
   logger.info(`Steps completed: ${successfulSteps}/${results.length}`);
   logger.info(`Total time: ${totalTime}ms`);
 
-  results.forEach((result) => {
+  for (const result of results) {
     const status = result.success ? "✓" : "✗";
     logger.info(`${status} ${result.step}: ${result.time}ms`);
-  });
+  }
 }

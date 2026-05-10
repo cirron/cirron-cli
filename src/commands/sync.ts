@@ -414,7 +414,7 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
         `    ${i + 1}. ${chalk.cyan(f.path)} (${formatSize(f.size)})`
       );
       if (options.verbose) {
-        logger.info(`       Checksum: ${f.checksum.substring(0, 12)}...`);
+        logger.info(`       Checksum: ${f.checksum.slice(0, 12)}...`);
       }
     });
     console.log();
@@ -430,7 +430,7 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
         `    ${i + 1}. ${chalk.cyan(f.path)} (${formatSize(f.size)})`
       );
       if (options.verbose) {
-        logger.info(`       Checksum: ${f.checksum.substring(0, 12)}...`);
+        logger.info(`       Checksum: ${f.checksum.slice(0, 12)}...`);
       }
     });
     console.log();
@@ -444,10 +444,10 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
     diff.changedLocally.forEach((f, i) => {
       logger.info(`    ${i + 1}. ${chalk.cyan(f.path)}`);
       logger.info(
-        `       Local:  ${f.localChecksum.substring(0, 12)}... (${formatSize(f.localSize)})`
+        `       Local:  ${f.localChecksum.slice(0, 12)}... (${formatSize(f.localSize)})`
       );
       logger.info(
-        `       Remote: ${f.remoteChecksum.substring(0, 12)}... (${formatSize(f.remoteSize)})`
+        `       Remote: ${f.remoteChecksum.slice(0, 12)}... (${formatSize(f.remoteSize)})`
       );
     });
     console.log();
@@ -461,10 +461,10 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
     diff.changedRemotely.forEach((f, i) => {
       logger.info(`    ${i + 1}. ${chalk.cyan(f.path)}`);
       logger.info(
-        `       Local:  ${f.localChecksum.substring(0, 12)}... (${formatSize(f.localSize)})`
+        `       Local:  ${f.localChecksum.slice(0, 12)}... (${formatSize(f.localSize)})`
       );
       logger.info(
-        `       Remote: ${f.remoteChecksum.substring(0, 12)}... (${formatSize(f.remoteSize)})`
+        `       Remote: ${f.remoteChecksum.slice(0, 12)}... (${formatSize(f.remoteSize)})`
       );
     });
     console.log();
@@ -478,10 +478,10 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
     diff.conflicts.forEach((f, i) => {
       logger.info(`    ${i + 1}. ${chalk.cyan(f.path)}`);
       logger.info(
-        `       Local:  ${f.localChecksum.substring(0, 12)}... (${formatSize(f.localSize)})`
+        `       Local:  ${f.localChecksum.slice(0, 12)}... (${formatSize(f.localSize)})`
       );
       logger.info(
-        `       Remote: ${f.remoteChecksum.substring(0, 12)}... (${formatSize(f.remoteSize)})`
+        `       Remote: ${f.remoteChecksum.slice(0, 12)}... (${formatSize(f.remoteSize)})`
       );
     });
     console.log();
@@ -521,10 +521,10 @@ async function promptConflictResolution(
   console.log();
   logger.info(chalk.bold(`Conflict (${index + 1}/${total}): ${conflict.path}`));
   logger.info(
-    `  Local:  ${conflict.localChecksum.substring(0, 12)}... (${formatSize(conflict.localSize)})`
+    `  Local:  ${conflict.localChecksum.slice(0, 12)}... (${formatSize(conflict.localSize)})`
   );
   logger.info(
-    `  Remote: ${conflict.remoteChecksum.substring(0, 12)}... (${formatSize(conflict.remoteSize)})`
+    `  Remote: ${conflict.remoteChecksum.slice(0, 12)}... (${formatSize(conflict.remoteSize)})`
   );
 
   const choices: Array<{ name: string; value: string }> = [

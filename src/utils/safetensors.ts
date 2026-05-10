@@ -227,6 +227,8 @@ function typedArrayForDtype(
       return new Uint8Array(buf);
     case "BOOL":
       return new Uint8Array(buf);
+    default:
+      throw new Error(`Unsupported dtype: ${dtype as string}`);
   }
 }
 

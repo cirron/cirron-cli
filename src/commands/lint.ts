@@ -307,7 +307,7 @@ async function lintCode(
     const output = error.stdout || error.stderr || "";
     const eslintErrors = parseESLintOutput(output);
 
-    eslintErrors.forEach((eslintError) => {
+    for (const eslintError of eslintErrors) {
       addResult(summary, {
         category: "code",
         severity: eslintError.severity,
@@ -316,7 +316,7 @@ async function lintCode(
         ...(eslintError.line && { line: eslintError.line }),
         ...(eslintError.fixable && { fixable: eslintError.fixable }),
       });
-    });
+    }
   }
 
   // Basic Python syntax check
@@ -492,6 +492,8 @@ function addResult(summary: LintSummary, result: LintResult): void {
       break;
     case "info":
       summary.infos++;
+      break;
+    default:
       break;
   }
 }

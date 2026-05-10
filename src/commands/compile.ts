@@ -249,9 +249,9 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     logger.info(
       `  • Artifacts: ${chalk.cyan(artifacts.length)} files generated`
     );
-    artifacts.forEach((artifact) => {
+    for (const artifact of artifacts) {
       logger.info(`    - ${chalk.gray(artifact)}`);
-    });
+    }
 
     logger.success("Model compilation completed successfully!");
   } catch (error) {
@@ -838,9 +838,9 @@ async function validateHardwareCompatibility(
     hardwareConfig.compatibility.warnings &&
     hardwareConfig.compatibility.warnings.length > 0
   ) {
-    hardwareConfig.compatibility.warnings.forEach((warning) => {
+    for (const warning of hardwareConfig.compatibility.warnings) {
       logger.warn(`Hardware warning: ${warning}`);
-    });
+    }
   }
 
   if (validationErrors.length > 0) {

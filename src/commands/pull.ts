@@ -49,8 +49,8 @@ function parseNameTag(nameArg: string): { name: string; tag?: string } {
   const colonIndex = nameArg.lastIndexOf(":");
   if (colonIndex > 0) {
     return {
-      name: nameArg.substring(0, colonIndex),
-      tag: nameArg.substring(colonIndex + 1),
+      name: nameArg.slice(0, colonIndex),
+      tag: nameArg.slice(colonIndex + 1),
     };
   }
   return { name: nameArg };

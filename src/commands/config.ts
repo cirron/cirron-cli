@@ -268,7 +268,7 @@ async function getConfig(config: ConfigManager, key: string): Promise<void> {
     process.exit(1);
   } else if (key.toLowerCase().includes("token") && typeof value === "string") {
     // Mask token for security
-    const maskedToken = value.substring(0, 8) + "*".repeat(value.length - 8);
+    const maskedToken = value.slice(0, 8) + "*".repeat(value.length - 8);
     logger.info(`${key}: ${maskedToken}`);
   } else {
     logger.info(`${key}: ${value}`);
@@ -473,6 +473,8 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
 
     case "reset":
       await resetConfig(config);
+      break;
+    default:
       break;
   }
 }

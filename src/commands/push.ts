@@ -55,8 +55,8 @@ function parseNameTag(nameArg: string): { name: string; tag?: string } {
   const colonIndex = nameArg.lastIndexOf(":");
   if (colonIndex > 0) {
     return {
-      name: nameArg.substring(0, colonIndex),
-      tag: nameArg.substring(colonIndex + 1),
+      name: nameArg.slice(0, colonIndex),
+      tag: nameArg.slice(colonIndex + 1),
     };
   }
   return { name: nameArg };
@@ -561,7 +561,7 @@ function printDryRun(
   files.forEach((file, index) => {
     logger.info(`  ${index + 1}. ${chalk.cyan(file.relativePath)}`);
     logger.info(`     Size:     ${formatSize(file.size)}`);
-    logger.info(`     Checksum: ${file.checksum.substring(0, 12)}...`);
+    logger.info(`     Checksum: ${file.checksum.slice(0, 12)}...`);
     console.log();
   });
 

@@ -163,7 +163,7 @@ function analyzeTokenStatus(config: CirronConfig): DiagnosticResult {
       message: "Authenticated with legacy token",
       details: {
         type: "legacy",
-        tokenPrefix: `${config.token.substring(0, 8)}...`,
+        tokenPrefix: `${config.token.slice(0, 8)}...`,
       },
     };
   }
@@ -523,10 +523,10 @@ function displaySection(
 ): void {
   logger.info(chalk.cyan(`${title}:`));
 
-  items.forEach((item) => {
+  for (const item of items) {
     const statusIndicator = getStatusIndicator(item.status);
     logger.info(`  ${item.label.padEnd(20)} ${statusIndicator} ${item.value}`);
-  });
+  }
 
   console.log();
 }
@@ -537,16 +537,16 @@ function displaySummary(report: DiagnosticsReport): void {
 
     if (report.errors.length > 0) {
       logger.info(chalk.red(`  Errors (${report.errors.length}):`));
-      report.errors.forEach((error) => {
+      for (const error of report.errors) {
         logger.info(`    - ${error}`);
-      });
+      }
     }
 
     if (report.warnings.length > 0) {
       logger.info(chalk.yellow(`  Warnings (${report.warnings.length}):`));
-      report.warnings.forEach((warning) => {
+      for (const warning of report.warnings) {
         logger.info(`    - ${warning}`);
-      });
+      }
     }
 
     console.log();

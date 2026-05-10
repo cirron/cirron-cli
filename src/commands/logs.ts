@@ -111,13 +111,13 @@ async function followLogs(
 }
 
 function displayLogs(logs: LogEntry[]): void {
-  logs.forEach((log) => {
+  for (const log of logs) {
     const timestamp = new Date(log.timestamp).toLocaleTimeString();
     const levelColor = getLevelColor(log.level);
     const level = levelColor(log.level.toUpperCase().padEnd(5));
 
     console.log(`${chalk.gray(timestamp)} ${level} ${log.message}`);
-  });
+  }
 }
 
 export function getLevelColor(level: string): (text: string) => string {

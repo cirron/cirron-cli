@@ -52,11 +52,10 @@ const DEFAULT_RETRY_CONFIG: RetryableOperation = {
 };
 
 export class ExecutionError extends Error {
-  constructor(
-    public result: ExecutionResult,
-    message?: string
-  ) {
+  result: ExecutionResult;
+  constructor(result: ExecutionResult, message?: string) {
     super(message || `Command failed: ${result.command}`);
+    this.result = result;
     this.name = "ExecutionError";
   }
 }
@@ -489,7 +488,7 @@ export function formatExecutionError(
     parts.push("");
     parts.push(colorize("Parsed Errors:", chalk.yellow));
 
-    result.parsedErrors.forEach((error, index) => {
+    for (const [index, error] of result.parsedErrors.entries()) {
       // Error header with type and message
       parts.push(
         colorize(`  ${index + 1}. ${error.type.toUpperCase()}: `, chalk.red) +
@@ -506,21 +505,21 @@ export function formatExecutionError(
       // Suggestions
       if (error.suggestions && error.suggestions.length > 0) {
         parts.push(colorize("     Suggestions:", chalk.cyan));
-        error.suggestions.forEach((suggestion) => {
+        for (const suggestion of error.suggestions) {
           parts.push(colorize(`       • ${suggestion}`, chalk.green));
-        });
+        }
       }
 
       // Colorized traceback
       if (showDetails && error.traceback.length > 0) {
         parts.push(colorize("     Traceback:", chalk.blue));
-        error.traceback.forEach((tracebackLine) => {
+        for (const tracebackLine of error.traceback) {
           if (tracebackLine && tracebackLine.trim()) {
             parts.push(formatTracebackLine(tracebackLine, useColors));
           }
-        });
+        }
       }
-    });
+    }
   }
 
   if (showDetails) {

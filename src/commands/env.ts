@@ -36,7 +36,7 @@ export async function envListCommand(options: EnvOptions): Promise<void> {
     logger.info(chalk.bold(`🔧 Environment Variables (${environment})`));
     console.log();
 
-    Object.entries(envVars).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(envVars)) {
       // Mask sensitive values
       const displayValue =
         key.toLowerCase().includes("password") ||
@@ -46,7 +46,7 @@ export async function envListCommand(options: EnvOptions): Promise<void> {
           : value;
 
       logger.info(`${chalk.cyan(key)}: ${chalk.gray(displayValue)}`);
-    });
+    }
   } catch (error) {
     spinner.fail(chalk.red("Failed to fetch environment variables"));
     logger.error("Error:", error);

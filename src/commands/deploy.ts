@@ -188,9 +188,9 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
       if (finalDeployment.logs && finalDeployment.logs.length > 0) {
         console.log();
         logger.info(chalk.bold("Recent logs:"));
-        finalDeployment.logs.slice(-10).forEach((log) => {
+        for (const log of finalDeployment.logs.slice(-10)) {
           logger.info(`  ${log}`);
-        });
+        }
         console.log();
         logger.info(
           `Run ${chalk.cyan("cirron logs")} to view full deployment logs`
@@ -323,6 +323,8 @@ async function monitorDeployment(
         case "success":
         case "failed":
           return deployment;
+        default:
+          break;
       }
 
       // Wait 5 seconds before next check

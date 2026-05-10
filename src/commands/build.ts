@@ -451,9 +451,9 @@ async function handleMLBuild(
   logger.info("\nBuild Results:");
   logger.info(`  • Architecture: ${chalk.cyan(architecture)}`);
   logger.info(`  • Artifacts: ${chalk.cyan(artifacts.length)} files generated`);
-  artifacts.forEach((artifact) => {
+  for (const artifact of artifacts) {
     logger.info(`    - ${chalk.gray(artifact)}`);
-  });
+  }
 
   logger.success("ML model build completed successfully!");
 }
@@ -920,17 +920,17 @@ async function analyzeBuild(
     if (analysis.largestFiles.length > 0) {
       console.log();
       logger.info(chalk.bold(" Largest files:"));
-      analysis.largestFiles.slice(0, 5).forEach((file) => {
+      for (const file of analysis.largestFiles.slice(0, 5)) {
         logger.info(`  ${file.name}: ${chalk.cyan(formatBytes(file.size))}`);
-      });
+      }
     }
 
     if (analysis.recommendations.length > 0) {
       console.log();
       logger.info(chalk.bold("Recommendations:"));
-      analysis.recommendations.forEach((rec) => {
+      for (const rec of analysis.recommendations) {
         logger.info(`  ${chalk.yellow("•")} ${rec}`);
-      });
+      }
     }
   } catch (error) {
     spinner.fail("Build analysis failed");
@@ -1160,9 +1160,9 @@ async function validateHardwareCompatibility(
     hardwareConfig.compatibility.warnings &&
     hardwareConfig.compatibility.warnings.length > 0
   ) {
-    hardwareConfig.compatibility.warnings.forEach((warning) => {
+    for (const warning of hardwareConfig.compatibility.warnings) {
       logger.warn(`Hardware warning: ${warning}`);
-    });
+    }
   }
 
   if (validationErrors.length > 0) {

@@ -61,6 +61,8 @@ export async function listCommand(
     case "registry":
       await listRegistry(api, options);
       break;
+    default:
+      break;
   }
 }
 
@@ -93,7 +95,7 @@ async function listDeployments(
       colWidths: [15, 20, 10, 12, 15, 25],
     });
 
-    deployments.forEach((deployment: any) => {
+    for (const deployment of deployments as any[]) {
       const statusColor =
         deployment.status === "COMPLETED"
           ? chalk.green
@@ -104,14 +106,14 @@ async function listDeployments(
               : chalk.gray;
 
       table.push([
-        `${deployment.id.substring(0, 12)}...`,
+        `${deployment.id.slice(0, 12)}...`,
         deployment.deployment?.modelInstance?.name || "N/A",
         deployment.deployment?.modelInstance?.version || "N/A",
         statusColor(deployment.status),
         deployment.environment || "production",
         new Date(deployment.createdAt).toLocaleString(),
       ]);
-    });
+    }
 
     console.log(table.toString());
 
@@ -154,7 +156,7 @@ async function listBuilds(api: CirronApi, options: ListOptions): Promise<void> {
       colWidths: [15, 25, 12, 12, 25],
     });
 
-    builds.forEach((build: any) => {
+    for (const build of builds as any[]) {
       const statusColor =
         build.status === "SUCCESS"
           ? chalk.green
@@ -170,13 +172,13 @@ async function listBuilds(api: CirronApi, options: ListOptions): Promise<void> {
           : "N/A";
 
       table.push([
-        `${build.id.substring(0, 12)}...`,
+        `${build.id.slice(0, 12)}...`,
         build.projectName || "N/A",
         statusColor(build.status),
         duration,
         new Date(build.createdAt).toLocaleString(),
       ]);
-    });
+    }
 
     console.log(table.toString());
 
@@ -219,7 +221,7 @@ async function listModels(api: CirronApi, options: ListOptions): Promise<void> {
       colWidths: [15, 25, 10, 15, 12, 30],
     });
 
-    models.forEach((model: any) => {
+    for (const model of models as any[]) {
       const statusColor =
         model.status === "ACTIVE"
           ? chalk.green
@@ -230,14 +232,14 @@ async function listModels(api: CirronApi, options: ListOptions): Promise<void> {
               : chalk.gray;
 
       table.push([
-        `${model.id.substring(0, 12)}...`,
+        `${model.id.slice(0, 12)}...`,
         model.modelInstance?.name || model.name || "N/A",
         model.modelInstance?.version || model.version || "N/A",
         model.modelInstance?.model?.type || model.type || "N/A",
         statusColor(model.status || "UNKNOWN"),
         model.endpoint || "Not deployed",
       ]);
-    });
+    }
 
     console.log(table.toString());
 
@@ -280,19 +282,19 @@ async function listImages(api: CirronApi, options: ListOptions): Promise<void> {
       colWidths: [15, 30, 15, 12, 25],
     });
 
-    images.forEach((image: any) => {
+    for (const image of images as any[]) {
       const size = image.size
         ? `${(image.size / (1024 * 1024)).toFixed(2)} MB`
         : "N/A";
 
       table.push([
-        `${image.id.substring(0, 12)}...`,
+        `${image.id.slice(0, 12)}...`,
         image.name || image.repository || "N/A",
         image.tag || "latest",
         size,
         new Date(image.createdAt).toLocaleString(),
       ]);
-    });
+    }
 
     console.log(table.toString());
 
@@ -346,16 +348,16 @@ async function listRegistry(
       colWidths: [15, 25, 15, 10, 20, 25],
     });
 
-    artifacts.forEach((artifact: any) => {
+    for (const artifact of artifacts as any[]) {
       table.push([
-        `${artifact.id.substring(0, 12)}...`,
+        `${artifact.id.slice(0, 12)}...`,
         artifact.name || "N/A",
         artifact.type || "N/A",
         artifact.version || "N/A",
         artifact.pipeline?.name || "N/A",
         new Date(artifact.createdAt).toLocaleString(),
       ]);
-    });
+    }
 
     console.log(table.toString());
 
