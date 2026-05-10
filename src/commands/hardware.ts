@@ -94,7 +94,10 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
         logger.info(
           `  Devices: ${hardwareConfig.specifications.cuda.devices.length}`
         );
-        for (const [index, device] of hardwareConfig.specifications.cuda.devices.entries()) {
+        for (const [
+          index,
+          device,
+        ] of hardwareConfig.specifications.cuda.devices.entries()) {
           logger.info(`    ${index}: ${device.name} (${device.memory})`);
         }
       }
