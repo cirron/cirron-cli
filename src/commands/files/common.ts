@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
+import { dedent } from '../../utils/dedent';
 
 export async function createCommonMLFiles(projectPath: string, projectName: string, options: any): Promise<void> {
     // Create directory structure
@@ -19,94 +20,96 @@ export async function createCommonMLFiles(projectPath: string, projectName: stri
     }
   
     // Dockerfile
-    const dockerfile = `FROM python:3.11-slim
-  
-  WORKDIR /app
-  
-  # Install system dependencies
-  RUN apt-get update && apt-get install -y \\
-      build-essential \\
-      && rm -rf /var/lib/apt/lists/*
-  
-  # Copy requirements first for better caching
-  COPY requirements.txt .
-  RUN pip install --no-cache-dir -r requirements.txt
-  
-  # Copy source code
-  COPY src/ ./src/
-  COPY models/ ./models/
-  
-  # Expose port for inference server
-  EXPOSE 8000
-  
-  # Default command
-  CMD ["python", "src/inference.py"]
-  `;
+    const dockerfile = dedent(`
+      FROM python:3.11-slim
+
+      WORKDIR /app
+
+      # Install system dependencies
+      RUN apt-get update && apt-get install -y \\
+          build-essential \\
+          && rm -rf /var/lib/apt/lists/*
+
+      # Copy requirements first for better caching
+      COPY requirements.txt .
+      RUN pip install --no-cache-dir -r requirements.txt
+
+      # Copy source code
+      COPY src/ ./src/
+      COPY models/ ./models/
+
+      # Expose port for inference server
+      EXPOSE 8000
+
+      # Default command
+      CMD ["python", "src/inference.py"]
+    `);
   
     await fs.writeFile(path.join(projectPath, 'Dockerfile'), dockerfile);
   
     // .gitignore
     await fs.writeFile(
       path.join(projectPath, '.gitignore'),
-      `# Python
-  __pycache__/
-  *.py[cod]
-  *$py.class
-  *.so
-  .Python
-  build/
-  develop-eggs/
-  dist/
-  downloads/
-  eggs/
-  .eggs/
-  lib/
-  lib64/
-  parts/
-  sdist/
-  var/
-  wheels/
-  *.egg-info/
-  .installed.cfg
-  *.egg
-  
-  # Virtual environments
-  venv/
-  env/
-  ENV/
-  
-  # ML specific
-  *.pkl
-  *.joblib
-  *.h5
-  *.pth
-  *.onnx
-  models/*.bin
-  checkpoints/
-  logs/
-  data/raw/
-  data/processed/
-  .wandb/
-  mlruns/
-  
-  # Jupyter
-  .ipynb_checkpoints/
-  *.ipynb
-  
-  # IDE
-  .vscode/
-  .idea/
-  *.swp
-  *.swo
-  
-  # OS
-  .DS_Store
-  Thumbs.db
-  
-  # Environment variables
-  .env
-  .env.local
-  `
+      dedent(`
+        # Python
+        __pycache__/
+        *.py[cod]
+        *$py.class
+        *.so
+        .Python
+        build/
+        develop-eggs/
+        dist/
+        downloads/
+        eggs/
+        .eggs/
+        lib/
+        lib64/
+        parts/
+        sdist/
+        var/
+        wheels/
+        *.egg-info/
+        .installed.cfg
+        *.egg
+
+        # Virtual environments
+        venv/
+        env/
+        ENV/
+
+        # ML specific
+        *.pkl
+        *.joblib
+        *.h5
+        *.pth
+        *.onnx
+        models/*.bin
+        checkpoints/
+        logs/
+        data/raw/
+        data/processed/
+        .wandb/
+        mlruns/
+
+        # Jupyter
+        .ipynb_checkpoints/
+        *.ipynb
+
+        # IDE
+        .vscode/
+        .idea/
+        *.swp
+        *.swo
+
+        # OS
+        .DS_Store
+        Thumbs.db
+
+        # Environment variables
+        .env
+        .env.local
+      `)
     );
 
     // .cirronignore
@@ -177,98 +180,101 @@ htmlcov/
     );
   
     // README.md
+    const sampleDataLine = options.includeSampleData ? '├── data/sample/         # Sample data\n' : '';
+    const notebookLine = options.includeNotebook ? '├── notebooks/           # Jupyter notebooks\n' : '';
     await fs.writeFile(
       path.join(projectPath, 'README.md'),
-      `# ${projectName}
-  
-  A ${options.modelType} model built with Cirron CLI.
-  
-  ## Quick Start
-  
-  ### Setup Environment
-  \`\`\`bash
-  pip install -r requirements.txt
-  \`\`\`
-  
-  ### Run Tests
-  \`\`\`bash
-  cirron test
-  \`\`\`
-  
-  ### Train Model (if training template)
-  \`\`\`bash
-  python src/train.py
-  \`\`\`
-  
-  ### Run Inference
-  \`\`\`bash
-  python src/inference.py
-  \`\`\`
-  
-  ### Build Container
-  \`\`\`bash
-  cirron build
-  \`\`\`
-  
-  ### Deploy
-  \`\`\`bash
-  cirron deploy
-  \`\`\`
-  
-  ## Project Structure
-  
-  \`\`\`
-  ${projectName}/
-  ├── src/
-  │   ├── model.py          # Model definition
-  │   ├── inference.py      # Inference script
-  │   ├── train.py          # Training script (if applicable)
-  │   └── data_loader.py    # Data loading utilities
-  ├── tests/
-  │   ├── test_model.py     # Model tests
-  │   ├── test_inference.py # Inference tests
-  │   └── test_data.py      # Data validation tests
-  ├── models/               # Saved models
-  ├── checkpoints/          # Training checkpoints
-  ├── logs/                 # Training logs
-  ${options.includeSampleData ? '├── data/sample/         # Sample data\n' : ''}${options.includeNotebook ? '├── notebooks/           # Jupyter notebooks\n' : ''}├── requirements.txt      # Python dependencies
-  ├── Dockerfile           # Container definition
-  └── cirron.yaml         # Cirron configuration
-  \`\`\`
-  
-  ## Cirron Commands
-  
-  - \`cirron test\` - Run all tests
-  - \`cirron test --model\` - Test model loading
-  - \`cirron test --build\` - Test container build
-  - \`cirron build\` - Build the project
-  - \`cirron deploy\` - Deploy to your environment
-  - \`cirron status\` - Check project status
-  - \`cirron logs\` - View deployment logs
-  
-  ## Environment Variables
-  
-  Use \`cirron env\` commands to manage environment variables:
-  
-  \`\`\`bash
-  cirron env list
-  cirron env set MODEL_PATH /path/to/model
-  cirron env delete OLD_VAR
-  \`\`\`
-  
-  ## Model Information
-  
-  - **Framework**: ${options.template}
-  - **Model Type**: ${options.modelType}
-  - **Python Version**: 3.11+
-  
-  ## Development
-  
-  1. Make changes to your model in \`src/model.py\`
-  2. Test locally: \`cirron test\`
-  3. Build container: \`cirron build\`
-  4. Deploy: \`cirron deploy --env staging\`
-  `
+      dedent(`
+        # ${projectName}
+
+        A ${options.modelType} model built with Cirron CLI.
+
+        ## Quick Start
+
+        ### Setup Environment
+        \`\`\`bash
+        pip install -r requirements.txt
+        \`\`\`
+
+        ### Run Tests
+        \`\`\`bash
+        cirron test
+        \`\`\`
+
+        ### Train Model (if training template)
+        \`\`\`bash
+        python src/train.py
+        \`\`\`
+
+        ### Run Inference
+        \`\`\`bash
+        python src/inference.py
+        \`\`\`
+
+        ### Build Container
+        \`\`\`bash
+        cirron build
+        \`\`\`
+
+        ### Deploy
+        \`\`\`bash
+        cirron deploy
+        \`\`\`
+
+        ## Project Structure
+
+        \`\`\`
+        ${projectName}/
+        ├── src/
+        │   ├── model.py          # Model definition
+        │   ├── inference.py      # Inference script
+        │   ├── train.py          # Training script (if applicable)
+        │   └── data_loader.py    # Data loading utilities
+        ├── tests/
+        │   ├── test_model.py     # Model tests
+        │   ├── test_inference.py # Inference tests
+        │   └── test_data.py      # Data validation tests
+        ├── models/               # Saved models
+        ├── checkpoints/          # Training checkpoints
+        ├── logs/                 # Training logs
+        ${sampleDataLine}${notebookLine}├── requirements.txt      # Python dependencies
+        ├── Dockerfile           # Container definition
+        └── cirron.yaml         # Cirron configuration
+        \`\`\`
+
+        ## Cirron Commands
+
+        - \`cirron test\` - Run all tests
+        - \`cirron test --model\` - Test model loading
+        - \`cirron test --build\` - Test container build
+        - \`cirron build\` - Build the project
+        - \`cirron deploy\` - Deploy to your environment
+        - \`cirron status\` - Check project status
+        - \`cirron logs\` - View deployment logs
+
+        ## Environment Variables
+
+        Use \`cirron env\` commands to manage environment variables:
+
+        \`\`\`bash
+        cirron env list
+        cirron env set MODEL_PATH /path/to/model
+        cirron env delete OLD_VAR
+        \`\`\`
+
+        ## Model Information
+
+        - **Framework**: ${options.template}
+        - **Model Type**: ${options.modelType}
+        - **Python Version**: 3.11+
+
+        ## Development
+
+        1. Make changes to your model in \`src/model.py\`
+        2. Test locally: \`cirron test\`
+        3. Build container: \`cirron build\`
+        4. Deploy: \`cirron deploy --env staging\`
+      `)
     );
   
     // Create tests
@@ -277,29 +283,30 @@ htmlcov/
     // .env.example
     await fs.writeFile(
       path.join(projectPath, '.env.example'),
-      `# Model configuration
-  MODEL_PATH=models/best_model.pth
-  BATCH_SIZE=32
-  DEVICE=cuda
-  
-  # Data paths
-  DATA_PATH=data/
-  TRAINING_DATA_PATH=data/train/
-  VALIDATION_DATA_PATH=data/val/
-  
-  # API configuration
-  API_HOST=0.0.0.0
-  API_PORT=8000
-  
-  # Logging
-  LOG_LEVEL=INFO
-  LOG_PATH=logs/
-  
-  # Training configuration
-  LEARNING_RATE=0.001
-  NUM_EPOCHS=10
-  CHECKPOINT_DIR=checkpoints/
-  `
+      dedent(`
+        # Model configuration
+        MODEL_PATH=models/best_model.pth
+        BATCH_SIZE=32
+        DEVICE=cuda
+
+        # Data paths
+        DATA_PATH=data/
+        TRAINING_DATA_PATH=data/train/
+        VALIDATION_DATA_PATH=data/val/
+
+        # API configuration
+        API_HOST=0.0.0.0
+        API_PORT=8000
+
+        # Logging
+        LOG_LEVEL=INFO
+        LOG_PATH=logs/
+
+        # Training configuration
+        LEARNING_RATE=0.001
+        NUM_EPOCHS=10
+        CHECKPOINT_DIR=checkpoints/
+      `)
     );
 }
 
@@ -443,25 +450,26 @@ async function createSampleData(projectPath: string, modelType: string): Promise
     }
     
     // Create data README
-    const dataReadme = `# Sample Data
-  
-  This directory contains sample data for testing and development.
-  
-  ## Files
-  
-  - \`sample_data.csv\` - Sample dataset for ${modelType}
-  
-  ## Usage
-  
-  This sample data is automatically used by the default data loaders for testing purposes. Replace with your actual dataset for training.
-  
-  ## Data Format
-  
-  ${modelType === 'classification' ? 
-    'The dataset contains features and categorical labels (0, 1, etc.).' :
-    'The dataset contains features and continuous target values.'
-  }
-  `;
+    const formatNote = modelType === 'classification'
+      ? 'The dataset contains features and categorical labels (0, 1, etc.).'
+      : 'The dataset contains features and continuous target values.';
+    const dataReadme = dedent(`
+      # Sample Data
+
+      This directory contains sample data for testing and development.
+
+      ## Files
+
+      - \`sample_data.csv\` - Sample dataset for ${modelType}
+
+      ## Usage
+
+      This sample data is automatically used by the default data loaders for testing purposes. Replace with your actual dataset for training.
+
+      ## Data Format
+
+      ${formatNote}
+    `);
   
     await fs.writeFile(path.join(projectPath, 'data', 'sample', 'README.md'), dataReadme);
 }
