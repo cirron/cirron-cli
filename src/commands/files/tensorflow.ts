@@ -110,9 +110,10 @@ class ModelInference:
 
 if __name__ == "__main__":
     inference = ModelInference()
-    
-    # Example usage
-    sample_input = np.random.randn(224, 224, 3)
+
+    # Default Sequential model expects a flat feature vector (input_dim=10).
+    # Swap in your real input shape once you customize the architecture.
+    sample_input = np.random.randn(10)
     result = inference.predict(sample_input)
     print(f"Prediction: {result}")
 `;

@@ -139,7 +139,9 @@ export async function createPyTorchFiles(projectPath: string, _projectName: stri
 
     if __name__ == "__main__":
         inference = ModelInference()
-        sample_input = torch.randn(1, 3, 224, 224)
+        # Default ClassificationModel expects a flat feature vector (input_dim=10).
+        # Swap in your real input shape once you customize the architecture.
+        sample_input = torch.randn(1, 10)
         result = inference.predict(sample_input)
         print(f"Prediction: {result}")
   `);

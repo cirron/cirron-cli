@@ -66,29 +66,39 @@ export async function createCustomFiles(projectPath: string, _projectName: strin
   await fs.ensureDir(path.join(projectPath, 'src'));
 
   const modelCode = dedent(`
-    """Custom model implementation. Modify this file to fit your architecture."""
+    """Custom model scaffold. Replace this stub with your own architecture."""
+
+    import numpy as np
 
 
     class CustomModel:
         def __init__(self):
-            # Initialize your model here.
-            pass
+            self.is_trained = False
 
         def train(self, X, y):
-            """Train the model."""
-            raise NotImplementedError
+            """Stub: mark the model as trained. Replace with real training."""
+            self.is_trained = True
+            return self
 
         def predict(self, X):
-            """Make predictions."""
-            raise NotImplementedError
+            """Stub: return zeros shaped like the input. Replace with a real forward pass."""
+            arr = np.asarray(X)
+            if arr.ndim == 0:
+                return np.zeros(1)
+            return np.zeros(arr.shape[0] if arr.ndim > 1 else 1)
 
         def save(self, filepath):
-            """Save the model."""
-            raise NotImplementedError
+            """Save the model. Replace with framework-specific serialization."""
+            import joblib
+
+            joblib.dump(self, filepath)
 
         def load(self, filepath):
             """Load a saved model."""
-            raise NotImplementedError
+            import joblib
+
+            loaded = joblib.load(filepath)
+            self.__dict__.update(loaded.__dict__)
 
 
     def create_model():
@@ -99,6 +109,7 @@ export async function createCustomFiles(projectPath: string, _projectName: strin
   await fs.writeFile(path.join(projectPath, 'src', 'model.py'), modelCode);
 
   const inferenceCode = dedent(`
+    import numpy as np
     from model import create_model
 
 
@@ -114,14 +125,18 @@ export async function createCustomFiles(projectPath: string, _projectName: strin
             self.model.load(model_path)
             print(f"Model loaded from {model_path}")
 
+        def preprocess(self, input_data):
+            """Identity preprocess. Override for your data format."""
+            return np.asarray(input_data)
+
         def predict(self, input_data):
             """Make a prediction."""
-            return self.model.predict(input_data)
+            return self.model.predict(self.preprocess(input_data))
 
 
     if __name__ == "__main__":
         inference = ModelInference()
-        sample_input = [1, 2, 3, 4, 5]
+        sample_input = [[1, 2, 3, 4, 5]]
         result = inference.predict(sample_input)
         print(f"Prediction: {result}")
   `);

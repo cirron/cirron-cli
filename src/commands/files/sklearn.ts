@@ -120,12 +120,24 @@ class ModelInference:
             raise ValueError("Model does not support probability predictions")
 
 if __name__ == "__main__":
+    import os
+
     inference = ModelInference()
-    
-    # Example usage
-    sample_input = {'feature1': 1.0, 'feature2': 2.0}  # Replace with actual features
-    result = inference.predict(sample_input)
-    print(f"Prediction: {result}")
+
+    # The model is unfitted by default. Fit on the bundled sample data so this
+    # demo runs end-to-end. Replace with model.load('models/your_model.joblib')
+    # once you have a trained checkpoint.
+    sample_csv = 'data/sample/sample_data.csv'
+    if os.path.exists(sample_csv):
+        df = pd.read_csv(sample_csv)
+        X, y = df.iloc[:, :-1], df.iloc[:, -1]
+        inference.model.fit(X, y)
+
+        sample_input = X.iloc[[0]].to_dict(orient='records')[0]
+        result = inference.predict(sample_input)
+        print(f"Prediction: {result}")
+    else:
+        print("No sample data at data/sample/sample_data.csv -- skipping demo prediction.")
 `;
   
     await fs.writeFile(path.join(projectPath, 'src', 'inference.py'), inferenceCode);
