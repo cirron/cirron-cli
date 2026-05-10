@@ -81,6 +81,8 @@ async function monitorRun(
         case "FAILED":
         case "CANCELLED":
           return run;
+        default:
+          break;
       }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -205,7 +207,7 @@ export async function runPipelineCommand(
       if (pipelineConfig.steps && pipelineConfig.steps.length > 0) {
         console.log();
         logger.info(chalk.bold("  Steps:"));
-        pipelineConfig.steps.forEach((step, i) => {
+        for (const [i, step] of pipelineConfig.steps.entries()) {
           logger.info(
             `    ${i + 1}. ${step.name}${step.command ? ` (${step.command})` : ""}`
           );
@@ -215,14 +217,14 @@ export async function runPipelineCommand(
           if (step.dependsOn && step.dependsOn.length > 0) {
             logger.info(`       Depends on: ${step.dependsOn.join(", ")}`);
           }
-        });
+        }
       }
       if (pipelineConfig.parameters) {
         console.log();
         logger.info(chalk.bold("  Parameters:"));
-        Object.entries(pipelineConfig.parameters).forEach(([key, value]) => {
+        for (const [key, value] of Object.entries(pipelineConfig.parameters)) {
           logger.info(`    ${key}: ${chalk.cyan(String(value))}`);
-        });
+        }
       }
     }
 
@@ -365,9 +367,9 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
       colWidths: [15, 12, 20, 12, 10, 10, 25],
     });
 
-    runs.forEach((run: RunInfo) => {
+    for (const run of runs as RunInfo[]) {
       const displayId =
-        run.id.length > 12 ? `${run.id.substring(0, 12)}...` : run.id;
+        run.id.length > 12 ? `${run.id.slice(0, 12)}...` : run.id;
       table.push([
         displayId,
         run.type || "N/A",
@@ -377,7 +379,7 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
         formatDuration(run),
         new Date(run.createdAt).toLocaleString(),
       ]);
-    });
+    }
 
     console.log(table.toString());
 

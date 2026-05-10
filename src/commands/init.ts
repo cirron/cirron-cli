@@ -458,6 +458,8 @@ async function createProjectFiles(
         modelType,
       });
       break;
+    default:
+      break;
   }
 
   await createCommonMLFiles(projectPath, projectName, {

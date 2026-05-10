@@ -179,9 +179,9 @@ export class InteractiveManager {
 
     if (details.length > 0) {
       console.log(chalk.gray("This operation will:"));
-      details.forEach((detail) => {
+      for (const detail of details) {
         console.log(chalk.gray(`  • ${detail}`));
-      });
+      }
     }
 
     if (warning) {
@@ -287,9 +287,9 @@ export class InteractiveManager {
     // Show completed steps
     if (completedSteps.length > 0) {
       console.log(chalk.green("Completed:"));
-      completedSteps.forEach((step) => {
+      for (const step of completedSteps) {
         console.log(chalk.green(`  ✓ ${step}`));
-      });
+      }
     }
 
     // Show current step
@@ -303,9 +303,9 @@ export class InteractiveManager {
     // Show remaining steps
     if (remainingSteps.length > 0) {
       console.log(chalk.gray("Remaining:"));
-      remainingSteps.forEach((step) => {
+      for (const step of remainingSteps) {
         console.log(chalk.gray(`  ○ ${step}`));
-      });
+      }
     }
 
     if (error) {

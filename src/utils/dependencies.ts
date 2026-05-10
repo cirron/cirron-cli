@@ -201,7 +201,7 @@ export class DependencyParser {
         : undefined;
     const versionPart = extrasMatch
       ? extrasMatch[3]
-      : cleanLine.substring(packageName?.length || 0);
+      : cleanLine.slice(packageName?.length || 0);
 
     if (!packageName) {
       return null;

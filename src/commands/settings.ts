@@ -109,7 +109,7 @@ function displaySettingsSection(
 ): void {
   logger.info(chalk.cyan(`${title}:`));
 
-  Object.entries(section).forEach(([key, value]) => {
+  for (const [key, value] of Object.entries(section)) {
     let displayValue = value;
 
     if (
@@ -118,11 +118,11 @@ function displaySettingsSection(
       typeof value === "string"
     ) {
       displayValue =
-        value.substring(0, 8) + "*".repeat(Math.max(0, value.length - 8));
+        value.slice(0, 8) + "*".repeat(Math.max(0, value.length - 8));
     }
 
     logger.info(`  ${chalk.yellow(key)}: ${displayValue}`);
-  });
+  }
 
   console.log();
 }
@@ -159,7 +159,7 @@ async function getSetting(
       let displayValue = value;
       if (key.toLowerCase().includes("token") && typeof value === "string") {
         displayValue =
-          value.substring(0, 8) + "*".repeat(Math.max(0, value.length - 8));
+          value.slice(0, 8) + "*".repeat(Math.max(0, value.length - 8));
       }
 
       logger.info(`${chalk.cyan(key)}: ${displayValue}`);
@@ -283,6 +283,8 @@ async function editGlobalSettings(_options: SettingsOptions): Promise<void> {
     case "api":
       await editAPISettings(settings);
       break;
+    default:
+      break;
   }
 
   settingsManager.saveGlobalSettings(settings);
@@ -322,6 +324,8 @@ async function editProjectSettings(_options: SettingsOptions): Promise<void> {
       break;
     case "deployment":
       await editDeploymentSettings(settings);
+      break;
+    default:
       break;
   }
 
@@ -714,9 +718,9 @@ async function applyTemplate(
     if (!template) {
       logger.error(`Template not found: ${templateName}`);
       logger.info("Available templates:");
-      templates.forEach((t) => {
+      for (const t of templates) {
         logger.info(`  ${chalk.cyan(t.name)} - ${t.description}`);
-      });
+      }
       return;
     }
 
@@ -766,11 +770,11 @@ async function explainSetting(
     if (resolution.overriddenBy && resolution.overriddenBy.length > 0) {
       console.log();
       logger.info(chalk.yellow("Resolution Chain:"));
-      resolution.overriddenBy.forEach((source, index) => {
+      for (const [index, source] of resolution.overriddenBy.entries()) {
         logger.info(
           `  ${index + 1}. ${source.type}${source.file ? ` (${path.basename(source.file)})` : ""}: ${source.value}`
         );
-      });
+      }
       logger.info(
         `  ${resolution.overriddenBy.length + 1}. ${chalk.green(resolution.source.type)}${resolution.source.file ? ` (${path.basename(resolution.source.file)})` : ""}: ${chalk.green(resolution.value)} ${chalk.dim("← final value")}`
       );
@@ -887,6 +891,8 @@ async function interactiveSettings(
     }
     case "reset":
       await resetSettings(scope, options);
+      break;
+    default:
       break;
   }
 }

@@ -94,9 +94,9 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
         logger.info(
           `  Devices: ${hardwareConfig.specifications.cuda.devices.length}`
         );
-        hardwareConfig.specifications.cuda.devices.forEach((device, index) => {
+        for (const [index, device] of hardwareConfig.specifications.cuda.devices.entries()) {
           logger.info(`    ${index}: ${device.name} (${device.memory})`);
-        });
+        }
       }
     }
 
@@ -120,9 +120,9 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
     ) {
       console.log();
       logger.info(chalk.bold("Required installations:"));
-      hardwareConfig.compatibility.requirements.forEach((req) => {
+      for (const req of hardwareConfig.compatibility.requirements) {
         logger.info(`  ${chalk.yellow("•")} ${req}`);
-      });
+      }
     }
 
     if (
@@ -131,9 +131,9 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
     ) {
       console.log();
       logger.info(chalk.bold("Warnings:"));
-      hardwareConfig.compatibility.warnings.forEach((warning) => {
+      for (const warning of hardwareConfig.compatibility.warnings) {
         logger.warn(`  ${warning}`);
-      });
+      }
     }
 
     // Ask if user wants to save configuration and apply to project
@@ -256,7 +256,9 @@ async function configCommand(options: HardwareOptions): Promise<void> {
   const validation = HardwareDetector.validateHardwareConfig(hardwareConfig);
   if (!validation.valid) {
     logger.error("Hardware configuration validation failed:");
-    validation.errors.forEach((error) => logger.error(`  • ${error}`));
+    for (const error of validation.errors) {
+      logger.error(`  • ${error}`);
+    }
     process.exit(1);
   }
 
@@ -457,7 +459,7 @@ async function listCommand(options: HardwareOptions): Promise<void> {
   logger.info(chalk.bold("Available Hardware Profiles"));
   console.log();
 
-  profiles.forEach((profile) => {
+  for (const profile of profiles) {
     logger.info(`${chalk.cyan(profile.name)}`);
     logger.info(`  Description: ${profile.description}`);
     logger.info(`  Type: ${profile.config.type.toUpperCase()}`);
@@ -466,7 +468,7 @@ async function listCommand(options: HardwareOptions): Promise<void> {
       logger.info(`  ${chalk.green("✓ Recommended")}`);
     }
     console.log();
-  });
+  }
 }
 
 async function interactiveCommand(options: HardwareOptions): Promise<void> {
@@ -496,6 +498,8 @@ async function interactiveCommand(options: HardwareOptions): Promise<void> {
       break;
     case "load":
       await loadExistingConfig();
+      break;
+    default:
       break;
   }
 }

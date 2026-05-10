@@ -215,5 +215,5 @@ export function getShortCommitHash(
   workingDir: string = process.cwd()
 ): string | null {
   const fullHash = getCurrentCommitHash(workingDir);
-  return fullHash ? fullHash.substring(0, 7) : null;
+  return fullHash ? fullHash.slice(0, 7) : null;
 }

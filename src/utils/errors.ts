@@ -81,11 +81,11 @@ export interface CLIErrorDetails {
 }
 
 export class CLIError extends Error {
-  public readonly code: CLIErrorCode;
-  public readonly details?: Record<string, any>;
-  public readonly suggestions?: string[];
-  public readonly recoverable: boolean;
-  public readonly strictModeOnly: boolean;
+  readonly code: CLIErrorCode;
+  readonly details?: Record<string, any>;
+  readonly suggestions?: string[];
+  readonly recoverable: boolean;
+  readonly strictModeOnly: boolean;
 
   constructor(errorDetails: CLIErrorDetails) {
     super(errorDetails.message);
@@ -158,6 +158,8 @@ export class CLIError extends Error {
             recoverable = true;
           }
           break;
+        default:
+          break;
       }
     }
 
@@ -217,17 +219,17 @@ export class CLIError extends Error {
     if (this.suggestions && this.suggestions.length > 0) {
       parts.push("");
       parts.push(chalk.yellow("Suggestions:"));
-      this.suggestions.forEach((suggestion) => {
+      for (const suggestion of this.suggestions) {
         parts.push(chalk.yellow(`  • ${suggestion}`));
-      });
+      }
     }
 
     if (verbose && this.details) {
       parts.push("");
       parts.push(chalk.gray("Details:"));
-      Object.entries(this.details).forEach(([key, value]) => {
+      for (const [key, value] of Object.entries(this.details)) {
         if (key === "parsedErrors" && Array.isArray(value)) {
-          value.forEach((error, index) => {
+          for (const [index, error] of value.entries()) {
             parts.push(
               chalk.gray(`  ${key}[${index}]: ${error.type} - ${error.message}`)
             );
@@ -236,15 +238,15 @@ export class CLIError extends Error {
                 chalk.gray(`    Location: ${error.file}:${error.line}`)
               );
             }
-          });
+          }
         } else if (typeof value === "string" && value.trim()) {
           const displayValue =
-            value.length > 200 ? `${value.substring(0, 200)}...` : value;
+            value.length > 200 ? `${value.slice(0, 200)}...` : value;
           parts.push(chalk.gray(`  ${key}: ${displayValue}`));
         } else if (typeof value === "number") {
           parts.push(chalk.gray(`  ${key}: ${value}`));
         }
-      });
+      }
     }
 
     return parts.join("\n");

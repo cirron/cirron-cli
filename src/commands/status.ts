@@ -93,7 +93,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     // Environments
     console.log();
     logger.info(chalk.bold("Environments"));
-    Object.keys(projectConfig.environments || {}).forEach((env) => {
+    for (const env of Object.keys(projectConfig.environments || {})) {
       const envConfig = projectConfig.environments?.[env];
       let status = chalk.gray("configured");
 
@@ -107,7 +107,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
       logger.info(
         `  ${env}: ${status}${envConfig?.url ? ` (${envConfig.url})` : ""}`
       );
-    });
+    }
   } catch (error) {
     spinner.fail(chalk.red("Status check failed"));
     logger.error("Error:", error);

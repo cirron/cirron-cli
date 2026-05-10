@@ -54,7 +54,7 @@ export class CirronIgnore {
       });
   }
 
-  public isIgnored(filePath: string): boolean {
+  isIgnored(filePath: string): boolean {
     const relativePath = path.relative(
       this.cwd,
       path.resolve(this.cwd, filePath)
@@ -68,7 +68,7 @@ export class CirronIgnore {
     for (const pattern of this.patterns) {
       if (pattern.startsWith("!")) {
         // Negation pattern - if it matches, file is NOT ignored
-        const negationPattern = pattern.substring(1);
+        const negationPattern = pattern.slice(1);
         if (this.matchPattern(normalizedPath, negationPattern)) {
           ignored = false;
         }
@@ -99,19 +99,19 @@ export class CirronIgnore {
     });
   }
 
-  public filterFiles(files: string[]): string[] {
+  filterFiles(files: string[]): string[] {
     return files.filter((file) => !this.isIgnored(file));
   }
 
-  public addPattern(pattern: string): void {
+  addPattern(pattern: string): void {
     this.patterns.push(pattern);
   }
 
-  public getPatterns(): string[] {
+  getPatterns(): string[] {
     return [...this.patterns];
   }
 
-  public static createDefault(cwd?: string): CirronIgnore {
+  static createDefault(cwd?: string): CirronIgnore {
     const defaultPatterns = [
       // Version control
       ".git/**",
@@ -156,7 +156,7 @@ export class CirronIgnore {
     });
   }
 
-  public reload(): void {
+  reload(): void {
     this.patterns = [];
     this.loadIgnoreFile();
   }
