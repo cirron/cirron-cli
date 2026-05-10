@@ -1,24 +1,24 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import { execSync } from 'child_process';
-import { logger } from '../utils/logger';
-import { PlanStorage } from '../utils/plan-storage';
-import { executePythonScript } from '../utils/execution';
-import { loadProjectConfig } from '../utils/project-config';
-import type { ReplayOptions, ProjectConfig } from '../types';
+import chalk from "chalk";
+import { execSync } from "child_process";
+import fs from "fs-extra";
+import ora from "ora";
+import type { ProjectConfig, ReplayOptions } from "../types";
+import { executePythonScript } from "../utils/execution";
+import { logger } from "../utils/logger";
+import { PlanStorage } from "../utils/plan-storage";
+import { loadProjectConfig } from "../utils/project-config";
 
 export async function replayCommand(options: ReplayOptions): Promise<void> {
-  const spinner = ora('Loading plan for replay...').start();
+  const spinner = ora("Loading plan for replay...").start();
 
   try {
     // Load the plan
     const savedPlan = await PlanStorage.loadPlan(options.plan);
-    
+
     // Validate the plan
     const validation = PlanStorage.validatePlan(savedPlan);
     if (!validation.valid) {
-      spinner.fail(chalk.red('Invalid plan file'));
+      spinner.fail(chalk.red("Invalid plan file"));
       for (const error of validation.errors) {
         logger.error(`  • ${error}`);
       }
@@ -26,179 +26,205 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
     }
 
     const plan = savedPlan.plan;
-    
+
     spinner.text = `Replaying ${plan.command} plan from ${new Date(plan.timestamp).toLocaleString()}`;
-    
+
     // Load current project configuration for comparison
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
-      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json) in current directory'));
-      logger.error('Navigate to a Cirron project directory to replay plans');
+      spinner.fail(
+        chalk.red(
+          "No cirron config found (cirron.yaml or cirron.json) in current directory"
+        )
+      );
+      logger.error("Navigate to a Cirron project directory to replay plans");
       process.exit(1);
     }
 
     const currentConfig: ProjectConfig = projectConfigResult.config;
-    
+
     // Validate environment compatibility
     if (options.validate !== false) {
-      spinner.text = 'Validating environment compatibility...';
+      spinner.text = "Validating environment compatibility...";
       await validateEnvironmentCompatibility(plan, currentConfig, options);
-      logger.success('✓ Environment compatibility validated');
+      logger.success("✓ Environment compatibility validated");
     }
 
     if (options.dryRun) {
-      spinner.succeed(chalk.green('Dry run completed - plan is compatible'));
+      spinner.succeed(chalk.green("Dry run completed - plan is compatible"));
       displayReplayPlan(plan, savedPlan.metadata, options);
       return;
     }
 
     // Execute the replay based on command type
     spinner.text = `Executing ${plan.command} replay...`;
-    
-    if (plan.command === 'compile') {
+
+    if (plan.command === "compile") {
       await replayCompile(plan, currentConfig, options);
-    } else if (plan.command === 'build') {
+    } else if (plan.command === "build") {
       await replayBuild(plan, currentConfig, options);
     } else {
       throw new Error(`Unsupported plan command for replay: ${plan.command}`);
     }
-    
-    spinner.succeed(chalk.green(`${plan.command} replay completed successfully`));
-    
+
+    spinner.succeed(
+      chalk.green(`${plan.command} replay completed successfully`)
+    );
+
     // Display results
-    logger.info('\n Replay Results:');
+    logger.info("\n Replay Results:");
     logger.info(`  • Command: ${chalk.cyan(plan.command)}`);
     logger.info(`  • Framework: ${chalk.cyan(plan.framework)}`);
     logger.info(`  • Architecture: ${chalk.cyan(plan.architecture)}`);
-    logger.info(`  • Original plan: ${chalk.gray(new Date(plan.timestamp).toLocaleString())}`);
-
+    logger.info(
+      `  • Original plan: ${chalk.gray(new Date(plan.timestamp).toLocaleString())}`
+    );
   } catch (error) {
-    spinner.fail(chalk.red('Replay failed'));
-    
+    spinner.fail(chalk.red("Replay failed"));
+
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown replay error occurred');
+      logger.error("Unknown replay error occurred");
     }
-    
+
     process.exit(1);
   }
 }
 
 async function validateEnvironmentCompatibility(
-  plan: any, 
-  currentConfig: ProjectConfig, 
+  plan: any,
+  currentConfig: ProjectConfig,
   options: ReplayOptions
 ): Promise<void> {
   const issues: string[] = [];
-  
+
   // Check framework compatibility
   if (plan.framework !== currentConfig.framework) {
     if (options.force) {
-      logger.warn(`Framework mismatch: plan uses ${plan.framework}, current project uses ${currentConfig.framework}`);
+      logger.warn(
+        `Framework mismatch: plan uses ${plan.framework}, current project uses ${currentConfig.framework}`
+      );
     } else {
-      issues.push(`Framework mismatch: plan uses ${plan.framework}, current project uses ${currentConfig.framework}`);
+      issues.push(
+        `Framework mismatch: plan uses ${plan.framework}, current project uses ${currentConfig.framework}`
+      );
     }
   }
-  
+
   // Check Python version
-  const currentPythonVersion = currentConfig.pythonVersion || '3.9';
+  const currentPythonVersion = currentConfig.pythonVersion || "3.9";
   if (plan.pythonVersion && plan.pythonVersion !== currentPythonVersion) {
     if (options.force) {
-      logger.warn(`Python version mismatch: plan uses ${plan.pythonVersion}, current project uses ${currentPythonVersion}`);
+      logger.warn(
+        `Python version mismatch: plan uses ${plan.pythonVersion}, current project uses ${currentPythonVersion}`
+      );
     } else {
-      issues.push(`Python version mismatch: plan uses ${plan.pythonVersion}, current project uses ${currentPythonVersion}`);
+      issues.push(
+        `Python version mismatch: plan uses ${plan.pythonVersion}, current project uses ${currentPythonVersion}`
+      );
     }
   }
-  
+
   // Check required files
-  const requiredFiles = ['src/model.py', 'requirements.txt'];
+  const requiredFiles = ["src/model.py", "requirements.txt"];
   for (const file of requiredFiles) {
     if (!fs.existsSync(file)) {
       issues.push(`Required file missing: ${file}`);
     }
   }
-  
+
   // Check GPU requirements for GPU architectures
-  if (plan.architecture === 'cuda' || plan.architecture === 'gpu') {
-    if (plan.framework === 'pytorch') {
+  if (plan.architecture === "cuda" || plan.architecture === "gpu") {
+    if (plan.framework === "pytorch") {
       try {
-        const testScript = 'import torch; assert torch.cuda.is_available()';
+        const testScript = "import torch; assert torch.cuda.is_available()";
         const result = await executePythonScript(testScript);
         if (!result.success) {
           if (options.force) {
-            logger.warn('CUDA not available - replay may fail');
+            logger.warn("CUDA not available - replay may fail");
           } else {
-            issues.push('CUDA not available for PyTorch (plan requires GPU)');
+            issues.push("CUDA not available for PyTorch (plan requires GPU)");
           }
         }
       } catch (error) {
         if (options.force) {
-          logger.warn('Could not verify CUDA availability');
+          logger.warn("Could not verify CUDA availability");
         } else {
-          issues.push('Could not verify CUDA availability (plan requires GPU)');
+          issues.push("Could not verify CUDA availability (plan requires GPU)");
         }
       }
     }
-    
-    if (plan.framework === 'tensorflow') {
+
+    if (plan.framework === "tensorflow") {
       try {
-        const testScript = 'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0';
+        const testScript =
+          'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0';
         const result = await executePythonScript(testScript);
         if (!result.success) {
           if (options.force) {
-            logger.warn('GPU not available for TensorFlow - replay may fail');
+            logger.warn("GPU not available for TensorFlow - replay may fail");
           } else {
-            issues.push('GPU not available for TensorFlow (plan requires GPU)');
+            issues.push("GPU not available for TensorFlow (plan requires GPU)");
           }
         }
       } catch (error) {
         if (options.force) {
-          logger.warn('Could not verify GPU availability for TensorFlow');
+          logger.warn("Could not verify GPU availability for TensorFlow");
         } else {
-          issues.push('Could not verify GPU availability for TensorFlow (plan requires GPU)');
+          issues.push(
+            "Could not verify GPU availability for TensorFlow (plan requires GPU)"
+          );
         }
       }
     }
   }
-  
+
   if (issues.length > 0 && !options.force) {
-    throw new Error(`Environment compatibility issues:\n${issues.map(issue => `  • ${issue}`).join('\n')}\n\nUse --force to proceed anyway.`);
+    throw new Error(
+      `Environment compatibility issues:\n${issues.map((issue) => `  • ${issue}`).join("\n")}\n\nUse --force to proceed anyway.`
+    );
   }
 }
 
-async function replayCompile(plan: any, currentConfig: ProjectConfig, options: ReplayOptions): Promise<void> {
+async function replayCompile(
+  plan: any,
+  currentConfig: ProjectConfig,
+  options: ReplayOptions
+): Promise<void> {
   // Generate compilation script based on the plan
-  const compilationScript = generateReplayCompilationScript(plan, currentConfig);
-  const scriptPath = 'temp_replay_compile.py';
-  
+  const compilationScript = generateReplayCompilationScript(
+    plan,
+    currentConfig
+  );
+  const scriptPath = "temp_replay_compile.py";
+
   try {
     await fs.writeFile(scriptPath, compilationScript);
-    
-    logger.info('Executing compilation replay...');
+
+    logger.info("Executing compilation replay...");
     if (options.verbose) {
       logger.info(`Using architecture: ${plan.architecture}`);
       logger.info(`Target framework: ${plan.framework}`);
     }
-    
-    const result = execSync(`python3 ${scriptPath}`, { 
-      encoding: 'utf8',
-      timeout: 300000, // 5 minute timeout
-      stdio: options.verbose ? 'inherit' : 'pipe'
+
+    const result = execSync(`python3 ${scriptPath}`, {
+      encoding: "utf8",
+      timeout: 300_000, // 5 minute timeout
+      stdio: options.verbose ? "inherit" : "pipe",
     });
-    
+
     if (options.verbose) {
-      logger.info('Compilation output:', result);
+      logger.info("Compilation output:", result);
     }
-    
+
     // Verify expected artifacts were created
     for (const artifact of plan.artifacts) {
       if (!fs.existsSync(artifact.path)) {
         logger.warn(`Expected artifact not found: ${artifact.path}`);
       }
     }
-    
   } finally {
     // Clean up temporary script
     if (fs.existsSync(scriptPath)) {
@@ -207,30 +233,34 @@ async function replayCompile(plan: any, currentConfig: ProjectConfig, options: R
   }
 }
 
-async function replayBuild(plan: any, currentConfig: ProjectConfig, options: ReplayOptions): Promise<void> {
+async function replayBuild(
+  plan: any,
+  currentConfig: ProjectConfig,
+  options: ReplayOptions
+): Promise<void> {
   // Generate build script based on the plan
   const buildScript = generateReplayBuildScript(plan, currentConfig);
-  const scriptPath = 'temp_replay_build.py';
-  
+  const scriptPath = "temp_replay_build.py";
+
   try {
     await fs.writeFile(scriptPath, buildScript);
-    
-    logger.info('Executing build replay...');
+
+    logger.info("Executing build replay...");
     if (options.verbose) {
       logger.info(`Using architecture: ${plan.architecture}`);
       logger.info(`Target framework: ${plan.framework}`);
     }
-    
-    const result = execSync(`python3 ${scriptPath}`, { 
-      encoding: 'utf8',
-      timeout: 300000, // 5 minute timeout
-      stdio: options.verbose ? 'inherit' : 'pipe'
+
+    const result = execSync(`python3 ${scriptPath}`, {
+      encoding: "utf8",
+      timeout: 300_000, // 5 minute timeout
+      stdio: options.verbose ? "inherit" : "pipe",
     });
-    
+
     if (options.verbose) {
-      logger.info('Build output:', result);
+      logger.info("Build output:", result);
     }
-    
+
     // Verify expected artifacts were created
     for (const artifact of plan.artifacts) {
       if (!fs.existsSync(artifact.path)) {
@@ -240,7 +270,6 @@ async function replayBuild(plan: any, currentConfig: ProjectConfig, options: Rep
         logger.info(`✓ Created: ${artifact.path} (${formatBytes(stat.size)})`);
       }
     }
-    
   } finally {
     // Clean up temporary script
     if (fs.existsSync(scriptPath)) {
@@ -249,10 +278,13 @@ async function replayBuild(plan: any, currentConfig: ProjectConfig, options: Rep
   }
 }
 
-function generateReplayCompilationScript(plan: any, _currentConfig: ProjectConfig): string {
+function generateReplayCompilationScript(
+  plan: any,
+  _currentConfig: ProjectConfig
+): string {
   const framework = plan.framework;
   const architecture = plan.architecture;
-  
+
   let script = `
 import sys
 import os
@@ -268,7 +300,7 @@ print("Model created successfully")
 `;
 
   // Framework-specific compilation logic
-  if (framework === 'pytorch') {
+  if (framework === "pytorch") {
     script += `
 import torch
 
@@ -285,7 +317,7 @@ os.makedirs('models', exist_ok=True)
 torch.save(model.state_dict(), 'models/model_${architecture}.pth')
 print("Model saved to models/model_${architecture}.pth")
 `;
-  } else if (framework === 'tensorflow') {
+  } else if (framework === "tensorflow") {
     script += `
 import tensorflow as tf
 
@@ -302,7 +334,7 @@ os.makedirs('models', exist_ok=True)
 model.save('models/model_${architecture}')
 print("Model saved to models/model_${architecture}")
 `;
-  } else if (framework === 'sklearn') {
+  } else if (framework === "sklearn") {
     script += `
 import joblib
 
@@ -331,10 +363,13 @@ print("Compilation replay completed successfully")
   return script;
 }
 
-function generateReplayBuildScript(plan: any, _currentConfig: ProjectConfig): string {
+function generateReplayBuildScript(
+  plan: any,
+  _currentConfig: ProjectConfig
+): string {
   const framework = plan.framework;
   const architecture = plan.architecture;
-  
+
   let script = `
 import sys
 import os
@@ -350,7 +385,7 @@ print("Model created successfully")
 `;
 
   // Framework-specific build logic (similar to compilation but with build-specific steps)
-  if (framework === 'pytorch') {
+  if (framework === "pytorch") {
     script += `
 import torch
 
@@ -371,7 +406,7 @@ torch.save({
 }, 'models/model_${architecture}.pth')
 print("Model saved to models/model_${architecture}.pth")
 `;
-  } else if (framework === 'sklearn') {
+  } else if (framework === "sklearn") {
     script += `
 import joblib
 
@@ -401,36 +436,58 @@ print("Build replay completed successfully")
   return script;
 }
 
-function displayReplayPlan(plan: any, metadata: any, _options: ReplayOptions): void {
+function displayReplayPlan(
+  plan: any,
+  metadata: any,
+  _options: ReplayOptions
+): void {
   const useColors = process.stdout.isTTY;
-  const colorize = (text: string, colorFn: (text: string) => string) => useColors ? colorFn(text) : text;
-  
-  console.log('\n' + colorize(' Replay Plan:', chalk.bold.blue));
+  const colorize = (text: string, colorFn: (text: string) => string) =>
+    useColors ? colorFn(text) : text;
+
+  console.log("\n" + colorize(" Replay Plan:", chalk.bold.blue));
   console.log(colorize(`  • Command: ${plan.command}`, chalk.cyan));
   console.log(colorize(`  • Framework: ${plan.framework}`, chalk.green));
   console.log(colorize(`  • Architecture: ${plan.architecture}`, chalk.yellow));
-  console.log(colorize(`  • Original timestamp: ${new Date(plan.timestamp).toLocaleString()}`, chalk.gray));
-  console.log(colorize(`  • Plan saved: ${new Date(metadata.savedAt).toLocaleString()}`, chalk.gray));
-  
+  console.log(
+    colorize(
+      `  • Original timestamp: ${new Date(plan.timestamp).toLocaleString()}`,
+      chalk.gray
+    )
+  );
+  console.log(
+    colorize(
+      `  • Plan saved: ${new Date(metadata.savedAt).toLocaleString()}`,
+      chalk.gray
+    )
+  );
+
   if (metadata.description) {
-    console.log(colorize(`  • Description: ${metadata.description}`, chalk.gray));
+    console.log(
+      colorize(`  • Description: ${metadata.description}`, chalk.gray)
+    );
   }
-  
-  console.log('');
-  console.log(colorize(' Expected Artifacts:', chalk.bold.yellow));
+
+  console.log("");
+  console.log(colorize(" Expected Artifacts:", chalk.bold.yellow));
   for (const artifact of plan.artifacts) {
-    console.log(colorize(`  • ${artifact.path} (${formatBytes(artifact.estimatedSize)})`, chalk.cyan));
+    console.log(
+      colorize(
+        `  • ${artifact.path} (${formatBytes(artifact.estimatedSize)})`,
+        chalk.cyan
+      )
+    );
   }
-  
-  console.log('');
-  console.log(colorize(' Build Steps:', chalk.bold.green));
+
+  console.log("");
+  console.log(colorize(" Build Steps:", chalk.bold.green));
   for (let i = 0; i < plan.buildSteps.length; i++) {
     console.log(colorize(`  ${i + 1}. ${plan.buildSteps[i]}`, chalk.gray));
   }
-  
+
   if (plan.warnings && plan.warnings.length > 0) {
-    console.log('');
-    console.log(colorize('Warnings:', chalk.bold.yellow));
+    console.log("");
+    console.log(colorize("Warnings:", chalk.bold.yellow));
     for (const warning of plan.warnings) {
       console.log(colorize(`  • ${warning}`, chalk.yellow));
     }
@@ -438,11 +495,13 @@ function displayReplayPlan(plan: any, metadata: any, _options: ReplayOptions): v
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  
+  if (bytes === 0) {
+    return "0 B";
+  }
+
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+
+  return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 }

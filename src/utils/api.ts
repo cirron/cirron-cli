@@ -1,25 +1,25 @@
-import fetch from 'node-fetch';
-import { createWriteStream, createReadStream } from 'fs';
-import fs from 'fs-extra';
-import { USER_AGENT } from './version';
+import { createReadStream, createWriteStream } from "fs";
+import fs from "fs-extra";
+import fetch from "node-fetch";
 import type {
-  CirronConfig,
   ApiResponse,
   AuthInfo,
+  CirronConfig,
   DeploymentInfo,
-  LogEntry,
+  DeviceAuthStatus,
   DeviceCodeResponse,
   DeviceTokenResponse,
-  DeviceAuthStatus,
-  RunInfo,
+  LogEntry,
   PullArtifactInfo,
   PullDownloadInfo,
-  PushDedupeResult,
-  PushUploadUrl,
   PushConfirmation,
+  PushDedupeResult,
   PushSessionInfo,
+  PushUploadUrl,
+  RunInfo,
   SyncDiffResult,
-} from '../types';
+} from "../types";
+import { USER_AGENT } from "./version";
 
 export class CirronApi {
   private config: CirronConfig;
@@ -29,31 +29,35 @@ export class CirronApi {
   }
 
   async verifyAuth(): Promise<AuthInfo> {
-    const response = await this.request('/api/cli/status');
+    const response = await this.request("/api/cli/status");
     return response as any;
   }
 
   // Device Flow Authentication Methods
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
-    const response = await this.request('/api/cli/auth/device', { method: 'POST' });
+    const response = await this.request("/api/cli/auth/device", {
+      method: "POST",
+    });
     return response as any;
   }
 
   async pollDeviceAuthorization(deviceCode: string): Promise<DeviceAuthStatus> {
-    const response = await this.request(`/api/cli/auth/device?device_code=${deviceCode}`);
+    const response = await this.request(
+      `/api/cli/auth/device?device_code=${deviceCode}`
+    );
     return response as any;
   }
 
   async refreshToken(refreshToken: string): Promise<DeviceTokenResponse> {
-    const response = await this.requestRaw('/api/cli/auth/refresh', {
-      method: 'POST',
-      body: { refresh_token: refreshToken }
+    const response = await this.requestRaw("/api/cli/auth/refresh", {
+      method: "POST",
+      body: { refresh_token: refreshToken },
     });
     return response.data;
   }
 
   async validateAuth(): Promise<{ valid: boolean; user?: any }> {
-    const response = await this.request('/api/cli/status');
+    const response = await this.request("/api/cli/status");
     return response.data;
   }
 
@@ -66,9 +70,9 @@ export class CirronApi {
     repositoryId?: string;
     repositoryPath?: string;
   }): Promise<any> {
-    const response = await this.request('/api/cli/models', {
-      method: 'POST',
-      body: projectData
+    const response = await this.request("/api/cli/models", {
+      method: "POST",
+      body: projectData,
     });
     return response.data;
   }
@@ -81,9 +85,9 @@ export class CirronApi {
     deployConfig: any;
     envConfig: any;
   }): Promise<DeploymentInfo> {
-    const response = await this.request('/api/cli/deployments', {
-      method: 'POST',
-      body: deploymentData
+    const response = await this.request("/api/cli/deployments", {
+      method: "POST",
+      body: deploymentData,
     });
     return response.data;
   }
@@ -94,7 +98,7 @@ export class CirronApi {
   }
 
   async getDeployments(
-    projectName: string, 
+    projectName: string,
     options: {
       environment?: string;
       status?: string;
@@ -102,11 +106,19 @@ export class CirronApi {
     } = {}
   ): Promise<DeploymentInfo[]> {
     const params = new URLSearchParams();
-    if (options.environment) params.append('environment', options.environment);
-    if (options.status) params.append('status', options.status);
-    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.environment) {
+      params.append("environment", options.environment);
+    }
+    if (options.status) {
+      params.append("status", options.status);
+    }
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
 
-    const response = await this.request(`/api/cli/models/${projectName}/deployments?${params}`);
+    const response = await this.request(
+      `/api/cli/models/${projectName}/deployments?${params}`
+    );
     return response.data;
   }
 
@@ -115,26 +127,29 @@ export class CirronApi {
     environment: string,
     deploymentId: string
   ): Promise<DeploymentInfo> {
-    const response = await this.request(`/api/cli/models/${projectName}/rollback`, {
-      method: 'POST',
-      body: {
-        environment,
-        deploymentId
+    const response = await this.request(
+      `/api/cli/models/${projectName}/rollback`,
+      {
+        method: "POST",
+        body: {
+          environment,
+          deploymentId,
+        },
       }
-    });
+    );
     return response.data;
   }
 
   async reportBuild(buildData: {
     projectName: string;
     environment: string;
-    status: 'success' | 'failed';
+    status: "success" | "failed";
     timestamp: string;
     error?: string;
   }): Promise<void> {
-    await this.request('/api/cli/builds', {
-      method: 'POST',
-      body: buildData
+    await this.request("/api/cli/builds", {
+      method: "POST",
+      body: buildData,
     });
   }
 
@@ -147,8 +162,12 @@ export class CirronApi {
     } = {}
   ): Promise<LogEntry[]> {
     const params = new URLSearchParams();
-    if (options.lines) params.append('lines', options.lines.toString());
-    if (options.since) params.append('since', options.since);
+    if (options.lines) {
+      params.append("lines", options.lines.toString());
+    }
+    if (options.since) {
+      params.append("since", options.since);
+    }
 
     const response = await this.request(
       `/api/cli/models/${projectName}/logs/${environment}?${params}`
@@ -173,8 +192,8 @@ export class CirronApi {
     value: string
   ): Promise<void> {
     await this.request(`/api/cli/models/${projectName}/env/${environment}`, {
-      method: 'PUT',
-      body: { [key]: value }
+      method: "PUT",
+      body: { [key]: value },
     });
   }
 
@@ -183,160 +202,234 @@ export class CirronApi {
     environment: string,
     key: string
   ): Promise<void> {
-    await this.request(`/api/cli/models/${projectName}/env/${environment}/${key}`, {
-      method: 'DELETE'
-    });
+    await this.request(
+      `/api/cli/models/${projectName}/env/${environment}/${key}`,
+      {
+        method: "DELETE",
+      }
+    );
   }
 
   // List command methods
-  async getBuilds(options: {
-    limit?: number;
-    status?: string;
-    projectId?: string;
-  } = {}): Promise<any[]> {
+  async getBuilds(
+    options: { limit?: number; status?: string; projectId?: string } = {}
+  ): Promise<any[]> {
     const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit.toString());
-    if (options.status) params.append('status', options.status);
-    if (options.projectId) params.append('projectId', options.projectId);
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options.status) {
+      params.append("status", options.status);
+    }
+    if (options.projectId) {
+      params.append("projectId", options.projectId);
+    }
 
     const response = await this.request(`/api/cli/builds?${params}`);
     return response.data || [];
   }
 
-  async getModelInstances(options: {
-    limit?: number;
-    modelId?: string;
-  } = {}): Promise<any[]> {
+  async getModelInstances(
+    options: { limit?: number; modelId?: string } = {}
+  ): Promise<any[]> {
     const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit.toString());
-    if (options.modelId) params.append('modelId', options.modelId);
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options.modelId) {
+      params.append("modelId", options.modelId);
+    }
 
     const response = await this.request(`/api/cli/models?${params}`);
     return response.data || response || [];
   }
 
-  async getModelImages(options: {
-    limit?: number;
-    modelId?: string;
-  } = {}): Promise<any[]> {
+  async getModelImages(
+    options: { limit?: number; modelId?: string } = {}
+  ): Promise<any[]> {
     const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit.toString());
-    if (options.modelId) params.append('modelId', options.modelId);
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options.modelId) {
+      params.append("modelId", options.modelId);
+    }
 
     const response = await this.request(`/api/cli/images/models?${params}`);
     return response.data || [];
   }
 
-  async getRegistryArtifacts(options: {
-    limit?: number;
-    type?: string;
-    pipelineId?: string;
-    nodeId?: string;
-    latest?: boolean;
-  } = {}): Promise<any[]> {
+  async getRegistryArtifacts(
+    options: {
+      limit?: number;
+      type?: string;
+      pipelineId?: string;
+      nodeId?: string;
+      latest?: boolean;
+    } = {}
+  ): Promise<any[]> {
     const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit.toString());
-    if (options.type) params.append('type', options.type);
-    if (options.pipelineId) params.append('pipelineId', options.pipelineId);
-    if (options.nodeId) params.append('nodeId', options.nodeId);
-    if (options.latest) params.append('latest', 'true');
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options.type) {
+      params.append("type", options.type);
+    }
+    if (options.pipelineId) {
+      params.append("pipelineId", options.pipelineId);
+    }
+    if (options.nodeId) {
+      params.append("nodeId", options.nodeId);
+    }
+    if (options.latest) {
+      params.append("latest", "true");
+    }
 
-    const response = await this.request(`/api/cli/registry/artifacts?${params}`);
+    const response = await this.request(
+      `/api/cli/registry/artifacts?${params}`
+    );
     return response.data?.artifacts || response.data || [];
   }
 
-  async getDeploymentExecutions(options: {
-    limit?: number;
-    modelInstanceId?: string;
-    modelId?: string;
-  } = {}): Promise<any[]> {
+  async getDeploymentExecutions(
+    options: { limit?: number; modelInstanceId?: string; modelId?: string } = {}
+  ): Promise<any[]> {
     const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit.toString());
-    if (options.modelInstanceId) params.append('modelInstanceId', options.modelInstanceId);
-    if (options.modelId) params.append('modelId', options.modelId);
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options.modelInstanceId) {
+      params.append("modelInstanceId", options.modelInstanceId);
+    }
+    if (options.modelId) {
+      params.append("modelId", options.modelId);
+    }
 
-    const response = await this.request(`/api/cli/deployments/versions?${params}`);
+    const response = await this.request(
+      `/api/cli/deployments/versions?${params}`
+    );
     return response.data || response || [];
   }
 
   // Run command methods
 
-  async triggerPipelineRun(pipelineNameOrId: string, options: {
-    config?: Record<string, unknown>;
-    gpu?: string;
-    priority?: string;
-    tags?: string[];
-  } = {}): Promise<RunInfo> {
-    const response = await this.request(`/api/cli/pipelines/${encodeURIComponent(pipelineNameOrId)}/run`, {
-      method: 'POST',
-      body: {
-        gpu: options.gpu,
-        priority: options.priority,
-        tags: options.tags,
-        config: options.config,
+  async triggerPipelineRun(
+    pipelineNameOrId: string,
+    options: {
+      config?: Record<string, unknown>;
+      gpu?: string;
+      priority?: string;
+      tags?: string[];
+    } = {}
+  ): Promise<RunInfo> {
+    const response = await this.request(
+      `/api/cli/pipelines/${encodeURIComponent(pipelineNameOrId)}/run`,
+      {
+        method: "POST",
+        body: {
+          gpu: options.gpu,
+          priority: options.priority,
+          tags: options.tags,
+          config: options.config,
+        },
       }
-    });
+    );
     return response.data;
   }
 
   async getRun(runId: string): Promise<RunInfo> {
-    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}`);
+    const response = await this.request(
+      `/api/cli/runs/${encodeURIComponent(runId)}`
+    );
     return response.data;
   }
 
-  async getRuns(options: {
-    status?: string;
-    limit?: number;
-    pipeline?: string;
-  } = {}): Promise<RunInfo[]> {
+  async getRuns(
+    options: { status?: string; limit?: number; pipeline?: string } = {}
+  ): Promise<RunInfo[]> {
     const params = new URLSearchParams();
-    if (options.status) params.append('status', options.status);
-    if (options.limit) params.append('limit', options.limit.toString());
-    if (options.pipeline) params.append('pipeline', options.pipeline);
+    if (options.status) {
+      params.append("status", options.status);
+    }
+    if (options.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options.pipeline) {
+      params.append("pipeline", options.pipeline);
+    }
 
     const response = await this.request(`/api/cli/runs?${params}`);
     return response.data || [];
   }
 
-  async cancelRun(runId: string, options: {
-    force?: boolean;
-  } = {}): Promise<RunInfo> {
-    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/cancel`, {
-      method: 'POST',
-      body: { force: options.force }
-    });
+  async cancelRun(
+    runId: string,
+    options: {
+      force?: boolean;
+    } = {}
+  ): Promise<RunInfo> {
+    const response = await this.request(
+      `/api/cli/runs/${encodeURIComponent(runId)}/cancel`,
+      {
+        method: "POST",
+        body: { force: options.force },
+      }
+    );
     return response.data;
   }
 
-  async getRunLogs(runId: string, options: {
-    lines?: number;
-    since?: string;
-  } = {}): Promise<LogEntry[]> {
+  async getRunLogs(
+    runId: string,
+    options: {
+      lines?: number;
+      since?: string;
+    } = {}
+  ): Promise<LogEntry[]> {
     const params = new URLSearchParams();
-    if (options.lines) params.append('lines', options.lines.toString());
-    if (options.since) params.append('since', options.since);
+    if (options.lines) {
+      params.append("lines", options.lines.toString());
+    }
+    if (options.since) {
+      params.append("since", options.since);
+    }
 
-    const response = await this.request(`/api/cli/runs/${encodeURIComponent(runId)}/logs?${params}`);
+    const response = await this.request(
+      `/api/cli/runs/${encodeURIComponent(runId)}/logs?${params}`
+    );
     return response.data || [];
   }
 
   // Pull command methods
 
-  async getPullArtifacts(options: {
-    resource?: string;
-    name?: string;
-    tag?: string;
-    projectName?: string;
-    type?: string;
-    path?: string;
-  } = {}): Promise<PullArtifactInfo[]> {
+  async getPullArtifacts(
+    options: {
+      resource?: string;
+      name?: string;
+      tag?: string;
+      projectName?: string;
+      type?: string;
+      path?: string;
+    } = {}
+  ): Promise<PullArtifactInfo[]> {
     const params = new URLSearchParams();
-    if (options.resource) params.append('resource', options.resource);
-    if (options.name) params.append('name', options.name);
-    if (options.tag) params.append('tag', options.tag);
-    if (options.projectName) params.append('projectName', options.projectName);
-    if (options.type) params.append('type', options.type);
-    if (options.path) params.append('path', options.path);
+    if (options.resource) {
+      params.append("resource", options.resource);
+    }
+    if (options.name) {
+      params.append("name", options.name);
+    }
+    if (options.tag) {
+      params.append("tag", options.tag);
+    }
+    if (options.projectName) {
+      params.append("projectName", options.projectName);
+    }
+    if (options.type) {
+      params.append("type", options.type);
+    }
+    if (options.path) {
+      params.append("path", options.path);
+    }
 
     const response = await this.request(`/api/cli/registry/pull?${params}`);
     return response.data?.artifacts || response.data || [];
@@ -344,9 +437,11 @@ export class CirronApi {
 
   async getPullDownloadUrl(artifactId: string): Promise<PullDownloadInfo> {
     const params = new URLSearchParams();
-    params.append('artifactId', artifactId);
+    params.append("artifactId", artifactId);
 
-    const response = await this.request(`/api/cli/registry/pull/download?${params}`);
+    const response = await this.request(
+      `/api/cli/registry/pull/download?${params}`
+    );
     return response.data;
   }
 
@@ -360,11 +455,11 @@ export class CirronApi {
     // Don't send auth headers to external presigned URLs (S3/GCS) —
     // the presigned URL already contains its own auth credentials
     const headers: Record<string, string> = {
-      'User-Agent': USER_AGENT,
+      "User-Agent": USER_AGENT,
     };
 
     let attempt = 0;
-    let lastError: Error = new Error('Download failed after retries');
+    let lastError: Error = new Error("Download failed after retries");
 
     while (attempt <= this.config.retries) {
       const controller = new AbortController();
@@ -374,26 +469,31 @@ export class CirronApi {
 
       try {
         const response = await fetch(url, {
-          method: 'GET',
+          method: "GET",
           headers,
           signal: controller.signal,
         });
 
         if (!response.ok) {
-          throw new Error(`Download failed: HTTP ${response.status} ${response.statusText}`);
+          throw new Error(
+            `Download failed: HTTP ${response.status} ${response.statusText}`
+          );
         }
 
         if (!response.body) {
-          throw new Error('Download failed: empty response body');
+          throw new Error("Download failed: empty response body");
         }
 
-        const totalSize = parseInt(response.headers.get('content-length') || '0', 10);
+        const totalSize = Number.parseInt(
+          response.headers.get("content-length") || "0",
+          10
+        );
         let downloaded = 0;
 
         const fileStream = createWriteStream(destPath);
 
         await new Promise<void>((resolve, reject) => {
-          response.body!.on('data', (chunk: Buffer) => {
+          response.body!.on("data", (chunk: Buffer) => {
             downloaded += chunk.length;
             if (onProgress && totalSize > 0) {
               onProgress(downloaded, totalSize);
@@ -402,17 +502,17 @@ export class CirronApi {
 
           response.body!.pipe(fileStream);
 
-          response.body!.on('error', (err: Error) => {
+          response.body!.on("error", (err: Error) => {
             fileStream.close();
             reject(err);
           });
 
-          fileStream.on('finish', () => {
+          fileStream.on("finish", () => {
             fileStream.close();
             resolve();
           });
 
-          fileStream.on('error', (err: Error) => {
+          fileStream.on("error", (err: Error) => {
             reject(err);
           });
         });
@@ -421,15 +521,17 @@ export class CirronApi {
       } catch (error) {
         lastError = error as Error;
 
-        if (error instanceof Error &&
-            (error.message.includes('401') || error.message.includes('403'))) {
+        if (
+          error instanceof Error &&
+          (error.message.includes("401") || error.message.includes("403"))
+        ) {
           throw error;
         }
 
         attempt++;
         if (attempt <= this.config.retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       } finally {
         clearTimeout(timeoutId);
@@ -441,16 +543,23 @@ export class CirronApi {
 
   // Push command methods
 
-  async checkDedupe(checksum: string, options: {
-    resource?: string;
-    name?: string;
-  } = {}): Promise<PushDedupeResult> {
+  async checkDedupe(
+    checksum: string,
+    options: {
+      resource?: string;
+      name?: string;
+    } = {}
+  ): Promise<PushDedupeResult> {
     const body: Record<string, string> = { checksum };
-    if (options.resource) body['resource'] = options.resource;
-    if (options.name) body['name'] = options.name;
+    if (options.resource) {
+      body["resource"] = options.resource;
+    }
+    if (options.name) {
+      body["name"] = options.name;
+    }
 
-    const response = await this.request('/api/cli/registry/push/check-dedupe', {
-      method: 'POST',
+    const response = await this.request("/api/cli/registry/push/check-dedupe", {
+      method: "POST",
       body,
     });
     return response.data;
@@ -470,13 +579,21 @@ export class CirronApi {
       size: options.size,
       checksum: options.checksum,
     };
-    if (options.resource) body['resource'] = options.resource;
-    if (options.name) body['name'] = options.name;
-    if (options.tag) body['tag'] = options.tag;
-    if (options.registry) body['registry'] = options.registry;
+    if (options.resource) {
+      body["resource"] = options.resource;
+    }
+    if (options.name) {
+      body["name"] = options.name;
+    }
+    if (options.tag) {
+      body["tag"] = options.tag;
+    }
+    if (options.registry) {
+      body["registry"] = options.registry;
+    }
 
-    const response = await this.request('/api/cli/registry/push/upload-url', {
-      method: 'POST',
+    const response = await this.request("/api/cli/registry/push/upload-url", {
+      method: "POST",
       body,
     });
     return response.data;
@@ -497,14 +614,24 @@ export class CirronApi {
       checksum: options.checksum,
       size: options.size,
     };
-    if (options.resource) body['resource'] = options.resource;
-    if (options.name) body['name'] = options.name;
-    if (options.tag) body['tag'] = options.tag;
-    if (options.message) body['message'] = options.message;
-    if (options.gitHash) body['gitHash'] = options.gitHash;
+    if (options.resource) {
+      body["resource"] = options.resource;
+    }
+    if (options.name) {
+      body["name"] = options.name;
+    }
+    if (options.tag) {
+      body["tag"] = options.tag;
+    }
+    if (options.message) {
+      body["message"] = options.message;
+    }
+    if (options.gitHash) {
+      body["gitHash"] = options.gitHash;
+    }
 
-    const response = await this.request('/api/cli/registry/push/confirm', {
-      method: 'POST',
+    const response = await this.request("/api/cli/registry/push/confirm", {
+      method: "POST",
       body,
     });
     return response.data;
@@ -523,8 +650,8 @@ export class CirronApi {
     message?: string;
     gitHash?: string;
   }): Promise<{ versionId: string; tag: string; createdAt: string }> {
-    const response = await this.request('/api/cli/registry/push/version', {
-      method: 'POST',
+    const response = await this.request("/api/cli/registry/push/version", {
+      method: "POST",
       body: {
         projectName: options.projectName,
         artifacts: options.artifacts,
@@ -554,8 +681,8 @@ export class CirronApi {
     totalChunks: number;
     checksum: string;
   }): Promise<{ sessionId: string }> {
-    const response = await this.request('/api/cli/registry/push/session', {
-      method: 'POST',
+    const response = await this.request("/api/cli/registry/push/session", {
+      method: "POST",
       body: options,
     });
     return response.data;
@@ -572,13 +699,13 @@ export class CirronApi {
     const totalSize = stat.size;
 
     const headers: Record<string, string> = {
-      'User-Agent': USER_AGENT,
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': totalSize.toString(),
+      "User-Agent": USER_AGENT,
+      "Content-Type": "application/octet-stream",
+      "Content-Length": totalSize.toString(),
     };
 
     let attempt = 0;
-    let lastError: Error = new Error('Upload failed after retries');
+    let lastError: Error = new Error("Upload failed after retries");
 
     while (attempt <= this.config.retries) {
       const controller = new AbortController();
@@ -590,20 +717,21 @@ export class CirronApi {
         const fileStream = createReadStream(filePath);
         let uploaded = 0;
 
-        fileStream.on('data', (chunk: string | Buffer) => {
-          uploaded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+        fileStream.on("data", (chunk: string | Buffer) => {
+          uploaded +=
+            typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
           if (onProgress && totalSize > 0) {
             onProgress(uploaded, totalSize);
           }
         });
 
-        fileStream.on('error', () => {
+        fileStream.on("error", () => {
           fileStream.destroy();
           controller.abort();
         });
 
         const response = await fetch(url, {
-          method: 'PUT',
+          method: "PUT",
           headers,
           body: fileStream as any,
           signal: controller.signal,
@@ -621,14 +749,14 @@ export class CirronApi {
 
         if (
           error instanceof Error &&
-          (error.message.includes('401') || error.message.includes('403'))
+          (error.message.includes("401") || error.message.includes("403"))
         ) {
           throw error;
         }
 
         attempt++;
         if (attempt <= this.config.retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       } finally {
@@ -654,10 +782,10 @@ export class CirronApi {
     const length = end - start;
 
     const headers: Record<string, string> = {
-      'User-Agent': USER_AGENT,
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': length.toString(),
-      'Content-Range': `bytes ${start}-${end - 1}/${totalSize}`,
+      "User-Agent": USER_AGENT,
+      "Content-Type": "application/octet-stream",
+      "Content-Length": length.toString(),
+      "Content-Range": `bytes ${start}-${end - 1}/${totalSize}`,
     };
 
     const controller = new AbortController();
@@ -669,19 +797,20 @@ export class CirronApi {
       const fileStream = createReadStream(filePath, { start, end: end - 1 });
       let uploaded = 0;
 
-      fileStream.on('data', (chunk: string | Buffer) => {
-        uploaded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+      fileStream.on("data", (chunk: string | Buffer) => {
+        uploaded +=
+          typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
         if (onProgress) {
           onProgress(uploaded, length);
         }
       });
 
-      fileStream.on('error', () => {
+      fileStream.on("error", () => {
         controller.abort();
       });
 
       const response = await fetch(url, {
-        method: 'PUT',
+        method: "PUT",
         headers,
         body: fileStream as any,
         signal: controller.signal as any,
@@ -693,7 +822,7 @@ export class CirronApi {
         );
       }
 
-      return response.headers.get('etag') || '';
+      return response.headers.get("etag") || "";
     } finally {
       clearTimeout(timeoutId);
     }
@@ -705,8 +834,8 @@ export class CirronApi {
     projectName: string;
     manifest: Array<{ path: string; checksum: string; size: number }>;
   }): Promise<SyncDiffResult> {
-    const response = await this.request('/api/cli/registry/sync/diff', {
-      method: 'POST',
+    const response = await this.request("/api/cli/registry/sync/diff", {
+      method: "POST",
       body: {
         projectName: options.projectName,
         manifest: options.manifest,
@@ -720,8 +849,8 @@ export class CirronApi {
     pushed: Array<{ path: string; checksum: string; artifactId: string }>;
     pulled: Array<{ path: string; checksum: string; artifactId: string }>;
   }): Promise<void> {
-    await this.request('/api/cli/registry/sync/complete', {
-      method: 'POST',
+    await this.request("/api/cli/registry/sync/complete", {
+      method: "POST",
       body: {
         projectName: options.projectName,
         pushed: options.pushed,
@@ -739,37 +868,41 @@ export class CirronApi {
     if (this.config.token) {
       return `Bearer ${this.config.token}`;
     }
-    return undefined;
+    return;
   }
 
   private async ensureValidToken(): Promise<void> {
-    if (!this.config.auth?.expiresAt || !this.config.auth?.refreshToken) {
+    if (!(this.config.auth?.expiresAt && this.config.auth?.refreshToken)) {
       return; // No JWT auth or refresh token available
     }
-    
+
     const expiresAt = new Date(this.config.auth.expiresAt);
     const now = new Date();
     const fiveMinutes = 5 * 60 * 1000;
-    
+
     // Refresh if expires within 5 minutes
     if (expiresAt.getTime() - now.getTime() < fiveMinutes) {
       try {
-        const newTokens = await this.refreshToken(this.config.auth.refreshToken);
-        
+        const newTokens = await this.refreshToken(
+          this.config.auth.refreshToken
+        );
+
         // Update config with new tokens
-        const { ConfigManager } = await import('./config');
+        const { ConfigManager } = await import("./config");
         const configManager = new ConfigManager();
         const currentConfig = configManager.load();
-        
-        const expiresAt = new Date(Date.now() + newTokens.expires_in * 1000).toISOString();
+
+        const expiresAt = new Date(
+          Date.now() + newTokens.expires_in * 1000
+        ).toISOString();
         currentConfig.auth = {
           accessToken: newTokens.access_token,
           refreshToken: newTokens.refresh_token,
-          expiresAt
+          expiresAt,
         };
-        
+
         configManager.save(currentConfig);
-        
+
         // Update this instance's config
         this.config = currentConfig;
       } catch (error) {
@@ -793,21 +926,28 @@ export class CirronApi {
     try {
       return await this.requestRaw(endpoint, options);
     } catch (error) {
-      const isUnauthorized = error instanceof Error && error.message.includes('401');
-      if (!isUnauthorized || !this.config.auth?.refreshToken) {
+      const isUnauthorized =
+        error instanceof Error && error.message.includes("401");
+      if (!(isUnauthorized && this.config.auth?.refreshToken)) {
         throw error;
       }
 
       try {
-        const newTokens = await this.refreshToken(this.config.auth.refreshToken);
-        const { ConfigManager } = await import('./config');
+        const newTokens = await this.refreshToken(
+          this.config.auth.refreshToken
+        );
+        const { ConfigManager } = await import("./config");
         const configManager = new ConfigManager();
         const currentConfig = configManager.load();
         currentConfig.auth = {
           accessToken: newTokens.access_token,
           refreshToken: newTokens.refresh_token,
           ...(newTokens.expires_in
-            ? { expiresAt: new Date(Date.now() + newTokens.expires_in * 1000).toISOString() }
+            ? {
+                expiresAt: new Date(
+                  Date.now() + newTokens.expires_in * 1000
+                ).toISOString(),
+              }
             : {}),
         };
         configManager.save(currentConfig);
@@ -830,26 +970,26 @@ export class CirronApi {
     } = {}
   ): Promise<ApiResponse> {
     const url = new URL(endpoint, this.config.apiUrl);
-    const method = options.method || 'GET';
-    
+    const method = options.method || "GET";
+
     const headers: Record<string, string> = {
-      'User-Agent': USER_AGENT,
-      ...options.headers
+      "User-Agent": USER_AGENT,
+      ...options.headers,
     };
 
     // Support both JWT and legacy token authentication
     const authHeader = this.getAuthHeader();
     if (authHeader) {
-      headers['Authorization'] = authHeader;
+      headers["Authorization"] = authHeader;
     }
 
-    let body: any = undefined;
+    let body: any;
     if (options.body) {
       if (options.isFormData) {
         body = options.body;
         // Let form-data set the content-type
       } else {
-        headers['Content-Type'] = 'application/json';
+        headers["Content-Type"] = "application/json";
         body = JSON.stringify(options.body);
       }
     }
@@ -860,7 +1000,7 @@ export class CirronApi {
     }, this.config.timeout);
 
     let attempt = 0;
-    let lastError: Error = new Error('Request failed after retries');
+    let lastError: Error = new Error("Request failed after retries");
 
     while (attempt <= this.config.retries) {
       try {
@@ -868,41 +1008,43 @@ export class CirronApi {
           method,
           headers,
           body,
-          signal: controller.signal
+          signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          const errorMessage = (errorData as any)?.message || 
-                              (errorData as any)?.error || 
-                              `HTTP ${response.status}: ${response.statusText}`;
+          const errorMessage =
+            (errorData as any)?.message ||
+            (errorData as any)?.error ||
+            `HTTP ${response.status}: ${response.statusText}`;
           throw new Error(errorMessage);
         }
 
         const data = await response.json();
         return data as ApiResponse;
-
       } catch (error) {
         lastError = error as Error;
 
         // Don't retry on authentication errors
-        if (error instanceof Error &&
-            (error.message.includes('401') || error.message.includes('403'))) {
+        if (
+          error instanceof Error &&
+          (error.message.includes("401") || error.message.includes("403"))
+        ) {
           throw error;
         }
 
         // Don't retry refresh failures — let caller decide (fail fast, no 7s retry storm)
-        if (endpoint === '/api/cli/auth/refresh') {
+        if (endpoint === "/api/cli/auth/refresh") {
           throw error;
         }
 
         attempt++;
         if (attempt <= this.config.retries) {
           // Exponential backoff
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }

@@ -1,10 +1,10 @@
-import yaml from 'js-yaml';
-import { dedent } from '../../utils/dedent';
+import yaml from "js-yaml";
+import { dedent } from "../../utils/dedent";
 import {
   buildSklearnJoblibServeScript,
   buildSyntheticTabularServingConfig,
   writeProjectFiles,
-} from './shared';
+} from "./shared";
 
 const SKLEARN_REQUIREMENTS = dedent(`
   scikit-learn>=1.5.0
@@ -14,7 +14,7 @@ const SKLEARN_REQUIREMENTS = dedent(`
 `);
 
 function buildSklearnTrainScript(modelType: string): string {
-  if (modelType === 'regression') {
+  if (modelType === "regression") {
     return dedent(`
       """Train a sklearn regression model on synthetic tabular data."""
       import os
@@ -105,7 +105,7 @@ function buildSklearnTrainScript(modelType: string): string {
 }
 
 function buildSklearnPipelineTrainScript(modelType: string): string {
-  if (modelType === 'regression') {
+  if (modelType === "regression") {
     return dedent(`
       """Train a sklearn pipeline (scaler + regressor) on synthetic tabular data."""
       import os
@@ -213,14 +213,21 @@ function buildSklearnPipelineTrainScript(modelType: string): string {
   `);
 }
 
-function buildCirronYaml(projectName: string, modelType: string, description: string): string {
+function buildCirronYaml(
+  projectName: string,
+  modelType: string,
+  description: string
+): string {
   const cfg = {
     name: projectName,
-    framework: 'sklearn',
+    framework: "sklearn",
     type: modelType,
-    version: '1.0.0',
+    version: "1.0.0",
     description,
-    servingConfig: buildSyntheticTabularServingConfig('sklearn-joblib', modelType),
+    servingConfig: buildSyntheticTabularServingConfig(
+      "sklearn-joblib",
+      modelType
+    ),
   };
   return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
 }
@@ -228,28 +235,27 @@ function buildCirronYaml(projectName: string, modelType: string, description: st
 export async function createSklearnFiles(
   projectPath: string,
   projectName: string,
-  options: { modelType: string },
+  options: { modelType: string }
 ): Promise<void> {
   const description = `Sklearn ${options.modelType} model scaffolded by Cirron CLI.`;
   await writeProjectFiles(projectPath, {
-    'cirron.yaml': buildCirronYaml(projectName, options.modelType, description),
-    'requirements.txt': SKLEARN_REQUIREMENTS,
-    'train.py': buildSklearnTrainScript(options.modelType),
-    'serve.py': buildSklearnJoblibServeScript(),
+    "cirron.yaml": buildCirronYaml(projectName, options.modelType, description),
+    "requirements.txt": SKLEARN_REQUIREMENTS,
+    "train.py": buildSklearnTrainScript(options.modelType),
+    "serve.py": buildSklearnJoblibServeScript(),
   });
 }
 
 export async function createSklearnPipelineFiles(
   projectPath: string,
   projectName: string,
-  options: { modelType: string },
+  options: { modelType: string }
 ): Promise<void> {
   const description = `Sklearn ${options.modelType} pipeline (scaler + estimator) scaffolded by Cirron CLI.`;
   await writeProjectFiles(projectPath, {
-    'cirron.yaml': buildCirronYaml(projectName, options.modelType, description),
-    'requirements.txt': SKLEARN_REQUIREMENTS,
-    'train.py': buildSklearnPipelineTrainScript(options.modelType),
-    'serve.py': buildSklearnJoblibServeScript(),
+    "cirron.yaml": buildCirronYaml(projectName, options.modelType, description),
+    "requirements.txt": SKLEARN_REQUIREMENTS,
+    "train.py": buildSklearnPipelineTrainScript(options.modelType),
+    "serve.py": buildSklearnJoblibServeScript(),
   });
 }
-

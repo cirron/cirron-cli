@@ -11,10 +11,10 @@
 //     `timeUnixNano`) are strings, not numbers.
 //   - Attributes are `{ key, value: AnyValue }` arrays.
 
-import crypto from 'crypto';
-import fs from 'fs-extra';
-import path from 'path';
-import type { Session, SpoolMark, SpoolSpan } from '../session';
+import crypto from "crypto";
+import fs from "fs-extra";
+import path from "path";
+import type { Session, SpoolMark, SpoolSpan } from "../session";
 
 type AnyValue =
   | { stringValue: string }
@@ -25,10 +25,16 @@ type AnyValue =
   | { kvlistValue: { values: { key: string; value: AnyValue }[] } };
 
 function anyValue(v: unknown): AnyValue {
-  if (typeof v === 'string') return { stringValue: v };
-  if (typeof v === 'boolean') return { boolValue: v };
-  if (typeof v === 'bigint') return { intValue: v.toString() };
-  if (typeof v === 'number') {
+  if (typeof v === "string") {
+    return { stringValue: v };
+  }
+  if (typeof v === "boolean") {
+    return { boolValue: v };
+  }
+  if (typeof v === "bigint") {
+    return { intValue: v.toString() };
+  }
+  if (typeof v === "number") {
     if (Number.isInteger(v) && Math.abs(v) < 2 ** 53) {
       return { intValue: v.toString() };
     }
@@ -37,13 +43,15 @@ function anyValue(v: unknown): AnyValue {
   if (Array.isArray(v)) {
     return { arrayValue: { values: v.map(anyValue) } };
   }
-  if (v && typeof v === 'object') {
+  if (v && typeof v === "object") {
     return {
       kvlistValue: {
-        values: Object.entries(v as Record<string, unknown>).map(([k, inner]) => ({
-          key: k,
-          value: anyValue(inner),
-        })),
+        values: Object.entries(v as Record<string, unknown>).map(
+          ([k, inner]) => ({
+            key: k,
+            value: anyValue(inner),
+          })
+        ),
       },
     };
   }
@@ -51,46 +59,51 @@ function anyValue(v: unknown): AnyValue {
 }
 
 function attributes(
-  record: Record<string, unknown>,
+  record: Record<string, unknown>
 ): { key: string; value: AnyValue }[] {
-  return Object.entries(record).map(([k, v]) => ({ key: k, value: anyValue(v) }));
+  return Object.entries(record).map(([k, v]) => ({
+    key: k,
+    value: anyValue(v),
+  }));
 }
 
 // Coerce an opaque id (uuid or arbitrary string) to N hex chars. We hash
 // the input with SHA-256 and truncate — collision-safe for in-run use.
 function toHex(id: string, bytes: number): string {
-  const clean = id.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
-  if (clean.length >= bytes * 2) return clean.slice(0, bytes * 2);
-  const hash = crypto.createHash('sha256').update(id).digest('hex');
+  const clean = id.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+  if (clean.length >= bytes * 2) {
+    return clean.slice(0, bytes * 2);
+  }
+  const hash = crypto.createHash("sha256").update(id).digest("hex");
   return hash.slice(0, bytes * 2);
 }
 
 interface OtlpEvent {
-  timeUnixNano: string;
-  name: string;
   attributes: { key: string; value: AnyValue }[];
+  name: string;
+  timeUnixNano: string;
 }
 
 interface OtlpSpan {
-  traceId: string;
-  spanId: string;
-  parentSpanId?: string;
-  name: string;
-  kind: number;
-  startTimeUnixNano: string;
-  endTimeUnixNano: string;
   attributes: { key: string; value: AnyValue }[];
+  endTimeUnixNano: string;
   events: OtlpEvent[];
+  kind: number;
+  name: string;
+  parentSpanId?: string;
+  spanId: string;
+  startTimeUnixNano: string;
   status: { code: number };
+  traceId: string;
 }
 
 function encodeSpan(
   span: SpoolSpan,
   traceId: string,
-  marks: SpoolMark[],
+  marks: SpoolMark[]
 ): OtlpSpan {
   const endNs = span.endNs ?? BigInt(Date.now()) * 1_000_000n;
-  const hasError = Boolean(span.attrs['error']);
+  const hasError = Boolean(span.attrs["error"]);
   const result: OtlpSpan = {
     traceId,
     spanId: toHex(span.id, 8),
@@ -100,16 +113,16 @@ function encodeSpan(
     endTimeUnixNano: endNs.toString(),
     attributes: attributes({
       ...span.attrs,
-      ...(span.index !== null ? { 'cirron.index': span.index } : {}),
-      'cirron.rank': span.rank,
-      ...(span.pid !== null ? { 'process.pid': span.pid } : {}),
+      ...(span.index === null ? {} : { "cirron.index": span.index }),
+      "cirron.rank": span.rank,
+      ...(span.pid === null ? {} : { "process.pid": span.pid }),
     }),
     events: marks.map((mark) => ({
       timeUnixNano: mark.tsNs.toString(),
       name: mark.name,
       attributes: [
-        { key: 'value', value: anyValue(mark.value) },
-        { key: 'kind', value: { stringValue: mark.kind } },
+        { key: "value", value: anyValue(mark.value) },
+        { key: "kind", value: { stringValue: mark.kind } },
       ],
     })),
     // Per OTLP: default to UNSET (0); ERROR (2) when the span attr signals
@@ -126,7 +139,7 @@ function encodeSpan(
 
 export async function exportOtlp(
   sessions: Session[],
-  outputPath: string,
+  outputPath: string
 ): Promise<void> {
   const resourceSpans: unknown[] = [];
 
@@ -150,19 +163,19 @@ export async function exportOtlp(
     resourceSpans.push({
       resource: {
         attributes: [
-          { key: 'service.name', value: { stringValue: 'cirron' } },
+          { key: "service.name", value: { stringValue: "cirron" } },
           {
-            key: 'sdk.version',
-            value: { stringValue: session.sdkVersion || 'unknown' },
+            key: "sdk.version",
+            value: { stringValue: session.sdkVersion || "unknown" },
           },
-          { key: 'cirron.session.id', value: { stringValue: session.id } },
+          { key: "cirron.session.id", value: { stringValue: session.id } },
         ],
       },
       scopeSpans: [
         {
           scope: {
-            name: 'cirron',
-            version: session.sdkVersion || 'unknown',
+            name: "cirron",
+            version: session.sdkVersion || "unknown",
           },
           spans,
         },
@@ -174,6 +187,6 @@ export async function exportOtlp(
   await fs.writeFile(
     outputPath,
     JSON.stringify({ resourceSpans }, null, 2),
-    'utf-8',
+    "utf-8"
   );
 }

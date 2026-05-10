@@ -1,101 +1,128 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
-import { execSync } from 'child_process';
-import { logger } from '../utils/logger';
-import { executePythonScript, handleExecutionResult, formatExecutionError } from '../utils/execution';
-import { handleCLIError, CLIError, CLIErrorCode } from '../utils/errors';
-import { HardwareDetector } from '../utils/hardware';
-import { createInteractiveManager } from '../utils/interactive';
-import { ModelConfigManager } from '../utils/model-config';
-import { loadProjectConfig } from '../utils/project-config';
-import type { ProjectConfig, HardwareConfig } from '../types';
+import chalk from "chalk";
+import { execSync } from "child_process";
+import fs from "fs-extra";
+import ora from "ora";
+import path from "path";
+import type { HardwareConfig, ProjectConfig } from "../types";
+import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
+import {
+  executePythonScript,
+  formatExecutionError,
+  handleExecutionResult,
+} from "../utils/execution";
+import { HardwareDetector } from "../utils/hardware";
+import { createInteractiveManager } from "../utils/interactive";
+import { logger } from "../utils/logger";
+import { ModelConfigManager } from "../utils/model-config";
+import { loadProjectConfig } from "../utils/project-config";
 
 interface CompileOptions {
   arch?: string;
   index?: string;
-  validate?: boolean;
-  strict?: boolean;
-  verbose?: boolean;
   interactive?: boolean;
+  strict?: boolean;
+  validate?: boolean;
+  verbose?: boolean;
 }
 
 export async function compileCommand(options: CompileOptions): Promise<void> {
-  const spinner = ora('Preparing compilation...').start();
-  const strictMode = options.strict || false;
-  const interactive = createInteractiveManager(options.interactive || false);
+  const spinner = ora("Preparing compilation...").start();
+  const strictMode = options.strict;
+  const interactive = createInteractiveManager(options.interactive);
 
   try {
     // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
-      spinner.fail(chalk.red('No cirron config found (cirron.yaml or cirron.json)'));
+      spinner.fail(
+        chalk.red("No cirron config found (cirron.yaml or cirron.json)")
+      );
       if (strictMode) {
-        handleCLIError(new Error('Project configuration not found'), true);
+        handleCLIError(new Error("Project configuration not found"), true);
       }
-      logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
+      logger.error(
+        "Run " + chalk.cyan("cirron init") + " to initialize a project"
+      );
       process.exit(CLIErrorCode.PROJECT_NOT_FOUND);
     }
 
     const { config: projectConfig } = projectConfigResult;
-    
+
     // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
-    
+
     if (modelConfig) {
-      logger.info(chalk.blue(`Using model configuration: ${modelConfig.name || 'unnamed model'}`));
-      if (modelConfig.framework && modelConfig.framework !== projectConfig.framework) {
-        logger.warn(chalk.yellow(`Framework mismatch: model.yaml (${modelConfig.framework}) vs project config (${projectConfig.framework})`));
+      logger.info(
+        chalk.blue(
+          `Using model configuration: ${modelConfig.name || "unnamed model"}`
+        )
+      );
+      if (
+        modelConfig.framework &&
+        modelConfig.framework !== projectConfig.framework
+      ) {
+        logger.warn(
+          chalk.yellow(
+            `Framework mismatch: model.yaml (${modelConfig.framework}) vs project config (${projectConfig.framework})`
+          )
+        );
       }
     }
-    
+
     // Interactive confirmation for compilation start
     if (interactive.isInteractive()) {
       spinner.stop();
       const shouldProceed = await interactive.confirmStep({
-        stepName: 'Model Compilation',
-        description: `Compile ${projectConfig.framework || 'custom'} model with optimization`,
-        impact: 'medium',
-        estimatedTime: '1-3 minutes',
-        dependencies: ['Model source files', 'Python environment', 'Framework libraries']
+        stepName: "Model Compilation",
+        description: `Compile ${projectConfig.framework || "custom"} model with optimization`,
+        impact: "medium",
+        estimatedTime: "1-3 minutes",
+        dependencies: [
+          "Model source files",
+          "Python environment",
+          "Framework libraries",
+        ],
       });
-      
+
       if (!shouldProceed) {
-        logger.info('Compilation cancelled by user');
+        logger.info("Compilation cancelled by user");
         return;
       }
       spinner.start();
     }
-    
+
     // Determine architecture from options, model config, or hardware detection
-    const architecture = options.arch || 
-      modelConfig?.inference?.device || 
-      await determineArchitectureFromHardware(projectConfig);
-    
+    const architecture =
+      options.arch ||
+      modelConfig?.inference?.device ||
+      (await determineArchitectureFromHardware(projectConfig));
+
     // Interactive architecture confirmation
     if (interactive.isInteractive() && !options.arch) {
       spinner.stop();
       const confirmedArch = await interactive.selectOption({
-        message: 'Select target architecture for compilation',
-        type: 'select',
+        message: "Select target architecture for compilation",
+        type: "select",
         choices: [
           { name: `${architecture} (detected/default)`, value: architecture },
-          { name: 'cpu (CPU optimized)', value: 'cpu' },
-          { name: 'cuda (NVIDIA GPU)', value: 'cuda' },
-          { name: 'gpu (General GPU)', value: 'gpu' }
+          { name: "cpu (CPU optimized)", value: "cpu" },
+          { name: "cuda (NVIDIA GPU)", value: "cuda" },
+          { name: "gpu (General GPU)", value: "gpu" },
         ],
-        description: 'Architecture affects model optimization and runtime performance'
+        description:
+          "Architecture affects model optimization and runtime performance",
       });
-      
+
       if (confirmedArch !== architecture) {
-        logger.info(`Architecture changed from ${architecture} to ${confirmedArch}`);
+        logger.info(
+          `Architecture changed from ${architecture} to ${confirmedArch}`
+        );
       }
       spinner.start();
     }
-    
+
     spinner.text = `Compiling for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
 
@@ -115,96 +142,123 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       if (interactive.isInteractive()) {
         spinner.stop();
         const shouldValidate = await interactive.confirmStep({
-          stepName: 'Pre-compilation Validation',
-          description: 'Verify model files, dependencies, and environment setup',
-          impact: 'low',
-          estimatedTime: '30-60 seconds',
-          dependencies: ['Model files', 'Python environment', 'Framework libraries']
+          stepName: "Pre-compilation Validation",
+          description:
+            "Verify model files, dependencies, and environment setup",
+          impact: "low",
+          estimatedTime: "30-60 seconds",
+          dependencies: [
+            "Model files",
+            "Python environment",
+            "Framework libraries",
+          ],
         });
-        
-        if (!shouldValidate) {
-          logger.warn('Skipping validation checks');
+
+        if (shouldValidate) {
           spinner.start();
+          spinner.text = "Running validation checks...";
+          await runValidationChecks(
+            projectConfig,
+            indexConfig,
+            architecture,
+            strictMode
+          );
+          logger.success("✓ Validation checks passed");
         } else {
+          logger.warn("Skipping validation checks");
           spinner.start();
-          spinner.text = 'Running validation checks...';
-          await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
-          logger.success('✓ Validation checks passed');
         }
       } else {
-        spinner.text = 'Running validation checks...';
-        await runValidationChecks(projectConfig, indexConfig, architecture, strictMode);
-        logger.success('✓ Validation checks passed');
+        spinner.text = "Running validation checks...";
+        await runValidationChecks(
+          projectConfig,
+          indexConfig,
+          architecture,
+          strictMode
+        );
+        logger.success("✓ Validation checks passed");
       }
     }
 
     // Validate hardware compatibility if hardware config exists
     if (projectConfig.hardware) {
-      spinner.text = 'Validating hardware compatibility...';
-      await validateHardwareCompatibility(projectConfig.hardware, architecture, projectConfig.framework);
-      logger.success('✓ Hardware compatibility validated');
+      spinner.text = "Validating hardware compatibility...";
+      await validateHardwareCompatibility(
+        projectConfig.hardware,
+        architecture,
+        projectConfig.framework
+      );
+      logger.success("✓ Hardware compatibility validated");
     }
-
 
     // Actual compilation
     if (interactive.isInteractive()) {
       spinner.stop();
       const shouldCompile = await interactive.confirmStep({
-        stepName: 'Model Compilation',
+        stepName: "Model Compilation",
         description: `Generate optimized model artifacts for ${architecture} architecture`,
-        impact: 'medium',
-        estimatedTime: '1-3 minutes',
-        dependencies: ['Validated model files', 'Target architecture', 'Framework']
+        impact: "medium",
+        estimatedTime: "1-3 minutes",
+        dependencies: [
+          "Validated model files",
+          "Target architecture",
+          "Framework",
+        ],
       });
-      
+
       if (!shouldCompile) {
-        logger.warn('Compilation skipped by user');
+        logger.warn("Compilation skipped by user");
         return;
       }
       spinner.start();
     }
-    
-    spinner.text = 'Compiling model...';
-    const artifacts = await performCompilation(projectConfig, architecture, indexConfig);
-    
+
+    spinner.text = "Compiling model...";
+    const artifacts = await performCompilation(
+      projectConfig,
+      architecture,
+      indexConfig
+    );
+
     // Post-compilation tests
     if (interactive.isInteractive()) {
       spinner.stop();
       const shouldTest = await interactive.confirmStep({
-        stepName: 'Integrity Tests',
-        description: 'Verify compiled artifacts can be loaded and used',
-        impact: 'low',
-        estimatedTime: '15-30 seconds',
-        dependencies: ['Compiled artifacts', 'Framework libraries']
+        stepName: "Integrity Tests",
+        description: "Verify compiled artifacts can be loaded and used",
+        impact: "low",
+        estimatedTime: "15-30 seconds",
+        dependencies: ["Compiled artifacts", "Framework libraries"],
       });
-      
-      if (!shouldTest) {
-        logger.warn('Skipping integrity tests');
-      } else {
+
+      if (shouldTest) {
         spinner.start();
-        spinner.text = 'Running integrity tests...';
+        spinner.text = "Running integrity tests...";
         await runIntegrityTests(projectConfig, artifacts);
+      } else {
+        logger.warn("Skipping integrity tests");
       }
     } else {
-      spinner.text = 'Running integrity tests...';
+      spinner.text = "Running integrity tests...";
       await runIntegrityTests(projectConfig, artifacts);
     }
-    
-    spinner.succeed(chalk.green('Compilation completed successfully'));
-    
+
+    spinner.succeed(chalk.green("Compilation completed successfully"));
+
     // Display results
-    logger.info('\n Compilation Results:');
+    logger.info("\n Compilation Results:");
     logger.info(`  • Architecture: ${chalk.cyan(architecture)}`);
-    logger.info(`  • Artifacts: ${chalk.cyan(artifacts.length)} files generated`);
-    artifacts.forEach(artifact => {
+    logger.info(
+      `  • Artifacts: ${chalk.cyan(artifacts.length)} files generated`
+    );
+    artifacts.forEach((artifact) => {
       logger.info(`    - ${chalk.gray(artifact)}`);
     });
-    
-    logger.success('Model compilation completed successfully!');
 
+    logger.success("Model compilation completed successfully!");
   } catch (error) {
-    spinner.fail(chalk.red('Compilation failed'));
-    
+    spinner.fail(chalk.red("Compilation failed"));
+
     // Handle CLI errors with proper exit codes
     if (error instanceof CLIError) {
       handleCLIError(error, strictMode, options.verbose);
@@ -214,88 +268,95 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
         code: CLIErrorCode.COMPILE_FAILED,
         message: error instanceof Error ? error.message : String(error),
         suggestions: [
-          'Check compilation logs for specific errors',
-          'Verify project configuration and dependencies',
-          'Try running with --validate flag first'
+          "Check compilation logs for specific errors",
+          "Verify project configuration and dependencies",
+          "Try running with --validate flag first",
         ],
-        recoverable: true
+        recoverable: true,
       };
-      
+
       if (error instanceof Error) {
         errorDetails.cause = error;
       }
-      
+
       const compileError = new CLIError(errorDetails);
-      
+
       handleCLIError(compileError, strictMode, options.verbose);
     }
   }
 }
 
-async function determineArchitectureFromHardware(projectConfig: ProjectConfig): Promise<string> {
+async function determineArchitectureFromHardware(
+  projectConfig: ProjectConfig
+): Promise<string> {
   // First check if hardware configuration exists in project
   if (projectConfig.hardware) {
     const hardwareType = projectConfig.hardware.type;
-    
+
     // Map hardware type to architecture based on framework
-    if (projectConfig.framework === 'pytorch') {
-      return hardwareType === 'cuda' ? 'cuda' : (hardwareType === 'gpu' ? 'cuda' : 'cpu');
-    } else if (projectConfig.framework === 'tensorflow') {
-      return hardwareType === 'cuda' || hardwareType === 'gpu' ? 'gpu' : 'cpu';
-    } else {
-      return 'cpu'; // sklearn and custom default to CPU
+    if (projectConfig.framework === "pytorch") {
+      return hardwareType === "cuda"
+        ? "cuda"
+        : hardwareType === "gpu"
+          ? "cuda"
+          : "cpu";
     }
+    if (projectConfig.framework === "tensorflow") {
+      return hardwareType === "cuda" || hardwareType === "gpu" ? "gpu" : "cpu";
+    }
+    return "cpu"; // sklearn and custom default to CPU
   }
 
   // Fallback to legacy logic
   return await determineDefaultArchitecture(projectConfig);
 }
 
-async function determineDefaultArchitecture(projectConfig: ProjectConfig): Promise<string> {
+async function determineDefaultArchitecture(
+  projectConfig: ProjectConfig
+): Promise<string> {
   // Determine default architecture based on framework and requirements
-  if (projectConfig.framework === 'pytorch') {
-    return projectConfig.gpuRequired ? 'cuda' : 'cpu';
-  } else if (projectConfig.framework === 'tensorflow') {
-    return projectConfig.gpuRequired ? 'gpu' : 'cpu';
-  } else if (projectConfig.framework === 'sklearn') {
-    return 'cpu';
+  if (projectConfig.framework === "pytorch") {
+    return projectConfig.gpuRequired ? "cuda" : "cpu";
   }
-  
+  if (projectConfig.framework === "tensorflow") {
+    return projectConfig.gpuRequired ? "gpu" : "cpu";
+  }
+  if (projectConfig.framework === "sklearn") {
+    return "cpu";
+  }
+
   // For custom or unspecified frameworks, default to CPU
-  return 'cpu';
+  return "cpu";
 }
 
 async function loadIndexFile(indexPath: string): Promise<any> {
   try {
     const ext = path.extname(indexPath).toLowerCase();
-    
-    if (ext === '.json') {
+
+    if (ext === ".json") {
       return await fs.readJSON(indexPath);
-    } else if (ext === '.yaml' || ext === '.yml') {
-      const yaml = require('yaml');
-      const content = await fs.readFile(indexPath, 'utf8');
-      return yaml.parse(content);
-    } else {
-      throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
     }
+    if (ext === ".yaml" || ext === ".yml") {
+      const yaml = require("yaml");
+      const content = await fs.readFile(indexPath, "utf8");
+      return yaml.parse(content);
+    }
+    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
   } catch (error) {
     throw new Error(`Failed to load index file: ${error}`);
   }
 }
 
 async function runValidationChecks(
-  projectConfig: ProjectConfig, 
-  indexConfig: any, 
+  projectConfig: ProjectConfig,
+  indexConfig: any,
   architecture: string,
   strictMode: boolean
 ): Promise<void> {
   const validationErrors: string[] = [];
 
   // Check required files
-  const requiredFiles = [
-    'src/model.py',
-    'requirements.txt'
-  ];
+  const requiredFiles = ["src/model.py", "requirements.txt"];
 
   for (const file of requiredFiles) {
     if (!fs.existsSync(file)) {
@@ -305,74 +366,96 @@ async function runValidationChecks(
 
   // Validate Python environment
   try {
-    const pythonVersion = execSync('python3 --version', { encoding: 'utf8' }).trim();
+    const pythonVersion = execSync("python3 --version", {
+      encoding: "utf8",
+    }).trim();
     const versionMatch = pythonVersion.match(/Python (\d+\.\d+\.\d+)/);
-    
+
     if (versionMatch && versionMatch[1]) {
-      const versionParts = versionMatch[1].split('.');
-      const major = parseInt(versionParts[0] || '0');
-      const minor = parseInt(versionParts[1] || '0');
-      const requiredParts = (projectConfig.pythonVersion || '3.9').split('.');
-      const requiredMajor = parseInt(requiredParts[0] || '3');
-      const requiredMinor = parseInt(requiredParts[1] || '9');
-      
-      if (major < requiredMajor || (major === requiredMajor && minor < requiredMinor)) {
-        validationErrors.push(`Python ${projectConfig.pythonVersion || '3.9'}+ required, found ${major}.${minor}`);
+      const versionParts = versionMatch[1].split(".");
+      const major = Number.parseInt(versionParts[0] || "0");
+      const minor = Number.parseInt(versionParts[1] || "0");
+      const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
+      const requiredMajor = Number.parseInt(requiredParts[0] || "3");
+      const requiredMinor = Number.parseInt(requiredParts[1] || "9");
+
+      if (
+        major < requiredMajor ||
+        (major === requiredMajor && minor < requiredMinor)
+      ) {
+        validationErrors.push(
+          `Python ${projectConfig.pythonVersion || "3.9"}+ required, found ${major}.${minor}`
+        );
       }
     }
   } catch (error) {
-    validationErrors.push('Python3 not available');
+    validationErrors.push("Python3 not available");
   }
 
   // Architecture-specific validation
-  if (architecture === 'cuda' || architecture === 'gpu') {
+  if (architecture === "cuda" || architecture === "gpu") {
     if (!projectConfig.gpuRequired) {
-      logger.warn('GPU architecture selected but project does not require GPU');
+      logger.warn("GPU architecture selected but project does not require GPU");
     }
-    
+
     // Check CUDA availability for PyTorch
-    if (projectConfig.framework === 'pytorch') {
+    if (projectConfig.framework === "pytorch") {
       try {
-        const testScript = 'import torch; assert torch.cuda.is_available()';
+        const testScript = "import torch; assert torch.cuda.is_available()";
         const result = await executePythonScript(testScript, { strictMode });
         handleExecutionResult(result, strictMode);
         if (!result.success) {
-          validationErrors.push('CUDA not available for PyTorch');
-          if (result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0]) {
-            logger.debug('CUDA validation details:', result.parsedErrors[0].message);
+          validationErrors.push("CUDA not available for PyTorch");
+          if (
+            result.parsedErrors &&
+            result.parsedErrors.length > 0 &&
+            result.parsedErrors[0]
+          ) {
+            logger.debug(
+              "CUDA validation details:",
+              result.parsedErrors[0].message
+            );
           }
         }
       } catch (error) {
-        validationErrors.push('CUDA not available for PyTorch');
+        validationErrors.push("CUDA not available for PyTorch");
       }
     }
-    
+
     // Check GPU availability for TensorFlow
-    if (projectConfig.framework === 'tensorflow') {
+    if (projectConfig.framework === "tensorflow") {
       try {
-        const testScript = 'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0';
+        const testScript =
+          'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0';
         const result = await executePythonScript(testScript, { strictMode });
         handleExecutionResult(result, strictMode);
         if (!result.success) {
-          validationErrors.push('GPU not available for TensorFlow');
-          if (result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0]) {
-            logger.debug('TensorFlow GPU validation details:', result.parsedErrors[0].message);
+          validationErrors.push("GPU not available for TensorFlow");
+          if (
+            result.parsedErrors &&
+            result.parsedErrors.length > 0 &&
+            result.parsedErrors[0]
+          ) {
+            logger.debug(
+              "TensorFlow GPU validation details:",
+              result.parsedErrors[0].message
+            );
           }
         }
       } catch (error) {
-        validationErrors.push('GPU not available for TensorFlow');
+        validationErrors.push("GPU not available for TensorFlow");
       }
     }
   }
 
   // Validate index configuration if provided
   if (indexConfig) {
-    if (!indexConfig.features || !Array.isArray(indexConfig.features)) {
-      validationErrors.push('Index file missing or invalid features array');
+    if (!(indexConfig.features && Array.isArray(indexConfig.features))) {
+      validationErrors.push("Index file missing or invalid features array");
     }
-    
-    if (!indexConfig.dataTypes || typeof indexConfig.dataTypes !== 'object') {
-      validationErrors.push('Index file missing or invalid dataTypes object');
+
+    if (!indexConfig.dataTypes || typeof indexConfig.dataTypes !== "object") {
+      validationErrors.push("Index file missing or invalid dataTypes object");
     }
   }
 
@@ -387,41 +470,47 @@ from model import create_model
 model = create_model()
 print('Model validation passed')
 `;
-    const result = await executePythonScript(testScript, { strictMode, baseErrorCode: CLIErrorCode.MODEL_CREATION_FAILED });
+    const result = await executePythonScript(testScript, {
+      strictMode,
+      baseErrorCode: CLIErrorCode.MODEL_CREATION_FAILED,
+    });
     handleExecutionResult(result, strictMode);
     if (!result.success) {
-      validationErrors.push('Model creation failed during validation');
+      validationErrors.push("Model creation failed during validation");
       if (result.parsedErrors && result.parsedErrors.length > 0) {
         const firstError = result.parsedErrors[0];
         if (firstError) {
-          logger.debug('Model validation error:', firstError.message);
+          logger.debug("Model validation error:", firstError.message);
           if (firstError.file && firstError.line) {
-            logger.debug(`Error location: ${firstError.file}:${firstError.line}`);
+            logger.debug(
+              `Error location: ${firstError.file}:${firstError.line}`
+            );
           }
         }
       }
     }
   } catch (error) {
-    validationErrors.push('Model creation failed during validation');
+    validationErrors.push("Model creation failed during validation");
   }
 
   if (validationErrors.length > 0) {
     const validationError = new CLIError({
       code: CLIErrorCode.VALIDATION_FAILED,
-      message: 'Validation checks failed',
+      message: "Validation checks failed",
       details: { errors: validationErrors },
-      suggestions: ['Fix validation errors and retry'],
-      recoverable: true
+      suggestions: ["Fix validation errors and retry"],
+      recoverable: true,
     });
-    
+
     if (strictMode) {
       handleCLIError(validationError, strictMode);
     }
-    
-    throw new Error(`Validation failed:\n${validationErrors.map(err => `  • ${err}`).join('\n')}`);
+
+    throw new Error(
+      `Validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
+    );
   }
 }
-
 
 async function performCompilation(
   projectConfig: ProjectConfig,
@@ -429,45 +518,48 @@ async function performCompilation(
   indexConfig: any
 ): Promise<string[]> {
   const artifacts: string[] = [];
-  
+
   // Ensure output directories exist
-  const outputDirs = ['models', 'artifacts', 'build'];
+  const outputDirs = ["models", "artifacts", "build"];
   for (const dir of outputDirs) {
     await fs.ensureDir(dir);
   }
 
   // Create compilation script based on framework
-  const compilationScript = generateCompilationScript(projectConfig, architecture, indexConfig);
-  const scriptPath = 'temp_compile.py';
-  
+  const compilationScript = generateCompilationScript(
+    projectConfig,
+    architecture,
+    indexConfig
+  );
+  const scriptPath = "temp_compile.py";
+
   try {
     await fs.writeFile(scriptPath, compilationScript);
-    
+
     // Run compilation
-    logger.info('Executing model compilation...');
-    const result = execSync(`python3 ${scriptPath}`, { 
-      encoding: 'utf8',
-      timeout: 300000 // 5 minute timeout
+    logger.info("Executing model compilation...");
+    const result = execSync(`python3 ${scriptPath}`, {
+      encoding: "utf8",
+      timeout: 300_000, // 5 minute timeout
     });
-    
-    logger.info('Compilation output:', result);
-    
+
+    logger.info("Compilation output:", result);
+
     // Collect generated artifacts
-    const artifactDirs = ['models', 'artifacts'];
+    const artifactDirs = ["models", "artifacts"];
     for (const dir of artifactDirs) {
       if (fs.existsSync(dir)) {
         const files = await fs.readdir(dir);
-        artifacts.push(...files.map(f => path.join(dir, f)));
+        artifacts.push(...files.map((f) => path.join(dir, f)));
       }
     }
-    
   } finally {
     // Clean up temporary script
     if (fs.existsSync(scriptPath)) {
       await fs.remove(scriptPath);
     }
   }
-  
+
   return artifacts;
 }
 
@@ -476,8 +568,8 @@ function generateCompilationScript(
   architecture: string,
   indexConfig: any
 ): string {
-  const framework = projectConfig.framework || 'custom';
-  
+  const framework = projectConfig.framework || "custom";
+
   let script = `
 import sys
 import os
@@ -489,7 +581,7 @@ print("Target architecture: ${architecture}")
 `;
 
   // Framework-specific compilation logic
-  if (framework === 'pytorch') {
+  if (framework === "pytorch") {
     script += `
 from model import create_model
 import torch
@@ -521,7 +613,7 @@ model_info = {
 with open('artifacts/model_info.json', 'w') as f:
     json.dump(model_info, f, indent=2)
 `;
-  } else if (framework === 'tensorflow') {
+  } else if (framework === "tensorflow") {
     script += `
 from model import create_model
 import tensorflow as tf
@@ -553,7 +645,7 @@ model_info = {
 with open('artifacts/model_info.json', 'w') as f:
     json.dump(model_info, f, indent=2)
 `;
-  } else if (framework === 'sklearn') {
+  } else if (framework === "sklearn") {
     script += `
 from model import create_model
 import joblib
@@ -615,10 +707,13 @@ print("Compilation completed successfully")
   return script;
 }
 
-async function runIntegrityTests(projectConfig: ProjectConfig, artifacts: string[]): Promise<void> {
+async function runIntegrityTests(
+  projectConfig: ProjectConfig,
+  artifacts: string[]
+): Promise<void> {
   // Test model loading and basic functionality
-  const framework = projectConfig.framework || 'custom';
-  
+  const framework = projectConfig.framework || "custom";
+
   const testScript = `
 import sys
 import os
@@ -682,15 +777,18 @@ if os.path.exists('data/sample'):
 print("Integrity tests completed successfully")
 `;
 
-  const tempScriptPath = 'temp_integrity_test.py';
-  
+  const tempScriptPath = "temp_integrity_test.py";
+
   try {
     await fs.writeFile(tempScriptPath, testScript);
-    const result = await executePythonScript(testScript, { cwd: process.cwd() });
+    const result = await executePythonScript(testScript, {
+      cwd: process.cwd(),
+    });
     if (!result.success) {
-      throw new Error(`Compilation test failed: ${formatExecutionError(result)}`);
+      throw new Error(
+        `Compilation test failed: ${formatExecutionError(result)}`
+      );
     }
-    
   } finally {
     if (fs.existsSync(tempScriptPath)) {
       await fs.remove(tempScriptPath);
@@ -712,30 +810,44 @@ async function validateHardwareCompatibility(
   }
 
   // Check architecture compatibility
-  if (targetArch === 'cuda' && hardwareConfig.type !== 'cuda') {
-    validationErrors.push('CUDA architecture selected but hardware configuration is not CUDA-capable');
+  if (targetArch === "cuda" && hardwareConfig.type !== "cuda") {
+    validationErrors.push(
+      "CUDA architecture selected but hardware configuration is not CUDA-capable"
+    );
   }
 
-  if (targetArch === 'gpu' && hardwareConfig.type === 'cpu') {
-    validationErrors.push('GPU architecture selected but hardware configuration is CPU-only');
+  if (targetArch === "gpu" && hardwareConfig.type === "cpu") {
+    validationErrors.push(
+      "GPU architecture selected but hardware configuration is CPU-only"
+    );
   }
 
   // Framework-specific validation
   if (framework) {
-    const frameworkCompatible = hardwareConfig.compatibility[framework as keyof typeof hardwareConfig.compatibility];
-    if (typeof frameworkCompatible === 'boolean' && !frameworkCompatible) {
-      validationErrors.push(`Hardware not compatible with ${framework} framework`);
+    const frameworkCompatible =
+      hardwareConfig.compatibility[
+        framework as keyof typeof hardwareConfig.compatibility
+      ];
+    if (typeof frameworkCompatible === "boolean" && !frameworkCompatible) {
+      validationErrors.push(
+        `Hardware not compatible with ${framework} framework`
+      );
     }
   }
 
   // Check for compatibility warnings
-  if (hardwareConfig.compatibility.warnings && hardwareConfig.compatibility.warnings.length > 0) {
-    hardwareConfig.compatibility.warnings.forEach(warning => {
+  if (
+    hardwareConfig.compatibility.warnings &&
+    hardwareConfig.compatibility.warnings.length > 0
+  ) {
+    hardwareConfig.compatibility.warnings.forEach((warning) => {
       logger.warn(`Hardware warning: ${warning}`);
     });
   }
 
   if (validationErrors.length > 0) {
-    throw new Error(`Hardware compatibility validation failed:\n${validationErrors.map(err => `  • ${err}`).join('\n')}`);
+    throw new Error(
+      `Hardware compatibility validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
+    );
   }
 }

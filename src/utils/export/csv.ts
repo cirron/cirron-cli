@@ -5,26 +5,26 @@
 // Streams rows to a WriteStream so very large spools (millions of spans)
 // don't balloon memory — we only hold one row in a string at a time.
 
-import fs from 'fs-extra';
-import path from 'path';
-import type { Session } from '../session';
+import fs from "fs-extra";
+import path from "path";
+import type { Session } from "../session";
 
 const COLUMNS = [
-  'session_id',
-  'span_id',
-  'parent_id',
-  'name',
-  'index',
-  'start_ns',
-  'end_ns',
-  'duration_ns',
-  'cpu_ns',
-  'gpu_ns',
-  'memory_peak_bytes',
-  'thread_id',
-  'pid',
-  'rank',
-  'attrs_json',
+  "session_id",
+  "span_id",
+  "parent_id",
+  "name",
+  "index",
+  "start_ns",
+  "end_ns",
+  "duration_ns",
+  "cpu_ns",
+  "gpu_ns",
+  "memory_peak_bytes",
+  "thread_id",
+  "pid",
+  "rank",
+  "attrs_json",
 ] as const;
 
 function escapeCsv(v: string): string {
@@ -35,32 +35,40 @@ function escapeCsv(v: string): string {
 }
 
 function cell(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  if (typeof v === 'bigint') return v.toString();
-  if (typeof v === 'string') return escapeCsv(v);
-  if (typeof v === 'number') return String(v);
+  if (v === null || v === undefined) {
+    return "";
+  }
+  if (typeof v === "bigint") {
+    return v.toString();
+  }
+  if (typeof v === "string") {
+    return escapeCsv(v);
+  }
+  if (typeof v === "number") {
+    return String(v);
+  }
   return escapeCsv(JSON.stringify(v));
 }
 
 export async function exportCsv(
   sessions: Session[],
-  outputPath: string,
+  outputPath: string
 ): Promise<void> {
   await fs.ensureDir(path.dirname(path.resolve(outputPath)));
-  const stream = fs.createWriteStream(outputPath, { encoding: 'utf-8' });
+  const stream = fs.createWriteStream(outputPath, { encoding: "utf-8" });
 
   const writeLine = (line: string): Promise<void> =>
     new Promise((resolve, reject) => {
-      if (stream.write(line + '\n')) {
+      if (stream.write(line + "\n")) {
         resolve();
       } else {
-        stream.once('drain', resolve);
-        stream.once('error', reject);
+        stream.once("drain", resolve);
+        stream.once("error", reject);
       }
     });
 
   try {
-    await writeLine(COLUMNS.join(','));
+    await writeLine(COLUMNS.join(","));
     for (const session of sessions) {
       for (const span of session.spans.values()) {
         const duration = span.endNs === null ? null : span.endNs - span.startNs;
@@ -81,7 +89,7 @@ export async function exportCsv(
           cell(span.rank),
           cell(JSON.stringify(span.attrs)),
         ];
-        await writeLine(row.join(','));
+        await writeLine(row.join(","));
       }
     }
   } finally {

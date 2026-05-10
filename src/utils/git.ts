@@ -1,15 +1,15 @@
-import { execSync } from 'child_process';
-import fs from 'fs-extra';
-import path from 'path';
-import { logger } from './logger';
+import { execSync } from "child_process";
+import fs from "fs-extra";
+import path from "path";
+import { logger } from "./logger";
 
 export interface GitInfo {
-  commitHash?: string;
   branch?: string;
-  remoteOrigin?: string;
+  commitHash?: string;
   isClean?: boolean;
-  lastCommitMessage?: string;
   lastCommitDate?: string;
+  lastCommitMessage?: string;
+  remoteOrigin?: string;
 }
 
 /**
@@ -17,7 +17,7 @@ export interface GitInfo {
  */
 export function isGitRepository(workingDir: string = process.cwd()): boolean {
   try {
-    const gitDir = path.join(workingDir, '.git');
+    const gitDir = path.join(workingDir, ".git");
     return fs.existsSync(gitDir);
   } catch {
     return false;
@@ -27,21 +27,23 @@ export function isGitRepository(workingDir: string = process.cwd()): boolean {
 /**
  * Get the current git commit hash
  */
-export function getCurrentCommitHash(workingDir: string = process.cwd()): string | null {
+export function getCurrentCommitHash(
+  workingDir: string = process.cwd()
+): string | null {
   try {
     if (!isGitRepository(workingDir)) {
       return null;
     }
 
-    const result = execSync('git rev-parse HEAD', {
+    const result = execSync("git rev-parse HEAD", {
       cwd: workingDir,
-      stdio: 'pipe',
-      encoding: 'utf8'
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
     return result.trim();
   } catch (error) {
-    logger.debug('Failed to get git commit hash:', error);
+    logger.debug("Failed to get git commit hash:", error);
     return null;
   }
 }
@@ -49,21 +51,23 @@ export function getCurrentCommitHash(workingDir: string = process.cwd()): string
 /**
  * Get the current git branch name
  */
-export function getCurrentBranch(workingDir: string = process.cwd()): string | null {
+export function getCurrentBranch(
+  workingDir: string = process.cwd()
+): string | null {
   try {
     if (!isGitRepository(workingDir)) {
       return null;
     }
 
-    const result = execSync('git branch --show-current', {
+    const result = execSync("git branch --show-current", {
       cwd: workingDir,
-      stdio: 'pipe',
-      encoding: 'utf8'
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
     return result.trim() || null;
   } catch (error) {
-    logger.debug('Failed to get git branch:', error);
+    logger.debug("Failed to get git branch:", error);
     return null;
   }
 }
@@ -71,21 +75,23 @@ export function getCurrentBranch(workingDir: string = process.cwd()): string | n
 /**
  * Get the remote origin URL
  */
-export function getRemoteOrigin(workingDir: string = process.cwd()): string | null {
+export function getRemoteOrigin(
+  workingDir: string = process.cwd()
+): string | null {
   try {
     if (!isGitRepository(workingDir)) {
       return null;
     }
 
-    const result = execSync('git config --get remote.origin.url', {
+    const result = execSync("git config --get remote.origin.url", {
       cwd: workingDir,
-      stdio: 'pipe',
-      encoding: 'utf8'
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
     return result.trim() || null;
   } catch (error) {
-    logger.debug('Failed to get git remote origin:', error);
+    logger.debug("Failed to get git remote origin:", error);
     return null;
   }
 }
@@ -93,21 +99,23 @@ export function getRemoteOrigin(workingDir: string = process.cwd()): string | nu
 /**
  * Check if the working directory is clean (no uncommitted changes)
  */
-export function isWorkingDirectoryClean(workingDir: string = process.cwd()): boolean {
+export function isWorkingDirectoryClean(
+  workingDir: string = process.cwd()
+): boolean {
   try {
     if (!isGitRepository(workingDir)) {
       return true; // No git repo means "clean" in this context
     }
 
-    const result = execSync('git status --porcelain', {
+    const result = execSync("git status --porcelain", {
       cwd: workingDir,
-      stdio: 'pipe',
-      encoding: 'utf8'
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
-    return result.trim() === '';
+    return result.trim() === "";
   } catch (error) {
-    logger.debug('Failed to check git working directory status:', error);
+    logger.debug("Failed to check git working directory status:", error);
     return false;
   }
 }
@@ -115,21 +123,23 @@ export function isWorkingDirectoryClean(workingDir: string = process.cwd()): boo
 /**
  * Get the last commit message
  */
-export function getLastCommitMessage(workingDir: string = process.cwd()): string | null {
+export function getLastCommitMessage(
+  workingDir: string = process.cwd()
+): string | null {
   try {
     if (!isGitRepository(workingDir)) {
       return null;
     }
 
-    const result = execSync('git log -1 --pretty=%B', {
+    const result = execSync("git log -1 --pretty=%B", {
       cwd: workingDir,
-      stdio: 'pipe',
-      encoding: 'utf8'
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
     return result.trim() || null;
   } catch (error) {
-    logger.debug('Failed to get git commit message:', error);
+    logger.debug("Failed to get git commit message:", error);
     return null;
   }
 }
@@ -137,21 +147,23 @@ export function getLastCommitMessage(workingDir: string = process.cwd()): string
 /**
  * Get the last commit date
  */
-export function getLastCommitDate(workingDir: string = process.cwd()): string | null {
+export function getLastCommitDate(
+  workingDir: string = process.cwd()
+): string | null {
   try {
     if (!isGitRepository(workingDir)) {
       return null;
     }
 
-    const result = execSync('git log -1 --pretty=%ci', {
+    const result = execSync("git log -1 --pretty=%ci", {
       cwd: workingDir,
-      stdio: 'pipe',
-      encoding: 'utf8'
+      stdio: "pipe",
+      encoding: "utf8",
     });
 
     return result.trim() || null;
   } catch (error) {
-    logger.debug('Failed to get git commit date:', error);
+    logger.debug("Failed to get git commit date:", error);
     return null;
   }
 }
@@ -165,23 +177,33 @@ export function getRepositoryInfo(workingDir: string = process.cwd()): GitInfo {
   }
 
   const info: GitInfo = {
-    isClean: isWorkingDirectoryClean(workingDir)
+    isClean: isWorkingDirectoryClean(workingDir),
   };
 
   const commitHash = getCurrentCommitHash(workingDir);
-  if (commitHash) info.commitHash = commitHash;
+  if (commitHash) {
+    info.commitHash = commitHash;
+  }
 
   const branch = getCurrentBranch(workingDir);
-  if (branch) info.branch = branch;
+  if (branch) {
+    info.branch = branch;
+  }
 
   const remoteOrigin = getRemoteOrigin(workingDir);
-  if (remoteOrigin) info.remoteOrigin = remoteOrigin;
+  if (remoteOrigin) {
+    info.remoteOrigin = remoteOrigin;
+  }
 
   const lastCommitMessage = getLastCommitMessage(workingDir);
-  if (lastCommitMessage) info.lastCommitMessage = lastCommitMessage;
+  if (lastCommitMessage) {
+    info.lastCommitMessage = lastCommitMessage;
+  }
 
   const lastCommitDate = getLastCommitDate(workingDir);
-  if (lastCommitDate) info.lastCommitDate = lastCommitDate;
+  if (lastCommitDate) {
+    info.lastCommitDate = lastCommitDate;
+  }
 
   return info;
 }
@@ -189,7 +211,9 @@ export function getRepositoryInfo(workingDir: string = process.cwd()): GitInfo {
 /**
  * Get a short version of the commit hash (first 7 characters)
  */
-export function getShortCommitHash(workingDir: string = process.cwd()): string | null {
+export function getShortCommitHash(
+  workingDir: string = process.cwd()
+): string | null {
   const fullHash = getCurrentCommitHash(workingDir);
   return fullHash ? fullHash.substring(0, 7) : null;
 }

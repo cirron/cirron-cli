@@ -1,22 +1,26 @@
-import { describe, expect, it } from 'vitest';
-import { TEMPLATES } from '../src/commands/init';
+import { describe, expect, it } from "vitest";
+import { TEMPLATES } from "../src/commands/init";
 
 const EXPECTED_TEMPLATES = [
-  'pytorch',
-  'tensorflow',
-  'sklearn',
-  'pytorch-train',
-  'tensorflow-train',
-  'sklearn-pipeline',
-  'custom',
+  "pytorch",
+  "tensorflow",
+  "sklearn",
+  "pytorch-train",
+  "tensorflow-train",
+  "sklearn-pipeline",
+  "custom",
 ];
 
-describe('init TEMPLATES registry', () => {
-  it('exposes all supported templates', () => {
-    expect(Object.keys(TEMPLATES).sort()).toEqual([...EXPECTED_TEMPLATES].sort());
+describe("init TEMPLATES registry", () => {
+  it("exposes all supported templates", () => {
+    expect(Object.keys(TEMPLATES).sort()).toEqual(
+      [...EXPECTED_TEMPLATES].sort()
+    );
   });
 
-  it.each(EXPECTED_TEMPLATES)('template %s has name, description, and postInstall', (key) => {
+  it.each(
+    EXPECTED_TEMPLATES
+  )("template %s has name, description, and postInstall", (key) => {
     const tpl = TEMPLATES[key];
     expect(tpl).toBeDefined();
     expect(tpl?.name).toBeTruthy();

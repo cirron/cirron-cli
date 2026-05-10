@@ -1,10 +1,10 @@
-import yaml from 'js-yaml';
-import { dedent } from '../../utils/dedent';
+import yaml from "js-yaml";
+import { dedent } from "../../utils/dedent";
 import {
   buildSklearnJoblibServeScript,
   buildSyntheticTabularServingConfig,
   writeProjectFiles,
-} from './shared';
+} from "./shared";
 
 const CUSTOM_REQUIREMENTS = dedent(`
   scikit-learn>=1.5.0
@@ -55,11 +55,14 @@ const CUSTOM_TRAIN_SCRIPT = dedent(`
 function buildCirronYaml(projectName: string, modelType: string): string {
   const cfg = {
     name: projectName,
-    framework: 'custom',
+    framework: "custom",
     type: modelType,
-    version: '1.0.0',
+    version: "1.0.0",
     description: `Custom ${modelType} scaffold from Cirron CLI. Stubbed with a sklearn model so the joblib serving contract works end-to-end.`,
-    servingConfig: buildSyntheticTabularServingConfig('sklearn-joblib', modelType),
+    servingConfig: buildSyntheticTabularServingConfig(
+      "sklearn-joblib",
+      modelType
+    ),
   };
   return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
 }
@@ -67,12 +70,12 @@ function buildCirronYaml(projectName: string, modelType: string): string {
 export async function createCustomFiles(
   projectPath: string,
   projectName: string,
-  options: { modelType: string },
+  options: { modelType: string }
 ): Promise<void> {
   await writeProjectFiles(projectPath, {
-    'cirron.yaml': buildCirronYaml(projectName, options.modelType),
-    'requirements.txt': CUSTOM_REQUIREMENTS,
-    'train.py': CUSTOM_TRAIN_SCRIPT,
-    'serve.py': buildSklearnJoblibServeScript(),
+    "cirron.yaml": buildCirronYaml(projectName, options.modelType),
+    "requirements.txt": CUSTOM_REQUIREMENTS,
+    "train.py": CUSTOM_TRAIN_SCRIPT,
+    "serve.py": buildSklearnJoblibServeScript(),
   });
 }
