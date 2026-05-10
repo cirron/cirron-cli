@@ -120,7 +120,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     const config: ProjectConfig = projectConfigResult.config;
 
     // Validate required fields
-    const requiredFields = ['name', 'version', 'template'];
+    const requiredFields = ['name', 'projectVersion', 'template'];
     for (const field of requiredFields) {
       if (!config[field as keyof ProjectConfig]) {
         addResult(summary, {
