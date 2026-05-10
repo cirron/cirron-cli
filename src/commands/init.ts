@@ -71,13 +71,16 @@ export const TEMPLATES: Record<string, Template> = {
   }
 };
 
+// Keys are kebab-case to match the cirron-sample-models reference shape
+// (e.g. `type: time-series` in cirron.yaml).
 const MODEL_TYPES = {
   classification: 'Classification',
   regression: 'Regression',
-  computer_vision: 'Computer Vision',
+  'computer-vision': 'Computer Vision',
   nlp: 'Natural Language Processing',
-  time_series: 'Time Series',
-  custom: 'Custom'
+  'time-series': 'Time Series',
+  embedding: 'Embedding',
+  custom: 'Custom',
 };
 
 export async function initCommand(projectName?: string, options: InitOptions = { template: 'pytorch' }): Promise<void> {
@@ -308,8 +311,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
           const api = new CirronApi(currentConfig);
           await api.createProject({
             name: projectName!,
-            template,
-            path: projectPath
+            framework: deriveFramework(template),
+            path: projectPath,
           });
           logger.info('Project registered with Cirron');
         } catch (error) {
@@ -328,9 +331,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
         logger.info(`  ${chalk.cyan('pip install -r requirements.txt')}`);
       }
       
-      logger.info(`  ${chalk.cyan('cirron test')}`);
-      logger.info(`  ${chalk.cyan('cirron build')}`);
-      logger.info(`  ${chalk.cyan('cirron deploy')}`);
+      logger.info(`  ${chalk.cyan('python train.py')}`);
+      logger.info(`  ${chalk.cyan('python serve.py')}`);
 
       if (!currentConfig.token) {
         console.log();
@@ -348,66 +350,16 @@ export async function initCommand(projectName?: string, options: InitOptions = {
   }
 }
 
-function getTemplateTestConfig(template: string): import('../types').TestConfig {
-  switch (template) {
-    case 'sklearn':
-      return {
-        dataPaths: {
-          sample: 'data/sample/sample_data.csv',
-          validation: 'data/sample/sample_data.csv',
-          inference: 'data/sample/sample_data.csv',
-        },
-        fallbackToDummy: true,
-        variables: {
-          featureCount: 5,
-          targetColumn: 'target',
-          dataFormat: 'csv',
-          framework: 'sklearn',
-        },
-      };
-    case 'pytorch':
-      return {
-        dataPaths: {
-          sample: 'data/sample/sample_data.pt',
-          validation: 'data/sample/sample_data.pt',
-          inference: 'data/sample/sample_data.pt',
-        },
-        fallbackToDummy: true,
-        variables: {
-          featureCount: 10,
-          targetColumn: 'labels',
-          dataFormat: 'tensor',
-          framework: 'pytorch',
-        },
-      };
-    case 'tensorflow':
-      return {
-        dataPaths: {
-          sample: 'data/sample/sample_data.tfrecord',
-          validation: 'data/sample/sample_data.tfrecord',
-          inference: 'data/sample/sample_data.tfrecord',
-        },
-        fallbackToDummy: true,
-        variables: {
-          featureCount: 8,
-          targetColumn: 'target',
-          dataFormat: 'tfrecord',
-          framework: 'tensorflow',
-        },
-      };
-    case 'custom':
-    default:
-      return {
-        dataPaths: {},
-        fallbackToDummy: true,
-        variables: {
-          featureCount: 5,
-          targetColumn: 'target',
-          dataFormat: 'csv',
-          framework: 'custom',
-        },
-      };
-  }
+function deriveFramework(template: string): ProjectConfig['framework'] {
+  if (template.startsWith('pytorch')) return 'pytorch';
+  if (template.startsWith('tensorflow')) return 'tensorflow';
+  if (template.startsWith('sklearn')) return 'sklearn';
+  return 'custom';
+}
+
+function deriveType(modelType: string): string {
+  // The picker uses kebab-case keys already; normalize anything legacy.
+  return modelType.replace(/_/g, '-');
 }
 
 async function createProjectFiles(

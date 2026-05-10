@@ -280,7 +280,7 @@ async function analyzeSklearn(line: string, analysis: ModelAnalysis): Promise<vo
 
 function extractModelInfo(projectConfig: ProjectConfig, modelAnalysis: ModelAnalysis | null): ModelInfo {
   const info: ModelInfo = {
-    modelType: projectConfig.modelType || 'Unknown',
+    modelType: projectConfig.type || 'Unknown',
     framework: projectConfig.framework || 'Unknown'
   };
   
