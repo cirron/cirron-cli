@@ -79,25 +79,36 @@ export interface ApiResponse<T = any> {
 }
 
 export interface ProjectConfig {
-  version?: number;
+  // Required core fields, matching the cirron-sample-models reference shape.
   name: string;
+  framework: 'pytorch' | 'tensorflow' | 'sklearn' | 'onnx' | 'custom';
+  type: string;
+  version: string;
   description?: string;
-  projectVersion: string;
-  template: string;
-  framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
-  modelType?: string;
-  type?: string;
-  servingConfig?: Record<string, any>;
+  servingConfig?: ServingConfig;
+
+  // Legacy fields kept optional because their consumer commands (compile,
+  // build, test, plan, info, hardware, push, sync, deploy, status) still
+  // read them. New scaffolds do not write any of these. They will be
+  // removed as the consuming commands are migrated.
   pythonVersion?: string;
   gpuRequired?: boolean;
   hardware?: HardwareConfig;
-  environments: Record<string, EnvironmentConfig>;
+  environments?: Record<string, EnvironmentConfig>;
   build?: BuildConfig;
   deploy?: DeployConfig;
   artifacts?: ArtifactsConfig;
   test?: TestConfig;
   metadata?: ModelMetadata;
   settings?: ProjectSettings;
+}
+
+export interface ServingConfig {
+  runtime: string;
+  feature_order?: string[];
+  class_labels?: string[];
+  input_schema?: Record<string, unknown>;
+  output_schema?: Record<string, unknown>;
 }
 
 export interface ArtifactsConfig {
