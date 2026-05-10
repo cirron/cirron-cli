@@ -1,9 +1,9 @@
+import crypto from "node:crypto";
+import path from "node:path";
 import chalk from "chalk";
-import crypto from "crypto";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
-import path from "path";
 import type {
   ProjectConfig,
   PullArtifactInfo,
@@ -130,7 +130,7 @@ export async function downloadArtifact(
 ): Promise<void> {
   const downloadInfo = await api.getPullDownloadUrl(artifact.id);
 
-  const tempPath = destPath + ".tmp";
+  const tempPath = `${destPath}.tmp`;
 
   try {
     spinner.text = `Downloading ${artifact.name} (${formatSize(artifact.size)})...`;

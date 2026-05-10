@@ -1,4 +1,4 @@
-import { createReadStream, createWriteStream } from "fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import fs from "fs-extra";
 import fetch from "node-fetch";
 import type {
@@ -493,16 +493,16 @@ export class CirronApi {
         const fileStream = createWriteStream(destPath);
 
         await new Promise<void>((resolve, reject) => {
-          response.body!.on("data", (chunk: Buffer) => {
+          response.body?.on("data", (chunk: Buffer) => {
             downloaded += chunk.length;
             if (onProgress && totalSize > 0) {
               onProgress(downloaded, totalSize);
             }
           });
 
-          response.body!.pipe(fileStream);
+          response.body?.pipe(fileStream);
 
-          response.body!.on("error", (err: Error) => {
+          response.body?.on("error", (err: Error) => {
             fileStream.close();
             reject(err);
           });
@@ -905,7 +905,7 @@ export class CirronApi {
 
         // Update this instance's config
         this.config = currentConfig;
-      } catch (error) {
+      } catch {
         // If refresh fails, continue with existing token and let the API request fail
         // Don't log refresh errors automatically - let calling code handle them
       }

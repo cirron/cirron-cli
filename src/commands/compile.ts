@@ -1,8 +1,8 @@
+import { execSync } from "node:child_process";
+import path from "node:path";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import fs from "fs-extra";
 import ora from "ora";
-import path from "path";
 import type { HardwareConfig, ProjectConfig } from "../types";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
 import {
@@ -41,9 +41,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       if (strictMode) {
         handleCLIError(new Error("Project configuration not found"), true);
       }
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(CLIErrorCode.PROJECT_NOT_FOUND);
     }
 
@@ -373,11 +371,11 @@ async function runValidationChecks(
 
     if (versionMatch && versionMatch[1]) {
       const versionParts = versionMatch[1].split(".");
-      const major = Number.parseInt(versionParts[0] || "0");
-      const minor = Number.parseInt(versionParts[1] || "0");
+      const major = Number.parseInt(versionParts[0] || "0", 10);
+      const minor = Number.parseInt(versionParts[1] || "0", 10);
       const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
-      const requiredMajor = Number.parseInt(requiredParts[0] || "3");
-      const requiredMinor = Number.parseInt(requiredParts[1] || "9");
+      const requiredMajor = Number.parseInt(requiredParts[0] || "3", 10);
+      const requiredMinor = Number.parseInt(requiredParts[1] || "9", 10);
 
       if (
         major < requiredMajor ||
@@ -388,7 +386,7 @@ async function runValidationChecks(
         );
       }
     }
-  } catch (error) {
+  } catch {
     validationErrors.push("Python3 not available");
   }
 
@@ -417,7 +415,7 @@ async function runValidationChecks(
             );
           }
         }
-      } catch (error) {
+      } catch {
         validationErrors.push("CUDA not available for PyTorch");
       }
     }
@@ -442,7 +440,7 @@ async function runValidationChecks(
             );
           }
         }
-      } catch (error) {
+      } catch {
         validationErrors.push("GPU not available for TensorFlow");
       }
     }
@@ -489,7 +487,7 @@ print('Model validation passed')
         }
       }
     }
-  } catch (error) {
+  } catch {
     validationErrors.push("Model creation failed during validation");
   }
 

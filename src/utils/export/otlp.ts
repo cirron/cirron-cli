@@ -11,9 +11,9 @@
 //     `timeUnixNano`) are strings, not numbers.
 //   - Attributes are `{ key, value: AnyValue }` arrays.
 
-import crypto from "crypto";
+import crypto from "node:crypto";
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import type { Session, SpoolMark, SpoolSpan } from "../session";
 
 type AnyValue =

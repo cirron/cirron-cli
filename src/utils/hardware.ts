@@ -1,7 +1,7 @@
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 import fs from "fs-extra";
-import os from "os";
-import path from "path";
 import type {
   CudaDevice,
   FrameworkCompatibility,
@@ -148,7 +148,7 @@ export class HardwareDetector {
             drivers: "Unknown",
           };
         }
-      } catch (lspciError) {
+      } catch {
         logger.debug("Linux GPU detection failed:", error);
       }
     }
@@ -171,7 +171,7 @@ export class HardwareDetector {
         return {
           model: name || "Unknown GPU",
           memory: ram
-            ? HardwareDetector.formatBytes(Number.parseInt(ram))
+            ? HardwareDetector.formatBytes(Number.parseInt(ram, 10))
             : "Unknown",
           drivers: "DirectX",
         };
@@ -214,7 +214,7 @@ export class HardwareDetector {
       return lines.map((line) => {
         const [id, name, memory, computeCap] = line.split(", ");
         return {
-          id: Number.parseInt(id || "0"),
+          id: Number.parseInt(id || "0", 10),
           name: name?.trim() || "Unknown",
           memory: memory ? `${memory.trim()} MB` : "Unknown",
           computeCapability: computeCap?.trim() || "Unknown",
@@ -255,11 +255,11 @@ export class HardwareDetector {
               "CUDA available but PyTorch not compiled with CUDA support"
             );
           }
-        } catch (error) {
+        } catch {
           compatibility.warnings?.push("Could not verify PyTorch CUDA support");
         }
       }
-    } catch (error) {
+    } catch {
       compatibility.requirements?.push("pip install torch");
     }
 
@@ -281,13 +281,13 @@ export class HardwareDetector {
               "GPU available but TensorFlow not detecting it"
             );
           }
-        } catch (error) {
+        } catch {
           compatibility.warnings?.push(
             "Could not verify TensorFlow GPU support"
           );
         }
       }
-    } catch (error) {
+    } catch {
       compatibility.requirements?.push("pip install tensorflow");
     }
 
@@ -402,7 +402,7 @@ export class HardwareDetector {
       return "0 Bytes";
     }
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round((bytes / 1024 ** i) * 100) / 100 + " " + sizes[i];
+    return `${Math.round((bytes / 1024 ** i) * 100) / 100} ${sizes[i]}`;
   }
 
   static validateHardwareConfig(config: HardwareConfig): {

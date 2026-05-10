@@ -1,8 +1,8 @@
+import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
-import path from "path";
 import type { InitOptions, ProjectConfig, Template } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
@@ -290,7 +290,7 @@ export async function initCommand(
           }
 
           logger.info("Git repository initialized");
-        } catch (error) {
+        } catch {
           logger.warn("Failed to initialize git repository");
         }
       }
@@ -317,7 +317,7 @@ export async function initCommand(
                 );
               }
             }
-          } catch (error) {
+          } catch {
             logger.warn(`Failed to run: ${command}`);
           }
         }
@@ -337,7 +337,7 @@ export async function initCommand(
             path: projectPath,
           });
           logger.info("Project registered with Cirron");
-        } catch (error) {
+        } catch {
           logger.warn(
             "Failed to register project with Cirron (continuing anyway)"
           );

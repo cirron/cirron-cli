@@ -1,8 +1,8 @@
+import { execSync } from "node:child_process";
+import path from "node:path";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import fs from "fs-extra";
 import ora from "ora";
-import path from "path";
 import type { ProjectConfig } from "../types";
 import { executeScript } from "../utils/execution";
 import { CirronIgnore } from "../utils/ignore";
@@ -163,7 +163,7 @@ async function lintProjectConfig(
       message: "Project configuration is valid",
       file: configFilename,
     });
-  } catch (error) {
+  } catch {
     addResult(summary, {
       category: "config",
       severity: "error",
@@ -275,7 +275,7 @@ async function lintDependencies(
       message: `Found ${lines.length} dependencies`,
       file: "requirements.txt",
     });
-  } catch (error) {
+  } catch {
     addResult(summary, {
       category: "dependencies",
       severity: "error",
@@ -346,7 +346,7 @@ async function lintCode(
           fixable: false,
         });
       }
-    } catch (error) {
+    } catch {
       addResult(summary, {
         category: "code",
         severity: "error",
@@ -402,7 +402,7 @@ function parseESLintOutput(output: string): LintResult[] {
         severity: match[3] as "error" | "warning",
         message: match[4],
         file: match[1],
-        line: Number.parseInt(match[2]),
+        line: Number.parseInt(match[2], 10),
         fixable: line.includes("(fixable)"),
       });
     }
@@ -425,7 +425,7 @@ async function applyFixes(
 
     for (const result of fixableStructure) {
       const fullPath = path.join(process.cwd(), result.file!);
-      if (result.file!.endsWith("/")) {
+      if (result.file?.endsWith("/")) {
         await fs.ensureDir(fullPath);
         spinner.text = `Created directory: ${result.file}`;
       }
@@ -497,7 +497,7 @@ function addResult(summary: LintSummary, result: LintResult): void {
 }
 
 function displayResults(summary: LintSummary, options: LintOptions): void {
-  console.log("\n" + chalk.bold("Cirron Lint Results"));
+  console.log(`\n${chalk.bold("Cirron Lint Results")}`);
   console.log("=".repeat(50));
 
   if (summary.results.length === 0) {
@@ -551,7 +551,7 @@ function displayResults(summary: LintSummary, options: LintOptions): void {
   }
 
   // Summary
-  console.log("\n" + "=".repeat(50));
+  console.log(`\n${"=".repeat(50)}`);
   const errorText =
     summary.errors > 0 ? chalk.red(`${summary.errors} errors`) : "0 errors";
   const warningText =

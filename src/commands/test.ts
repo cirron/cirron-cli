@@ -1,8 +1,8 @@
+import { execSync } from "node:child_process";
+import path from "node:path";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import fs from "fs-extra";
 import ora from "ora";
-import path from "path";
 import type { ProjectConfig } from "../types";
 import {
   executePythonFile,
@@ -43,9 +43,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
 
     if (!projectConfigResult) {
       spinner.fail(chalk.red("No cirron project config found"));
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(1);
     }
 
@@ -349,11 +347,11 @@ async function runEnvironmentTests(
 
     if (versionMatch && versionMatch[1]) {
       const versionParts = versionMatch[1].split(".");
-      const major = Number.parseInt(versionParts[0] || "0");
-      const minor = Number.parseInt(versionParts[1] || "0");
+      const major = Number.parseInt(versionParts[0] || "0", 10);
+      const minor = Number.parseInt(versionParts[1] || "0", 10);
       const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
-      const requiredMajor = Number.parseInt(requiredParts[0] || "3");
-      const requiredMinor = Number.parseInt(requiredParts[1] || "9");
+      const requiredMajor = Number.parseInt(requiredParts[0] || "3", 10);
+      const requiredMinor = Number.parseInt(requiredParts[1] || "9", 10);
 
       const versionValid =
         major > requiredMajor ||
@@ -416,7 +414,7 @@ async function runEnvironmentTests(
           }
         }
       }
-    } catch (error) {
+    } catch {
       throw new Error("CUDA/GPU not available but required by project");
     }
   }
@@ -437,7 +435,7 @@ async function runBuildTests(projectConfig: ProjectConfig): Promise<void> {
 
       // Clean up test image
       execSync(`docker rmi ${projectConfig.name}-test`, { stdio: "pipe" });
-    } catch (error) {
+    } catch {
       throw new Error("Docker build failed");
     }
   } else {
@@ -454,7 +452,7 @@ async function runRequirementsTests(): Promise<void> {
     // Check if all requirements can be resolved
     try {
       execSync("pip check", { stdio: "pipe" });
-    } catch (pipCheckError) {
+    } catch {
       // pip check failing is common in development environments
       logger.warn(
         "pip check found conflicts but continuing with installation test"
@@ -474,7 +472,7 @@ async function runRequirementsTests(): Promise<void> {
         "Requirements dry-run failed but may be due to existing environment"
       );
     }
-  } catch (error) {
+  } catch {
     throw new Error(
       "Requirements validation failed - dependency conflicts detected"
     );
@@ -490,11 +488,11 @@ async function runUnitTests(): Promise<void> {
     // Run pytest if available, otherwise run unittest
     try {
       execSync("python3 -m pytest tests/ -v", { stdio: "pipe" });
-    } catch (pytestError) {
+    } catch {
       // Fallback to unittest
       execSync("python3 -m unittest discover tests -v", { stdio: "pipe" });
     }
-  } catch (error) {
+  } catch {
     throw new Error("Unit tests failed");
   }
 }
@@ -524,17 +522,17 @@ async function runLintTests(): Promise<void> {
           if (!pylintResult.success) {
             logger.warn("Code linting issues found, but continuing...");
           }
-        } catch (pylintError) {
+        } catch {
           // Skip linting if no linter available
           logger.warn(
             "No linter found (flake8 or pylint), skipping code quality checks"
           );
         }
       }
-    } catch (flake8Error) {
+    } catch {
       logger.warn("Linting skipped - linters not available");
     }
-  } catch (error) {
+  } catch {
     throw new Error("Code quality checks failed");
   }
 }
@@ -582,7 +580,7 @@ else:
         fs.unlinkSync(tempScriptPath);
       }
     }
-  } catch (error) {
+  } catch {
     throw new Error("Model loading or instantiation failed");
   }
 }
@@ -644,7 +642,7 @@ else:
         fs.unlinkSync(tempScriptPath);
       }
     }
-  } catch (error) {
+  } catch {
     throw new Error("Data loading tests failed");
   }
 }
@@ -774,7 +772,7 @@ else:
         fs.unlinkSync(tempScriptPath);
       }
     }
-  } catch (error) {
+  } catch {
     throw new Error("Inference tests failed");
   }
 }
@@ -884,7 +882,7 @@ async function runValidationTests(
           validationPath = dataPaths.sample;
         }
       }
-    } catch (error) {
+    } catch {
       // Continue with fallback paths if config reading fails
     }
 

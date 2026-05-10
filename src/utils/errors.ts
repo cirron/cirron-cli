@@ -239,7 +239,7 @@ export class CLIError extends Error {
           });
         } else if (typeof value === "string" && value.trim()) {
           const displayValue =
-            value.length > 200 ? value.substring(0, 200) + "..." : value;
+            value.length > 200 ? `${value.substring(0, 200)}...` : value;
           parts.push(chalk.gray(`  ${key}: ${displayValue}`));
         } else if (typeof value === "number") {
           parts.push(chalk.gray(`  ${key}: ${value}`));

@@ -104,7 +104,7 @@ async function listDeployments(
               : chalk.gray;
 
       table.push([
-        deployment.id.substring(0, 12) + "...",
+        `${deployment.id.substring(0, 12)}...`,
         deployment.deployment?.modelInstance?.name || "N/A",
         deployment.deployment?.modelInstance?.version || "N/A",
         statusColor(deployment.status),
@@ -170,7 +170,7 @@ async function listBuilds(api: CirronApi, options: ListOptions): Promise<void> {
           : "N/A";
 
       table.push([
-        build.id.substring(0, 12) + "...",
+        `${build.id.substring(0, 12)}...`,
         build.projectName || "N/A",
         statusColor(build.status),
         duration,
@@ -230,7 +230,7 @@ async function listModels(api: CirronApi, options: ListOptions): Promise<void> {
               : chalk.gray;
 
       table.push([
-        model.id.substring(0, 12) + "...",
+        `${model.id.substring(0, 12)}...`,
         model.modelInstance?.name || model.name || "N/A",
         model.modelInstance?.version || model.version || "N/A",
         model.modelInstance?.model?.type || model.type || "N/A",
@@ -286,7 +286,7 @@ async function listImages(api: CirronApi, options: ListOptions): Promise<void> {
         : "N/A";
 
       table.push([
-        image.id.substring(0, 12) + "...",
+        `${image.id.substring(0, 12)}...`,
         image.name || image.repository || "N/A",
         image.tag || "latest",
         size,
@@ -348,7 +348,7 @@ async function listRegistry(
 
     artifacts.forEach((artifact: any) => {
       table.push([
-        artifact.id.substring(0, 12) + "...",
+        `${artifact.id.substring(0, 12)}...`,
         artifact.name || "N/A",
         artifact.type || "N/A",
         artifact.version || "N/A",

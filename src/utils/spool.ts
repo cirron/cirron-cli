@@ -4,8 +4,8 @@
 // and `cirron traces` (SDK-51). The spool format is documented public API
 // — see `cirron_sdk/docs/spool-format.md`.
 
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 
 export const SPOOL_FILENAME_RE = /^(\d+)-[0-9a-f]+\.json$/;
 export const DEFAULT_SPOOL_SUBPATH = path.join(".cirron", "spool");

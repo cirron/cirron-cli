@@ -1,5 +1,5 @@
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import { executePythonScript } from "./execution";
 import { ModelConfigManager } from "./model-config";
 
@@ -27,8 +27,8 @@ export interface LayerInfo {
 }
 
 export class ModelAnalyzer {
-  private projectPath: string;
-  private framework: string;
+  private readonly projectPath: string;
+  private readonly framework: string;
 
   constructor(projectPath: string, framework: string) {
     this.projectPath = projectPath;
@@ -87,7 +87,7 @@ export class ModelAnalyzer {
               : JSON.stringify(modelConfig.outputShape);
         }
       }
-    } catch (error) {
+    } catch {
       // Model config loading is optional, continue with code analysis
       analysis.warnings.push("Could not load model configuration file");
     }
@@ -250,8 +250,8 @@ export class ModelAnalyzer {
         pattern: /nn\.Linear\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/g,
         type: "Linear",
         parameterCalc: (matches: RegExpMatchArray) => {
-          const inputSize = Number.parseInt(matches[1] || "0");
-          const outputSize = Number.parseInt(matches[2] || "0");
+          const inputSize = Number.parseInt(matches[1] || "0", 10);
+          const outputSize = Number.parseInt(matches[2] || "0", 10);
           return inputSize * outputSize + outputSize; // weights + bias
         },
       },
@@ -259,9 +259,9 @@ export class ModelAnalyzer {
         pattern: /nn\.Conv2d\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g,
         type: "Conv2d",
         parameterCalc: (matches: RegExpMatchArray) => {
-          const inChannels = Number.parseInt(matches[1] || "0");
-          const outChannels = Number.parseInt(matches[2] || "0");
-          const kernelSize = Number.parseInt(matches[3] || "0");
+          const inChannels = Number.parseInt(matches[1] || "0", 10);
+          const outChannels = Number.parseInt(matches[2] || "0", 10);
+          const kernelSize = Number.parseInt(matches[3] || "0", 10);
           return (
             inChannels * outChannels * kernelSize * kernelSize + outChannels
           );
@@ -271,8 +271,8 @@ export class ModelAnalyzer {
         pattern: /nn\.LSTM\s*\(\s*(\d+)\s*,\s*(\d+)/g,
         type: "LSTM",
         parameterCalc: (matches: RegExpMatchArray) => {
-          const inputSize = Number.parseInt(matches[1] || "0");
-          const hiddenSize = Number.parseInt(matches[2] || "0");
+          const inputSize = Number.parseInt(matches[1] || "0", 10);
+          const hiddenSize = Number.parseInt(matches[2] || "0", 10);
           return 4 * (inputSize + hiddenSize) * hiddenSize + 4 * hiddenSize;
         },
       },
@@ -301,7 +301,7 @@ export class ModelAnalyzer {
         pattern: /Dense\s*\(\s*(\d+)/g,
         type: "Dense",
         parameterCalc: (matches: RegExpMatchArray) => {
-          const units = Number.parseInt(matches[1] || "0");
+          const units = Number.parseInt(matches[1] || "0", 10);
           return units * 100 + units; // Rough estimate
         },
       },
@@ -309,9 +309,9 @@ export class ModelAnalyzer {
         pattern: /Conv2D\s*\(\s*(\d+)\s*,\s*\((\d+),\s*(\d+)\)/g,
         type: "Conv2D",
         parameterCalc: (matches: RegExpMatchArray) => {
-          const filters = Number.parseInt(matches[1] || "0");
-          const kernelH = Number.parseInt(matches[2] || "0");
-          const kernelW = Number.parseInt(matches[3] || "0");
+          const filters = Number.parseInt(matches[1] || "0", 10);
+          const kernelH = Number.parseInt(matches[2] || "0", 10);
+          const kernelW = Number.parseInt(matches[3] || "0", 10);
           return filters * kernelH * kernelW * 3 + filters; // Assuming 3 input channels
         },
       },

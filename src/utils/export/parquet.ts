@@ -9,8 +9,8 @@
 // Uses `@dsnp/parquetjs` (pure JS) so the `pkg`-built binaries keep
 // working without native modules.
 
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import type { Session, SpoolMark, SpoolSnapshot, SpoolSpan } from "../session";
 
 // Resolved lazily so missing dep only trips users who ask for parquet.

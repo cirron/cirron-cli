@@ -5,8 +5,8 @@
 // Streams rows to a WriteStream so very large spools (millions of spans)
 // don't balloon memory — we only hold one row in a string at a time.
 
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import type { Session } from "../session";
 
 const COLUMNS = [
@@ -29,7 +29,7 @@ const COLUMNS = [
 
 function escapeCsv(v: string): string {
   if (/[",\n\r]/.test(v)) {
-    return '"' + v.replace(/"/g, '""') + '"';
+    return `"${v.replace(/"/g, '""')}"`;
   }
   return v;
 }
@@ -59,7 +59,7 @@ export async function exportCsv(
 
   const writeLine = (line: string): Promise<void> =>
     new Promise((resolve, reject) => {
-      if (stream.write(line + "\n")) {
+      if (stream.write(`${line}\n`)) {
         resolve();
       } else {
         stream.once("drain", resolve);

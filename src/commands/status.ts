@@ -1,9 +1,10 @@
 // src/commands/status.ts
+
+import { execSync } from "node:child_process";
+import path from "node:path";
 import chalk from "chalk";
-import { execSync } from "child_process";
 import fs from "fs-extra";
 import ora from "ora";
-import path from "path";
 import type { ProjectConfig, ProjectStatus } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
@@ -25,9 +26,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
       spinner.fail(
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
-      logger.error(
-        "Run " + chalk.cyan("cirron init") + " to initialize a project"
-      );
+      logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       return;
     }
 
@@ -142,7 +141,7 @@ async function getLocalStatus(
       .trim();
 
     status.currentBranch = currentBranch;
-  } catch (error) {
+  } catch {
     // Not a git repository or git not available
     // Don't assign undefined to optional properties
   }

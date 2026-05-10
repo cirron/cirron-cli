@@ -1,11 +1,11 @@
+import path from "node:path";
 import fs from "fs-extra";
 import yaml from "js-yaml";
-import path from "path";
 import type { ModelConfig } from "../types";
 import { schemaValidator } from "./schema";
 
 export class ModelConfigManager {
-  private projectPath: string;
+  private readonly projectPath: string;
 
   constructor(projectPath: string = process.cwd()) {
     this.projectPath = projectPath;
