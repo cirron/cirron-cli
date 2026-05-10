@@ -6,8 +6,7 @@ import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
 import { CirronIgnore } from '../utils/ignore';
 import { executeScript } from '../utils/execution';
-import { ModelConfigManager } from '../utils/model-config';
-import { loadProjectConfig, findProjectConfigPath } from '../utils/project-config';
+import { loadProjectConfig } from '../utils/project-config';
 import type { ProjectConfig } from '../types';
 
 interface LintOptions {
@@ -138,18 +137,6 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
       validateFrameworkConfig(config, summary);
     }
 
-    // Validate environments
-    if (!config.environments || Object.keys(config.environments).length === 0) {
-      addResult(summary, {
-        category: 'config',
-        severity: 'warning',
-        message: 'No environments configured',
-        file: configFilename,
-        fixable: false,
-        suggestion: 'Add at least one environment configuration'
-      });
-    }
-
     // Validate version format
     if (config.version && !/^\d+\.\d+\.\d+/.test(config.version)) {
       addResult(summary, {
@@ -181,19 +168,20 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
 }
 
 async function lintProjectStructure(summary: LintSummary, _options: LintOptions): Promise<void> {
+  // Structure mirrors the cirron-sample-models reference: cirron.yaml,
+  // requirements.txt, train.py, and an artifacts/ directory at the
+  // project root. serve.py is recommended for local serving.
   const requiredFiles = [
-    { path: 'src/model.py', required: true },
     { path: 'requirements.txt', required: true },
-    { path: 'Dockerfile', required: true },
-    { path: 'src/inference.py', required: false },
-    { path: 'src/data_loader.py', required: false },
-    { path: 'tests/', required: false, isDir: true }
+    { path: 'train.py', required: true },
+    { path: 'serve.py', required: false },
+    { path: 'artifacts/', required: false, isDir: true },
   ];
 
   for (const file of requiredFiles) {
     const fullPath = path.join(process.cwd(), file.path);
     const exists = fs.existsSync(fullPath);
-    
+
     if (file.required && !exists) {
       addResult(summary, {
         category: 'structure',
@@ -201,78 +189,16 @@ async function lintProjectStructure(summary: LintSummary, _options: LintOptions)
         message: `Missing required ${file.isDir ? 'directory' : 'file'}: ${file.path}`,
         file: file.path,
         fixable: false,
-        suggestion: `Create ${file.path} with appropriate content`
+        suggestion: `Create ${file.path} with appropriate content`,
       });
     } else if (!file.required && !exists) {
       addResult(summary, {
         category: 'structure',
         severity: 'info',
         message: `Optional ${file.isDir ? 'directory' : 'file'} not found: ${file.path}`,
-        file: file.path
+        file: file.path,
       });
     }
-  }
-
-  // Check for model configuration files
-  const modelConfigManager = new ModelConfigManager();
-  const modelConfigFile = await modelConfigManager.findModelConfigFile();
-  
-  if (modelConfigFile) {
-    try {
-      const modelConfig = await modelConfigManager.loadModelConfig();
-      if (modelConfig) {
-        addResult(summary, {
-          category: 'structure',
-          severity: 'info',
-          message: `Found model configuration: ${path.basename(modelConfigFile)}`,
-          file: path.basename(modelConfigFile)
-        });
-      }
-    } catch (error) {
-      addResult(summary, {
-        category: 'structure',
-        severity: 'warning',
-        message: `Invalid model configuration: ${path.basename(modelConfigFile)}`,
-        file: path.basename(modelConfigFile),
-        suggestion: 'Check YAML/JSON syntax and schema compliance'
-      });
-    }
-  } else {
-    addResult(summary, {
-      category: 'structure',
-      severity: 'info',
-      message: 'No model configuration file found (model.yaml, model.yml, or model.json)',
-      suggestion: 'Consider creating a model.yaml file for better configuration management'
-    });
-  }
-
-  // Check for ML-specific directories
-  const mlDirs = ['models/', 'data/', 'checkpoints/', 'logs/'];
-  for (const dir of mlDirs) {
-    const fullPath = path.join(process.cwd(), dir);
-    if (!fs.existsSync(fullPath)) {
-      addResult(summary, {
-        category: 'structure',
-        severity: 'warning',
-        message: `ML directory not found: ${dir}`,
-        file: dir,
-        fixable: true,
-        suggestion: `Create ${dir} directory for ML artifacts`
-      });
-    }
-  }
-
-  // Check .cirronignore
-  const ignorePath = path.join(process.cwd(), '.cirronignore');
-  if (!fs.existsSync(ignorePath)) {
-    addResult(summary, {
-      category: 'structure',
-      severity: 'warning',
-      message: 'No .cirronignore file found',
-      file: '.cirronignore',
-      fixable: true,
-      suggestion: 'Create .cirronignore to exclude unnecessary files from builds'
-    });
   }
 }
 
@@ -414,27 +340,11 @@ async function lintCode(summary: LintSummary, _options: LintOptions): Promise<vo
 function validateFrameworkConfig(config: ProjectConfig, summary: LintSummary): void {
   const framework = config.framework;
   
-  const configPath = findProjectConfigPath();
-  const cfgFilename = configPath ? path.basename(configPath) : 'project config';
-
-  if (framework === 'pytorch' && !config.pythonVersion) {
-    addResult(summary, {
-      category: 'config',
-      severity: 'warning',
-      message: 'PyTorch projects should specify Python version',
-      file: cfgFilename,
-      suggestion: 'Add "pythonVersion": "3.8" or appropriate version'
-    });
-  }
-
-  if (framework === 'tensorflow' && config.gpuRequired === undefined) {
-    addResult(summary, {
-      category: 'config',
-      severity: 'info',
-      message: 'Consider specifying GPU requirements for TensorFlow',
-      file: cfgFilename
-    });
-  }
+  // Framework-specific config validation has no current rules; the
+  // canonical cirron.yaml shape doesn't carry pythonVersion/gpuRequired.
+  void config;
+  void framework;
+  void summary;
 }
 
 async function findPythonFiles(): Promise<string[]> {
