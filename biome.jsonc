@@ -6,7 +6,11 @@
       "complexity": {
         // CLI command handlers are inherently branchy (option parsing, validation,
         // error paths). Hitting this score doesn't indicate a real defect.
-        "noExcessiveCognitiveComplexity": "off"
+        "noExcessiveCognitiveComplexity": "off",
+        // Autofix rewrites obj["foo"] -> obj.foo, but tsconfig sets
+        // noPropertyAccessFromIndexSignature: true, which requires bracket
+        // access on index-signature types. The fix breaks the build.
+        "useLiteralKeys": "off"
       },
       "correctness": {
         // tsconfig targets module:commonjs, so __dirname/__filename are required;
@@ -17,6 +21,11 @@
         // CLI regexes are typically cold (run once per invocation). Hoisting them
         // to module scope is noise without measurable perf impact.
         "useTopLevelRegex": "off"
+      },
+      "style": {
+        // Autofix rewrites arr[arr.length - 1] -> arr.at(-1), but Array.at
+        // requires ES2022 while tsconfig targets ES2020 (lib: ["ES2020"]).
+        "useAtIndex": "off"
       },
       "suspicious": {
         // Bitwise ops are intentional in flag/permission/hash code paths.
