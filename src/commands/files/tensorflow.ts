@@ -1,221 +1,110 @@
-import fs from 'fs-extra';
-import path from 'path';
-import getModelCode from './models';
-import getDataLoaderCode from './data';
+import yaml from 'js-yaml';
+import { dedent } from '../../utils/dedent';
+import {
+  buildOnnxServeScript,
+  buildSyntheticTabularServingConfig,
+  writeProjectFiles,
+} from './shared';
 
-export async function createTensorFlowFiles(projectPath: string, _projectName: string, options: any): Promise<void> {
-  const requirements = `tensorflow>=2.18.0
-numpy>=2.1.0
-pandas>=2.2.0
-scikit-learn>=1.5.0
-matplotlib>=3.9.0
-Pillow>=10.4.0
-requests>=2.32.0
-`;
+const TF_REQUIREMENTS = dedent(`
+  tensorflow>=2.18.0
+  tf2onnx>=1.16.1
+  numpy>=2.1.0
+  onnxruntime>=1.20.0
+`);
 
-  await fs.writeFile(path.join(projectPath, 'requirements.txt'), requirements);
-  
-  // Create model.yaml configuration
-  const modelConfig = `# Model Configuration for TensorFlow
-version: 1
-name: "${options.modelType || 'tensorflow'}_model"
-architecture: "Sequential"
-framework: tensorflow
-modelType: "${options.modelType || 'classification'}"
+function buildTensorflowTrainScript(modelType: string, withTrainingLoop: boolean): string {
+  const isRegression = modelType === 'regression';
+  const finalUnits = isRegression ? '1' : '2';
+  const lossName = isRegression ? '"mse"' : '"sparse_categorical_crossentropy"';
+  const finalActivation = isRegression ? 'None' : '"softmax"';
+  const yDtype = isRegression ? 'np.float32' : 'np.int64';
+  const epochs = withTrainingLoop ? '10' : '3';
+  const yExpr = isRegression
+    ? `(X @ rng.normal(size=NUM_FEATURES).astype(np.float32) + rng.normal(scale=0.1, size=n).astype(np.float32))`
+    : `(X.sum(axis=1) > 0).astype(np.int64)`;
 
-parameters:
-  total: 25000  # Estimated, will be updated after training
-  trainable: 25000
-  nonTrainable: 0
+  return dedent(`
+    """Train a small Keras model and export to ONNX for serving."""
+    import os
+    import numpy as np
+    import tensorflow as tf
+    import tf2onnx
 
-inputShape: "${options.modelType === 'computer_vision' ? '(batch, 224, 224, 3)' : '(batch, features)'}"
-outputShape: "${options.modelType === 'regression' ? '(batch, 1)' : '(batch, num_classes)'}"
+    ARTIFACTS_DIR = os.path.join(os.path.dirname(__file__), "artifacts")
+    NUM_FEATURES = 10
 
-training:
-  epochs: 10
-  batchSize: 32
-  learningRate: 0.001
-  optimizer: "adam"
-  loss: "${options.modelType === 'regression' ? 'mse' : 'sparse_categorical_crossentropy'}"
-  metrics: 
-    - "accuracy"
-    - "loss"
 
-inference:
-  device: "cpu"
-  precision: "fp32"
-  batchSize: 1
+    def make_synthetic_data(n: int = 1000, seed: int = 42):
+        rng = np.random.default_rng(seed)
+        X = rng.normal(size=(n, NUM_FEATURES)).astype(np.float32)
+        y = ${yExpr}
+        return X, y.astype(${yDtype})
 
-data:
-  inputFormat: "tensor"
-  outputFormat: "probabilities"
-  preprocessing:
-    - "resize"
-    - "normalize"
 
-metadata:
-  description: "TensorFlow ${options.modelType || 'classification'} model"
-  created: "${new Date().toISOString()}"
-  tags:
-    - "tensorflow"
-    - "${options.modelType || 'classification'}"
+    def build_model():
+        inputs = tf.keras.Input(shape=(NUM_FEATURES,), name="input")
+        x = tf.keras.layers.Dense(64, activation="relu")(inputs)
+        x = tf.keras.layers.Dropout(0.2)(x)
+        outputs = tf.keras.layers.Dense(${finalUnits}, activation=${finalActivation})(x)
+        return tf.keras.Model(inputs, outputs)
 
-dependencies:
-  python: ">=3.11"
-  packages:
-    tensorflow: ">=2.18.0"
-    numpy: ">=2.1.0"
-`;
 
-  await fs.writeFile(path.join(projectPath, 'model.yaml'), modelConfig);
-  await fs.ensureDir(path.join(projectPath, 'src'));
+    def train():
+        X, y = make_synthetic_data()
+        model = build_model()
+        model.compile(optimizer="adam", loss=${lossName}, metrics=["accuracy"] if "categorical" in ${lossName} else None)
+        print("Training...")
+        model.fit(X, y, epochs=${epochs}, batch_size=32, verbose=2)
 
-  const modelCode = getModelCode('tensorflow', options.modelType);
-  await fs.writeFile(path.join(projectPath, 'src', 'model.py'), modelCode);
+        os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+        onnx_path = os.path.join(ARTIFACTS_DIR, "model.onnx")
+        spec = (tf.TensorSpec((None, NUM_FEATURES), tf.float32, name="input"),)
+        tf2onnx.convert.from_keras(model, input_signature=spec, output_path=onnx_path)
+        print(f"ONNX model exported to {onnx_path}")
 
-  const inferenceCode = `import tensorflow as tf
-import numpy as np
-from PIL import Image
-from model import create_model
 
-class ModelInference:
-    def __init__(self, model_path: str = None):
-        self.model = create_model()
-        
-        if model_path:
-            self.load_model(model_path)
-    
-    def load_model(self, model_path: str):
-        """Load trained model weights"""
-        self.model.load_weights(model_path)
-        print(f"Model loaded from {model_path}")
-    
-    def preprocess(self, input_data):
-        """Preprocess input data"""
-        if isinstance(input_data, Image.Image):
-            input_data = input_data.resize((224, 224))
-            input_array = np.array(input_data) / 255.0
-            input_array = np.expand_dims(input_array, axis=0)
-        else:
-            input_array = np.array(input_data)
-            if len(input_array.shape) == 1:
-                input_array = np.expand_dims(input_array, axis=0)
-        
-        return input_array.astype(np.float32)
-    
-    def predict(self, input_data):
-        """Make prediction"""
-        input_tensor = self.preprocess(input_data)
-        predictions = self.model.predict(input_tensor)
-        return predictions
-
-if __name__ == "__main__":
-    inference = ModelInference()
-
-    # Default Sequential model expects a flat feature vector (input_dim=10).
-    # Swap in your real input shape once you customize the architecture.
-    sample_input = np.random.randn(10)
-    result = inference.predict(sample_input)
-    print(f"Prediction: {result}")
-`;
-
-  await fs.writeFile(path.join(projectPath, 'src', 'inference.py'), inferenceCode);
-  await fs.writeFile(path.join(projectPath, 'src', 'data_loader.py'), getDataLoaderCode('tensorflow', options.modelType));
+    if __name__ == "__main__":
+        train()
+  `);
 }
 
-export async function createTensorFlowTrainingFiles(projectPath: string, projectName: string, options: any): Promise<void> {
-  await createTensorFlowFiles(projectPath, projectName, options);
-  
-  const trainingCode = `import tensorflow as tf
-import numpy as np
-import os
-from model import create_model
-from data_loader import get_data_loaders
+function buildCirronYaml(projectName: string, modelType: string, description: string): string {
+  const cfg = {
+    name: projectName,
+    framework: 'tensorflow',
+    type: modelType,
+    version: '1.0.0',
+    description,
+    servingConfig: buildSyntheticTabularServingConfig('onnx', modelType),
+  };
+  return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
+}
 
-class Trainer:
-    def __init__(self, config):
-        self.config = config
-        self.model = create_model()
-        
-        # Compile model
-        self.compile_model()
-        
-        # Data loaders
-        self.train_dataset, self.val_dataset = get_data_loaders(config)
-        
-        # Callbacks
-        self.callbacks = self.get_callbacks()
-    
-    def compile_model(self):
-        """Compile the model with appropriate loss and metrics"""
-        if self.config['model_type'] == 'classification':
-            loss = 'sparse_categorical_crossentropy'
-            metrics = ['accuracy']
-        elif self.config['model_type'] == 'regression':
-            loss = 'mse'
-            metrics = ['mae']
-        else:
-            loss = 'mse'
-            metrics = ['mae']
-        
-        self.model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=self.config['learning_rate']),
-            loss=loss,
-            metrics=metrics
-        )
-    
-    def get_callbacks(self):
-        """Setup training callbacks"""
-        callbacks = []
-        
-        # Model checkpoint
-        os.makedirs('checkpoints', exist_ok=True)
-        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath='checkpoints/best_model.h5',
-            save_best_only=True,
-            monitor='val_loss',
-            mode='min'
-        )
-        callbacks.append(checkpoint_callback)
-        
-        # Early stopping
-        early_stop_callback = tf.keras.callbacks.EarlyStopping(
-            monitor='val_loss',
-            patience=5,
-            restore_best_weights=True
-        )
-        callbacks.append(early_stop_callback)
-        
-        return callbacks
-    
-    def train(self):
-        """Train the model"""
-        history = self.model.fit(
-            self.train_dataset,
-            validation_data=self.val_dataset,
-            epochs=self.config['num_epochs'],
-            callbacks=self.callbacks,
-            verbose=1
-        )
-        
-        return history
+export async function createTensorFlowFiles(
+  projectPath: string,
+  projectName: string,
+  options: { modelType: string },
+): Promise<void> {
+  const description = `TensorFlow ${options.modelType} scaffold from Cirron CLI. Trains a small Keras model and exports to ONNX.`;
+  await writeProjectFiles(projectPath, {
+    'cirron.yaml': buildCirronYaml(projectName, options.modelType, description),
+    'requirements.txt': TF_REQUIREMENTS,
+    'train.py': buildTensorflowTrainScript(options.modelType, false),
+    'serve.py': buildOnnxServeScript(),
+  });
+}
 
-if __name__ == "__main__":
-    config = {
-        'batch_size': 32,
-        'learning_rate': 0.001,
-        'num_epochs': 10,
-        'model_type': '${options.modelType}',
-        'data_path': 'data/',
-    }
-    
-    trainer = Trainer(config)
-    history = trainer.train()
-    
-    # Save final model
-    trainer.model.save('models/final_model.h5')
-    print("Training completed!")
-`;
-
-  await fs.writeFile(path.join(projectPath, 'src', 'train.py'), trainingCode);
+export async function createTensorFlowTrainingFiles(
+  projectPath: string,
+  projectName: string,
+  options: { modelType: string },
+): Promise<void> {
+  const description = `TensorFlow ${options.modelType} training scaffold from Cirron CLI. 10-epoch training loop, exports to ONNX.`;
+  await writeProjectFiles(projectPath, {
+    'cirron.yaml': buildCirronYaml(projectName, options.modelType, description),
+    'requirements.txt': TF_REQUIREMENTS,
+    'train.py': buildTensorflowTrainScript(options.modelType, true),
+    'serve.py': buildOnnxServeScript(),
+  });
 }
