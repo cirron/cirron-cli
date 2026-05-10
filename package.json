@@ -45,8 +45,8 @@
     "test:watch": "vitest",
     "prepublishOnly": "npm run build && npm test",
     "release": "node scripts/release.js",
-    "check": "ultracite check",
-    "fix": "ultracite fix"
+    "lint": "ultracite check",
+    "lint:fix": "ultracite fix"
   },
   "version": "0.1.0",
   "description": "Official CLI tool for Cirron - build and deploy with ease",
