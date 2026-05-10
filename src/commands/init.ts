@@ -331,7 +331,7 @@ export async function initCommand(projectName?: string, options: InitOptions = {
 
       if (!currentConfig.token) {
         console.log();
-        logger.info(chalk.yellow('💡 Tip: Run ') + chalk.cyan('cirron auth login') + chalk.yellow(' to connect to Cirron'));
+        logger.info(chalk.yellow('Tip: Run ') + chalk.cyan('cirron auth login') + chalk.yellow(' to connect to Cirron'));
       }
 
     } catch (error) {

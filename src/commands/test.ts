@@ -707,7 +707,7 @@ async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): P
     }
     
     isRunning = false;
-    console.log(chalk.blue('👀 Watching for changes...'));
+    console.log(chalk.blue('Watching for changes...'));
   };
 
   watcher.on('change', runTestsOnChange);
