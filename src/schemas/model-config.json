@@ -25,7 +25,14 @@
     },
     "modelType": {
       "type": "string",
-      "enum": ["classification", "regression", "nlp", "computer_vision", "time_series", "custom"],
+      "enum": [
+        "classification",
+        "regression",
+        "nlp",
+        "computer_vision",
+        "time_series",
+        "custom"
+      ],
       "description": "Type of ML model"
     },
     "parameters": {
@@ -146,7 +153,7 @@
           "description": "Expected input data format"
         },
         "outputFormat": {
-          "type": "string", 
+          "type": "string",
           "description": "Output data format"
         },
         "preprocessing": {

@@ -1,22 +1,18 @@
-import fs from 'fs-extra';
-import path from 'path';
-import yaml from 'js-yaml';
-import { schemaValidator } from './schema';
-import { ModelConfig } from '../types';
+import fs from "fs-extra";
+import yaml from "js-yaml";
+import path from "path";
+import type { ModelConfig } from "../types";
+import { schemaValidator } from "./schema";
 
 export class ModelConfigManager {
   private projectPath: string;
-  
+
   constructor(projectPath: string = process.cwd()) {
     this.projectPath = projectPath;
   }
 
   async loadModelConfig(): Promise<ModelConfig | null> {
-    const configFiles = [
-      'model.yaml',
-      'model.yml', 
-      'model.json'
-    ];
+    const configFiles = ["model.yaml", "model.yml", "model.json"];
 
     for (const configFile of configFiles) {
       const configPath = path.join(this.projectPath, configFile);
@@ -27,57 +23,72 @@ export class ModelConfigManager {
             return config;
           }
         } catch (error) {
-          console.warn(`Could not load model config from ${configFile}:`, error);
+          console.warn(
+            `Could not load model config from ${configFile}:`,
+            error
+          );
         }
       }
     }
 
     // Fallback to cirron config metadata
-    const { loadProjectConfig: loadCirronConfig } = require('./project-config');
+    const { loadProjectConfig: loadCirronConfig } = require("./project-config");
     let cirronResult: { config?: { metadata?: unknown } } | null = null;
     try {
       cirronResult = loadCirronConfig(this.projectPath);
     } catch (error) {
-      console.warn('Could not load cirron project config:', error);
+      console.warn("Could not load cirron project config:", error);
     }
     if (cirronResult?.config?.metadata) {
       try {
         return this.convertMetadataToModelConfig(cirronResult.config.metadata);
       } catch (error) {
-        console.warn('Could not load cirron config metadata:', error);
+        console.warn("Could not load cirron config metadata:", error);
       }
     }
 
     return null;
   }
 
-  async saveModelConfig(config: ModelConfig, format: 'yaml' | 'json' = 'yaml'): Promise<void> {
+  async saveModelConfig(
+    config: ModelConfig,
+    format: "yaml" | "json" = "yaml"
+  ): Promise<void> {
     const result = schemaValidator.validateModelConfig(config);
     if (!result.valid) {
-      throw new Error('Invalid model configuration: ' + result.errors.map(e => e.message).join(', '));
+      throw new Error(
+        "Invalid model configuration: " +
+          result.errors.map((e) => e.message).join(", ")
+      );
     }
 
-    const fileName = format === 'yaml' ? 'model.yaml' : 'model.json';
+    const fileName = format === "yaml" ? "model.yaml" : "model.json";
     const configPath = path.join(this.projectPath, fileName);
-    
-    if (format === 'yaml') {
+
+    if (format === "yaml") {
       const yamlContent = yaml.dump(result.data, {
         indent: 2,
         lineWidth: 120,
-        noRefs: true
+        noRefs: true,
       });
-      await fs.writeFile(configPath, yamlContent, 'utf8');
+      await fs.writeFile(configPath, yamlContent, "utf8");
     } else {
-      await fs.writeFile(configPath, JSON.stringify(result.data, null, 2), 'utf8');
+      await fs.writeFile(
+        configPath,
+        JSON.stringify(result.data, null, 2),
+        "utf8"
+      );
     }
   }
 
-  private async loadConfigFromFile(configPath: string): Promise<ModelConfig | null> {
+  private async loadConfigFromFile(
+    configPath: string
+  ): Promise<ModelConfig | null> {
     try {
-      const content = await fs.readFile(configPath, 'utf8');
+      const content = await fs.readFile(configPath, "utf8");
       let config: any;
-      
-      if (configPath.endsWith('.yaml') || configPath.endsWith('.yml')) {
+
+      if (configPath.endsWith(".yaml") || configPath.endsWith(".yml")) {
         config = yaml.load(content);
       } else {
         config = JSON.parse(content);
@@ -87,11 +98,12 @@ export class ModelConfigManager {
       const result = schemaValidator.validateModelConfig(config);
       if (result.valid) {
         return result.data!;
-      } else {
-        console.warn(`Model config validation failed in ${path.basename(configPath)}:`, 
-          result.errors.map(e => e.message).join(', '));
-        return config; // Return unvalidated config for backwards compatibility
       }
+      console.warn(
+        `Model config validation failed in ${path.basename(configPath)}:`,
+        result.errors.map((e) => e.message).join(", ")
+      );
+      return config; // Return unvalidated config for backwards compatibility
     } catch (error) {
       console.warn(`Could not parse model config file ${configPath}:`, error);
       return null;
@@ -106,82 +118,82 @@ export class ModelConfigManager {
       inputShape: metadata.inputShape,
       metadata: {
         updated: metadata.lastUpdated,
-        description: `Converted from cirron.json metadata`
-      }
+        description: "Converted from cirron.json metadata",
+      },
     };
   }
 
-  getDefaultModelConfig(framework: string = 'pytorch'): ModelConfig {
+  getDefaultModelConfig(framework = "pytorch"): ModelConfig {
     const defaults: Record<string, Partial<ModelConfig>> = {
       pytorch: {
         version: 1,
-        framework: 'pytorch',
-        architecture: 'custom',
+        framework: "pytorch",
+        architecture: "custom",
         inference: {
-          device: 'cpu',
-          precision: 'fp32'
+          device: "cpu",
+          precision: "fp32",
         },
         dependencies: {
-          python: '>=3.8',
+          python: ">=3.8",
           packages: {
-            torch: '>=1.9.0',
-            torchvision: '>=0.10.0'
-          }
-        }
+            torch: ">=1.9.0",
+            torchvision: ">=0.10.0",
+          },
+        },
       },
       tensorflow: {
         version: 1,
-        framework: 'tensorflow',
-        architecture: 'custom',
+        framework: "tensorflow",
+        architecture: "custom",
         inference: {
-          device: 'cpu',
-          precision: 'fp32'
+          device: "cpu",
+          precision: "fp32",
         },
         dependencies: {
-          python: '>=3.8',
+          python: ">=3.8",
           packages: {
-            tensorflow: '>=2.6.0'
-          }
-        }
+            tensorflow: ">=2.6.0",
+          },
+        },
       },
       sklearn: {
         version: 1,
-        framework: 'sklearn',
-        architecture: 'ensemble',
+        framework: "sklearn",
+        architecture: "ensemble",
         inference: {
-          device: 'cpu',
-          precision: 'fp32'
+          device: "cpu",
+          precision: "fp32",
         },
         dependencies: {
-          python: '>=3.8',
+          python: ">=3.8",
           packages: {
-            'scikit-learn': '>=1.0.0',
-            numpy: '>=1.21.0',
-            pandas: '>=1.3.0'
-          }
-        }
-      }
+            "scikit-learn": ">=1.0.0",
+            numpy: ">=1.21.0",
+            pandas: ">=1.3.0",
+          },
+        },
+      },
     };
 
     return {
-      ...defaults[framework] || defaults['pytorch'],
+      ...(defaults[framework] || defaults["pytorch"]),
       metadata: {
         created: new Date().toISOString(),
-        updated: new Date().toISOString()
-      }
+        updated: new Date().toISOString(),
+      },
     } as ModelConfig;
   }
 
   async findModelConfigFile(): Promise<string | null> {
-    const configFiles = ['model.yaml', 'model.yml', 'model.json'];
-    
+    const configFiles = ["model.yaml", "model.yml", "model.json"];
+
     for (const configFile of configFiles) {
       const configPath = path.join(this.projectPath, configFile);
       if (fs.existsSync(configPath)) {
         return configPath;
       }
     }
-    
+
     return null;
   }
 

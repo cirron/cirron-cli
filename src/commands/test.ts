@@ -1,195 +1,254 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
-import { execSync } from 'child_process';
-import { logger } from '../utils/logger';
-import { CirronIgnore } from '../utils/ignore';
-import { executePythonFile, formatExecutionError, executeScript } from '../utils/execution';
-import { createInteractiveManager } from '../utils/interactive';
-import { ModelConfigManager } from '../utils/model-config';
-import { loadProjectConfig } from '../utils/project-config';
-import type { ProjectConfig } from '../types';
+import chalk from "chalk";
+import { execSync } from "child_process";
+import fs from "fs-extra";
+import ora from "ora";
+import path from "path";
+import type { ProjectConfig } from "../types";
+import {
+  executePythonFile,
+  executeScript,
+  formatExecutionError,
+} from "../utils/execution";
+import { CirronIgnore } from "../utils/ignore";
+import { createInteractiveManager } from "../utils/interactive";
+import { logger } from "../utils/logger";
+import { ModelConfigManager } from "../utils/model-config";
+import { loadProjectConfig } from "../utils/project-config";
 
 interface TestOptions {
-  env?: boolean;
   build?: boolean;
-  requirements?: boolean;
-  unit?: boolean;
+  data?: boolean;
+  endpoint?: string;
+  env?: boolean;
+  inference?: boolean;
+  interactive?: boolean;
   lint?: boolean;
   model?: boolean;
-  data?: boolean;
-  inference?: boolean;
-  val?: boolean;
   path?: string;
-  endpoint?: string;
   pipeline?: boolean;
-  watch?: boolean;
+  requirements?: boolean;
   strict?: boolean;
-  interactive?: boolean;
+  unit?: boolean;
+  val?: boolean;
+  watch?: boolean;
 }
 
 export async function testCommand(options: TestOptions): Promise<void> {
-  const spinner = ora('Preparing tests...').start();
-  const interactive = createInteractiveManager(options.interactive || false);
+  const spinner = ora("Preparing tests...").start();
+  const interactive = createInteractiveManager(options.interactive);
 
   try {
     // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
-      spinner.fail(chalk.red('No cirron project config found'));
-      logger.error('Run ' + chalk.cyan('cirron init') + ' to initialize a project');
+      spinner.fail(chalk.red("No cirron project config found"));
+      logger.error(
+        "Run " + chalk.cyan("cirron init") + " to initialize a project"
+      );
       process.exit(1);
     }
 
     const { config: projectConfig } = projectConfigResult;
-    
+
     // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
-    
+
     if (modelConfig) {
-      logger.info(chalk.blue(`Using model configuration for testing: ${modelConfig.name || 'unnamed model'}`));
+      logger.info(
+        chalk.blue(
+          `Using model configuration for testing: ${modelConfig.name || "unnamed model"}`
+        )
+      );
     }
-    
+
     // Determine which tests to run
     let testsToRun = determineTests(options);
-    
+
     if (testsToRun.length === 0) {
       // Interactive test selection when no specific tests are requested
       if (interactive.isInteractive()) {
         spinner.stop();
         const availableTests = [
-          { name: 'env', description: 'Environment setup validation (Python, CUDA)', default: true },
-          { name: 'requirements', description: 'Python requirements and dependencies', default: true },
-          { name: 'unit', description: 'Unit tests with pytest/unittest', default: fs.existsSync('tests') || fs.existsSync('test') },
-          { name: 'model', description: 'Model loading and instantiation', default: true },
-          { name: 'data', description: 'Data loading functionality', default: fs.existsSync('src/data_loader.py') },
-          { name: 'inference', description: 'Model inference pipeline', default: false },
-          { name: 'val', description: 'Model validation and accuracy tests', default: false },
-          { name: 'pipeline', description: 'End-to-end ML pipeline testing', default: false }
+          {
+            name: "env",
+            description: "Environment setup validation (Python, CUDA)",
+            default: true,
+          },
+          {
+            name: "requirements",
+            description: "Python requirements and dependencies",
+            default: true,
+          },
+          {
+            name: "unit",
+            description: "Unit tests with pytest/unittest",
+            default: fs.existsSync("tests") || fs.existsSync("test"),
+          },
+          {
+            name: "model",
+            description: "Model loading and instantiation",
+            default: true,
+          },
+          {
+            name: "data",
+            description: "Data loading functionality",
+            default: fs.existsSync("src/data_loader.py"),
+          },
+          {
+            name: "inference",
+            description: "Model inference pipeline",
+            default: false,
+          },
+          {
+            name: "val",
+            description: "Model validation and accuracy tests",
+            default: false,
+          },
+          {
+            name: "pipeline",
+            description: "End-to-end ML pipeline testing",
+            default: false,
+          },
         ];
 
         testsToRun = await interactive.selectSteps(
           availableTests,
-          'Select which test types to run:'
+          "Select which test types to run:"
         );
-        
+
         if (testsToRun.length === 0) {
-          logger.info('No tests selected. Exiting.');
+          logger.info("No tests selected. Exiting.");
           return;
         }
-        
+
         spinner.start();
       } else {
         // Run all basic tests by default (not validation, endpoint, or pipeline)
-        testsToRun.push('env', 'requirements', 'unit', 'model', 'data');
+        testsToRun.push("env", "requirements", "unit", "model", "data");
       }
     }
 
-    spinner.text = 'Running tests...';
-    
+    spinner.text = "Running tests...";
+
     let passedTests = 0;
-    let totalTests = testsToRun.length;
-    const results: { test: string; status: 'pass' | 'fail'; message?: string }[] = [];
+    const totalTests = testsToRun.length;
+    const results: {
+      test: string;
+      status: "pass" | "fail";
+      message?: string;
+    }[] = [];
 
     for (const test of testsToRun) {
       try {
         // Interactive confirmation for potentially long-running tests
-        if (interactive.isInteractive() && ['val', 'endpoint', 'pipeline', 'build'].includes(test)) {
+        if (
+          interactive.isInteractive() &&
+          ["val", "endpoint", "pipeline", "build"].includes(test)
+        ) {
           spinner.stop();
           const testDescriptions = {
-            'val': 'Model validation tests (accuracy, performance metrics)',
-            'endpoint': 'Endpoint performance testing (multiple requests)',
-            'pipeline': 'End-to-end ML pipeline testing (comprehensive)',
-            'build': 'Docker container build testing'
+            val: "Model validation tests (accuracy, performance metrics)",
+            endpoint: "Endpoint performance testing (multiple requests)",
+            pipeline: "End-to-end ML pipeline testing (comprehensive)",
+            build: "Docker container build testing",
           };
-          
+
           const estimatedTimes = {
-            'val': '1-3 minutes',
-            'endpoint': '30-60 seconds',
-            'pipeline': '3-5 minutes',
-            'build': '2-4 minutes'
+            val: "1-3 minutes",
+            endpoint: "30-60 seconds",
+            pipeline: "3-5 minutes",
+            build: "2-4 minutes",
           };
-          
+
           const shouldRun = await interactive.confirmStep({
             stepName: `${test.charAt(0).toUpperCase() + test.slice(1)} Tests`,
-            description: testDescriptions[test as keyof typeof testDescriptions] || `Run ${test} tests`,
-            impact: 'medium',
-            estimatedTime: estimatedTimes[test as keyof typeof estimatedTimes] || '30-60 seconds',
-            dependencies: test === 'endpoint' ? ['Deployed endpoint'] : ['Test data', 'Model files']
+            description:
+              testDescriptions[test as keyof typeof testDescriptions] ||
+              `Run ${test} tests`,
+            impact: "medium",
+            estimatedTime:
+              estimatedTimes[test as keyof typeof estimatedTimes] ||
+              "30-60 seconds",
+            dependencies:
+              test === "endpoint"
+                ? ["Deployed endpoint"]
+                : ["Test data", "Model files"],
           });
-          
+
           if (!shouldRun) {
             logger.warn(`Skipping ${test} tests`);
             continue;
           }
           spinner.start();
         }
-        
+
         spinner.text = `Running ${test} tests...`;
-        
+
         switch (test) {
-          case 'env':
+          case "env":
             await runEnvironmentTests(projectConfig);
             break;
-          case 'build':
+          case "build":
             await runBuildTests(projectConfig);
             break;
-          case 'requirements':
+          case "requirements":
             await runRequirementsTests();
             break;
-          case 'unit':
+          case "unit":
             await runUnitTests();
             break;
-          case 'lint':
+          case "lint":
             await runLintTests();
             break;
-          case 'model':
+          case "model":
             await runModelTests(projectConfig);
             break;
-          case 'data':
+          case "data":
             await runDataTests();
             break;
-          case 'inference':
+          case "inference":
             await runInferenceTests(options.path);
             break;
-          case 'val':
+          case "val":
             await runValidationTests(projectConfig, options.path);
             break;
-          case 'endpoint':
+          case "endpoint":
             await runEndpointTests(options.endpoint!);
             break;
-          case 'pipeline':
+          case "pipeline":
             await runPipelineTests(projectConfig, options.path);
             break;
         }
-        
-        results.push({ test, status: 'pass' });
+
+        results.push({ test, status: "pass" });
         passedTests++;
-        
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        results.push({ 
-          test, 
-          status: 'fail', 
-          message: errorMessage
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        results.push({
+          test,
+          status: "fail",
+          message: errorMessage,
         });
-        
+
         // Interactive error handling
-        if (interactive.isInteractive() && testsToRun.indexOf(test) < testsToRun.length - 1) {
+        if (
+          interactive.isInteractive() &&
+          testsToRun.indexOf(test) < testsToRun.length - 1
+        ) {
           spinner.stop();
           const remainingTests = testsToRun.slice(testsToRun.indexOf(test) + 1);
           const shouldContinue = await interactive.showProgressAndConfirm(
-            results.filter(r => r.status === 'pass').map(r => r.test),
+            results.filter((r) => r.status === "pass").map((r) => r.test),
             test,
             remainingTests,
             errorMessage
           );
-          
+
           if (!shouldContinue) {
-            logger.info('Testing stopped by user');
+            logger.info("Testing stopped by user");
             break;
           }
           spinner.start();
@@ -200,114 +259,156 @@ export async function testCommand(options: TestOptions): Promise<void> {
     // Show results
     spinner.stop();
     console.log();
-    logger.info(chalk.bold('Test Results'));
+    logger.info(chalk.bold("Test Results"));
     console.log();
 
-    results.forEach(result => {
-      const icon = result.status === 'pass' ? chalk.green('✓') : chalk.red('✗');
-      const testName = result.test.charAt(0).toUpperCase() + result.test.slice(1);
+    results.forEach((result) => {
+      const icon = result.status === "pass" ? chalk.green("✓") : chalk.red("✗");
+      const testName =
+        result.test.charAt(0).toUpperCase() + result.test.slice(1);
       logger.info(`${icon} ${testName} tests`);
-      
-      if (result.status === 'fail' && result.message) {
+
+      if (result.status === "fail" && result.message) {
         logger.info(`   ${chalk.gray(result.message)}`);
       }
     });
 
     console.log();
-    
+
     if (passedTests === totalTests) {
       logger.success(`All ${totalTests} test suites passed! `);
     } else {
-      logger.error(`${totalTests - passedTests} of ${totalTests} test suites failed`);
+      logger.error(
+        `${totalTests - passedTests} of ${totalTests} test suites failed`
+      );
       process.exit(1);
     }
 
     // Watch mode
     if (options.watch) {
       console.log();
-      logger.info(chalk.blue('Watching for changes... Press Ctrl+C to stop'));
+      logger.info(chalk.blue("Watching for changes... Press Ctrl+C to stop"));
       await watchTests(testsToRun, projectConfig);
     }
-
   } catch (error) {
-    spinner.fail(chalk.red('Test execution failed'));
-    logger.error('Error:', error);
+    spinner.fail(chalk.red("Test execution failed"));
+    logger.error("Error:", error);
     process.exit(1);
   }
 }
 
 function determineTests(options: TestOptions): string[] {
   const tests: string[] = [];
-  
-  if (options.env) tests.push('env');
-  if (options.build) tests.push('build');
-  if (options.requirements) tests.push('requirements');
-  if (options.unit) tests.push('unit');
-  if (options.lint) tests.push('lint');
-  if (options.model) tests.push('model');
-  if (options.data) tests.push('data');
-  if (options.inference) tests.push('inference');
-  if (options.val) tests.push('val');
-  if (options.endpoint) tests.push('endpoint');
-  if (options.pipeline) tests.push('pipeline');
-  
+
+  if (options.env) {
+    tests.push("env");
+  }
+  if (options.build) {
+    tests.push("build");
+  }
+  if (options.requirements) {
+    tests.push("requirements");
+  }
+  if (options.unit) {
+    tests.push("unit");
+  }
+  if (options.lint) {
+    tests.push("lint");
+  }
+  if (options.model) {
+    tests.push("model");
+  }
+  if (options.data) {
+    tests.push("data");
+  }
+  if (options.inference) {
+    tests.push("inference");
+  }
+  if (options.val) {
+    tests.push("val");
+  }
+  if (options.endpoint) {
+    tests.push("endpoint");
+  }
+  if (options.pipeline) {
+    tests.push("pipeline");
+  }
+
   return tests;
 }
 
-async function runEnvironmentTests(projectConfig: ProjectConfig): Promise<void> {
+async function runEnvironmentTests(
+  projectConfig: ProjectConfig
+): Promise<void> {
   // Check Python3 version
   try {
-    const pythonVersion = execSync('python3 --version', { encoding: 'utf8' }).trim();
+    const pythonVersion = execSync("python3 --version", {
+      encoding: "utf8",
+    }).trim();
     const versionMatch = pythonVersion.match(/Python (\d+\.\d+\.\d+)/);
-    
+
     if (versionMatch && versionMatch[1]) {
-      const versionParts = versionMatch[1].split('.');
-      const major = parseInt(versionParts[0] || '0');
-      const minor = parseInt(versionParts[1] || '0');
-      const requiredParts = (projectConfig.pythonVersion || '3.9').split('.');
-      const requiredMajor = parseInt(requiredParts[0] || '3');
-      const requiredMinor = parseInt(requiredParts[1] || '9');
-      
-      const versionValid = major > requiredMajor || (major === requiredMajor && minor >= requiredMinor);
-      
+      const versionParts = versionMatch[1].split(".");
+      const major = Number.parseInt(versionParts[0] || "0");
+      const minor = Number.parseInt(versionParts[1] || "0");
+      const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
+      const requiredMajor = Number.parseInt(requiredParts[0] || "3");
+      const requiredMinor = Number.parseInt(requiredParts[1] || "9");
+
+      const versionValid =
+        major > requiredMajor ||
+        (major === requiredMajor && minor >= requiredMinor);
+
       if (!versionValid) {
-        throw new Error(`Python ${projectConfig.pythonVersion || '3.9'}+ required, found ${major}.${minor}`);
+        throw new Error(
+          `Python ${projectConfig.pythonVersion || "3.9"}+ required, found ${major}.${minor}`
+        );
       }
     } else {
       throw new Error(`Could not parse Python version from: ${pythonVersion}`);
     }
   } catch (error) {
-    if (error instanceof Error && error.message.includes('required, found')) {
+    if (error instanceof Error && error.message.includes("required, found")) {
       throw error; // Re-throw version requirement errors
     }
-    throw new Error(`Python3 not found - please ensure python3 is installed and available. Error: ${String(error)}`);
+    throw new Error(
+      `Python3 not found - please ensure python3 is installed and available. Error: ${String(error)}`
+    );
   }
 
   // Check CUDA availability if required
   if (projectConfig.gpuRequired) {
     try {
-      if (projectConfig.framework === 'pytorch') {
-        const pytorchScript = 'import torch\nassert torch.cuda.is_available()';
-        const tempScriptPath = path.join(process.cwd(), 'temp_pytorch_cuda_test.py');
+      if (projectConfig.framework === "pytorch") {
+        const pytorchScript = "import torch\nassert torch.cuda.is_available()";
+        const tempScriptPath = path.join(
+          process.cwd(),
+          "temp_pytorch_cuda_test.py"
+        );
         fs.writeFileSync(tempScriptPath, pytorchScript);
         try {
           const result = await executePythonFile(tempScriptPath);
           if (!result.success) {
-            throw new Error(`PyTorch framework test failed: ${formatExecutionError(result)}`);
+            throw new Error(
+              `PyTorch framework test failed: ${formatExecutionError(result)}`
+            );
           }
         } finally {
           if (fs.existsSync(tempScriptPath)) {
             fs.unlinkSync(tempScriptPath);
           }
         }
-      } else if (projectConfig.framework === 'tensorflow') {
-        const tfScript = 'import tensorflow as tf\nassert len(tf.config.list_physical_devices("GPU")) > 0';
-        const tempScriptPath = path.join(process.cwd(), 'temp_tf_cuda_test.py');
+      } else if (projectConfig.framework === "tensorflow") {
+        const tfScript =
+          'import tensorflow as tf\nassert len(tf.config.list_physical_devices("GPU")) > 0';
+        const tempScriptPath = path.join(process.cwd(), "temp_tf_cuda_test.py");
         fs.writeFileSync(tempScriptPath, tfScript);
         try {
           const result = await executePythonFile(tempScriptPath);
           if (!result.success) {
-            throw new Error(`TensorFlow framework test failed: ${formatExecutionError(result)}`);
+            throw new Error(
+              `TensorFlow framework test failed: ${formatExecutionError(result)}`
+            );
           }
         } finally {
           if (fs.existsSync(tempScriptPath)) {
@@ -316,117 +417,132 @@ async function runEnvironmentTests(projectConfig: ProjectConfig): Promise<void> 
         }
       }
     } catch (error) {
-      throw new Error('CUDA/GPU not available but required by project');
+      throw new Error("CUDA/GPU not available but required by project");
     }
   }
 
   // Check virtual environment
-  const inVenv = process.env['VIRTUAL_ENV'] || process.env['CONDA_DEFAULT_ENV'];
+  const inVenv = process.env["VIRTUAL_ENV"] || process.env["CONDA_DEFAULT_ENV"];
   if (!inVenv) {
-    logger.warn('Not running in a virtual environment');
+    logger.warn("Not running in a virtual environment");
   }
 }
 
 async function runBuildTests(projectConfig: ProjectConfig): Promise<void> {
   // Test Docker build
-  if (fs.existsSync('Dockerfile')) {
+  if (fs.existsSync("Dockerfile")) {
     try {
       const buildCommand = `docker build -t ${projectConfig.name}-test .`;
-      execSync(buildCommand, { stdio: 'pipe' });
-      
+      execSync(buildCommand, { stdio: "pipe" });
+
       // Clean up test image
-      execSync(`docker rmi ${projectConfig.name}-test`, { stdio: 'pipe' });
+      execSync(`docker rmi ${projectConfig.name}-test`, { stdio: "pipe" });
     } catch (error) {
-      throw new Error('Docker build failed');
+      throw new Error("Docker build failed");
     }
   } else {
-    throw new Error('Dockerfile not found');
+    throw new Error("Dockerfile not found");
   }
 }
 
 async function runRequirementsTests(): Promise<void> {
-  if (!fs.existsSync('requirements.txt')) {
-    throw new Error('requirements.txt not found');
+  if (!fs.existsSync("requirements.txt")) {
+    throw new Error("requirements.txt not found");
   }
 
   try {
     // Check if all requirements can be resolved
     try {
-      execSync('pip check', { stdio: 'pipe' });
+      execSync("pip check", { stdio: "pipe" });
     } catch (pipCheckError) {
       // pip check failing is common in development environments
-      logger.warn('pip check found conflicts but continuing with installation test');
+      logger.warn(
+        "pip check found conflicts but continuing with installation test"
+      );
     }
-    
+
     // Try installing in dry-run mode to check for major conflicts
     try {
-      execSync('pip install --dry-run -r requirements.txt', { stdio: 'pipe' });
+      execSync("pip install --dry-run -r requirements.txt", { stdio: "pipe" });
     } catch (dryRunError) {
       // Check if it's just missing packages vs real conflicts
       const errorMessage = String(dryRunError);
-      if (errorMessage.includes('No matching distribution found')) {
-        throw new Error('Some packages in requirements.txt are not available');
-      } else {
-        logger.warn('Requirements dry-run failed but may be due to existing environment');
+      if (errorMessage.includes("No matching distribution found")) {
+        throw new Error("Some packages in requirements.txt are not available");
       }
+      logger.warn(
+        "Requirements dry-run failed but may be due to existing environment"
+      );
     }
   } catch (error) {
-    throw new Error('Requirements validation failed - dependency conflicts detected');
+    throw new Error(
+      "Requirements validation failed - dependency conflicts detected"
+    );
   }
 }
 
 async function runUnitTests(): Promise<void> {
-  if (!fs.existsSync('tests')) {
-    throw new Error('Tests directory not found');
+  if (!fs.existsSync("tests")) {
+    throw new Error("Tests directory not found");
   }
 
   try {
     // Run pytest if available, otherwise run unittest
     try {
-      execSync('python3 -m pytest tests/ -v', { stdio: 'pipe' });
+      execSync("python3 -m pytest tests/ -v", { stdio: "pipe" });
     } catch (pytestError) {
       // Fallback to unittest
-      execSync('python3 -m unittest discover tests -v', { stdio: 'pipe' });
+      execSync("python3 -m unittest discover tests -v", { stdio: "pipe" });
     }
   } catch (error) {
-    throw new Error('Unit tests failed');
+    throw new Error("Unit tests failed");
   }
 }
 
 async function runLintTests(): Promise<void> {
-  const srcDir = 'src';
+  const srcDir = "src";
   if (!fs.existsSync(srcDir)) {
-    throw new Error('Source directory not found');
+    throw new Error("Source directory not found");
   }
 
   try {
     // Run flake8 if available
     try {
-      const flake8Result = await executeScript('python3', ['-m', 'flake8', srcDir]);
+      const flake8Result = await executeScript("python3", [
+        "-m",
+        "flake8",
+        srcDir,
+      ]);
       if (!flake8Result.success) {
         // Try pylint as fallback
         try {
-          const pylintResult = await executeScript('python3', ['-m', 'pylint', srcDir]);
+          const pylintResult = await executeScript("python3", [
+            "-m",
+            "pylint",
+            srcDir,
+          ]);
           if (!pylintResult.success) {
-            logger.warn('Code linting issues found, but continuing...');
+            logger.warn("Code linting issues found, but continuing...");
           }
         } catch (pylintError) {
           // Skip linting if no linter available
-          logger.warn('No linter found (flake8 or pylint), skipping code quality checks');
+          logger.warn(
+            "No linter found (flake8 or pylint), skipping code quality checks"
+          );
         }
       }
     } catch (flake8Error) {
-      logger.warn('Linting skipped - linters not available');
+      logger.warn("Linting skipped - linters not available");
     }
   } catch (error) {
-    throw new Error('Code quality checks failed');
+    throw new Error("Code quality checks failed");
   }
 }
 
 async function runModelTests(_projectConfig: ProjectConfig): Promise<void> {
-  const modelFile = path.join('src', 'model.py');
+  const modelFile = path.join("src", "model.py");
   if (!fs.existsSync(modelFile)) {
-    throw new Error('Model file not found');
+    throw new Error("Model file not found");
   }
 
   try {
@@ -449,14 +565,16 @@ else:
 `;
 
     // Write script to temporary file to avoid shell escaping issues
-    const tempScriptPath = path.join(process.cwd(), 'temp_model_test.py');
+    const tempScriptPath = path.join(process.cwd(), "temp_model_test.py");
     fs.writeFileSync(tempScriptPath, testScript);
-    
+
     try {
-      const result = execSync(`python3 ${tempScriptPath}`, { encoding: 'utf8' });
-      console.log('Model test passed:', result);
+      const result = execSync(`python3 ${tempScriptPath}`, {
+        encoding: "utf8",
+      });
+      console.log("Model test passed:", result);
     } catch (execError) {
-      console.log('Model test failed:', String(execError));
+      console.log("Model test failed:", String(execError));
       throw execError;
     } finally {
       // Clean up temporary file
@@ -465,24 +583,28 @@ else:
       }
     }
   } catch (error) {
-    throw new Error('Model loading or instantiation failed');
+    throw new Error("Model loading or instantiation failed");
   }
 }
 
 async function runDataTests(): Promise<void> {
-  const dataLoaderFile = path.join('src', 'data_loader.py');
+  const dataLoaderFile = path.join("src", "data_loader.py");
   if (!fs.existsSync(dataLoaderFile)) {
-    throw new Error('Data loader file not found');
+    throw new Error("Data loader file not found");
   }
 
   // Check if sample data exists
-  const sampleDataPath = path.join('data', 'sample');
+  const sampleDataPath = path.join("data", "sample");
   if (fs.existsSync(sampleDataPath)) {
     const allFiles = fs.readdirSync(sampleDataPath);
     const cirronIgnore = CirronIgnore.createDefault();
-    const files = cirronIgnore.filterFiles(allFiles.map(f => path.join(sampleDataPath, f)));
+    const files = cirronIgnore.filterFiles(
+      allFiles.map((f) => path.join(sampleDataPath, f))
+    );
     if (files.length === 0) {
-      throw new Error('Sample data directory is empty (after applying .cirronignore)');
+      throw new Error(
+        "Sample data directory is empty (after applying .cirronignore)"
+      );
     }
   }
 
@@ -508,9 +630,9 @@ else:
 `;
 
     // Write script to temporary file to avoid shell escaping issues
-    const tempScriptPath = path.join(process.cwd(), 'temp_data_test.py');
+    const tempScriptPath = path.join(process.cwd(), "temp_data_test.py");
     fs.writeFileSync(tempScriptPath, testScript);
-    
+
     try {
       const result = await executePythonFile(tempScriptPath);
       if (!result.success) {
@@ -523,14 +645,14 @@ else:
       }
     }
   } catch (error) {
-    throw new Error('Data loading tests failed');
+    throw new Error("Data loading tests failed");
   }
 }
 
 async function runInferenceTests(dataPath?: string): Promise<void> {
-  const inferenceFile = path.join('src', 'inference.py');
+  const inferenceFile = path.join("src", "inference.py");
   if (!fs.existsSync(inferenceFile)) {
-    throw new Error('Inference file not found');
+    throw new Error("Inference file not found");
   }
 
   try {
@@ -636,13 +758,15 @@ else:
 `;
 
     // Write script to temporary file to avoid shell escaping issues
-    const tempScriptPath = path.join(process.cwd(), 'temp_inference_test.py');
+    const tempScriptPath = path.join(process.cwd(), "temp_inference_test.py");
     fs.writeFileSync(tempScriptPath, testScript);
-    
+
     try {
       const result = await executePythonFile(tempScriptPath);
       if (!result.success) {
-        throw new Error(`Inference test failed: ${formatExecutionError(result)}`);
+        throw new Error(
+          `Inference test failed: ${formatExecutionError(result)}`
+        );
       }
     } finally {
       // Clean up temporary file
@@ -651,81 +775,97 @@ else:
       }
     }
   } catch (error) {
-    throw new Error('Inference tests failed');
+    throw new Error("Inference tests failed");
   }
 }
 
-async function watchTests(testsToRun: string[], projectConfig: ProjectConfig): Promise<void> {
-  const chokidar = require('chokidar');
-  
-  const watcher = chokidar.watch(['src/**/*.py', 'tests/**/*.py', 'cirron.json', 'cirron.yaml', 'cirron.yml'], {
-    ignored: /(^|[/\\])\../,
-    persistent: true
-  });
+async function watchTests(
+  testsToRun: string[],
+  projectConfig: ProjectConfig
+): Promise<void> {
+  const chokidar = require("chokidar");
+
+  const watcher = chokidar.watch(
+    [
+      "src/**/*.py",
+      "tests/**/*.py",
+      "cirron.json",
+      "cirron.yaml",
+      "cirron.yml",
+    ],
+    {
+      ignored: /(^|[/\\])\../,
+      persistent: true,
+    }
+  );
 
   let isRunning = false;
 
   const runTestsOnChange = async () => {
-    if (isRunning) return;
-    
+    if (isRunning) {
+      return;
+    }
+
     isRunning = true;
-    console.log(chalk.blue('\n Files changed, running tests...'));
-    
+    console.log(chalk.blue("\n Files changed, running tests..."));
+
     try {
       // Run a subset of tests on file changes (faster)
-      const quickTests = testsToRun.filter(test => 
-        ['unit', 'model', 'data', 'lint'].includes(test)
+      const quickTests = testsToRun.filter((test) =>
+        ["unit", "model", "data", "lint"].includes(test)
       );
-      
+
       for (const test of quickTests) {
         try {
           switch (test) {
-            case 'unit':
+            case "unit":
               await runUnitTests();
-              logger.info(chalk.green('✓ Unit tests passed'));
+              logger.info(chalk.green("✓ Unit tests passed"));
               break;
-            case 'model':
+            case "model":
               await runModelTests(projectConfig);
-              logger.info(chalk.green('✓ Model tests passed'));
+              logger.info(chalk.green("✓ Model tests passed"));
               break;
-            case 'data':
+            case "data":
               await runDataTests();
-              logger.info(chalk.green('✓ Data tests passed'));
+              logger.info(chalk.green("✓ Data tests passed"));
               break;
-            case 'lint':
+            case "lint":
               await runLintTests();
-              logger.info(chalk.green('✓ Lint tests passed'));
+              logger.info(chalk.green("✓ Lint tests passed"));
               break;
           }
         } catch (error) {
           logger.error(chalk.red(`✗ ${test} tests failed: ${error}`));
         }
       }
-      
     } catch (error) {
-      logger.error('Watch test failed:', error);
+      logger.error("Watch test failed:", error);
     }
-    
+
     isRunning = false;
-    console.log(chalk.blue('Watching for changes...'));
+    console.log(chalk.blue("Watching for changes..."));
   };
 
-  watcher.on('change', runTestsOnChange);
-  
+  watcher.on("change", runTestsOnChange);
+
   // Handle graceful shutdown
-  process.on('SIGINT', () => {
+  process.on("SIGINT", () => {
     watcher.close();
-    logger.info('\nStopped watching files');
+    logger.info("\nStopped watching files");
     process.exit(0);
   });
 }
 
-async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: string): Promise<void> {
-  const modelFile = path.join('src', 'model.py');
-  const inferenceFile = path.join('src', 'inference.py');
-  
-  if (!fs.existsSync(modelFile) || !fs.existsSync(inferenceFile)) {
-    throw new Error('Model or inference file not found');
+async function runValidationTests(
+  _projectConfig: ProjectConfig,
+  dataPath?: string
+): Promise<void> {
+  const modelFile = path.join("src", "model.py");
+  const inferenceFile = path.join("src", "inference.py");
+
+  if (!(fs.existsSync(modelFile) && fs.existsSync(inferenceFile))) {
+    throw new Error("Model or inference file not found");
   }
 
   // Determine validation data path
@@ -747,16 +887,16 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
     } catch (error) {
       // Continue with fallback paths if config reading fails
     }
-    
+
     // Fallback to common validation data locations
     if (!validationPath) {
       const commonPaths = [
-        'data/validation',
-        'data/val',
-        'data/test',
-        'data/sample'
+        "data/validation",
+        "data/val",
+        "data/test",
+        "data/sample",
       ];
-      
+
       for (const commonPath of commonPaths) {
         if (fs.existsSync(commonPath)) {
           validationPath = commonPath;
@@ -764,9 +904,11 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
         }
       }
     }
-    
+
     if (!validationPath) {
-      throw new Error('No validation data found. Specify path with -p option or configure in your project config');
+      throw new Error(
+        "No validation data found. Specify path with -p option or configure in your project config"
+      );
     }
   }
 
@@ -780,25 +922,28 @@ async function runValidationTests(_projectConfig: ProjectConfig, dataPath?: stri
   if (isDirectory) {
     // Get all CSV files in directory, filtered by .cirronignore
     const cirronIgnore = CirronIgnore.createDefault();
-    const allFiles = fs.readdirSync(validationPath)
-      .filter(file => file.endsWith('.csv'))
-      .map(file => path.join(validationPath!, file));
+    const allFiles = fs
+      .readdirSync(validationPath)
+      .filter((file) => file.endsWith(".csv"))
+      .map((file) => path.join(validationPath!, file));
     testFiles = cirronIgnore.filterFiles(allFiles);
   } else {
     // Single file - check if it should be ignored
     const cirronIgnore = CirronIgnore.createDefault();
-    if (!cirronIgnore.isIgnored(validationPath)) {
-      testFiles = [validationPath];
-    } else {
+    if (cirronIgnore.isIgnored(validationPath)) {
       testFiles = [];
+    } else {
+      testFiles = [validationPath];
     }
   }
 
   if (testFiles.length === 0) {
-    throw new Error('No validation data files found (CSV format expected)');
+    throw new Error("No validation data files found (CSV format expected)");
   }
 
-  logger.info(`Testing model accuracy on ${testFiles.length} validation file(s)`);
+  logger.info(
+    `Testing model accuracy on ${testFiles.length} validation file(s)`
+  );
 
   try {
     // Run validation test for each file
@@ -886,15 +1031,18 @@ print("Throughput: {:.2f} predictions/second".format(throughput))
 `;
 
       // Write script to temporary file to avoid shell escaping issues
-      const tempScriptPath = path.join(process.cwd(), 'temp_validation_test.py');
+      const tempScriptPath = path.join(
+        process.cwd(),
+        "temp_validation_test.py"
+      );
       fs.writeFileSync(tempScriptPath, testScript);
-      
+
       try {
-        const result = execSync(`python3 ${tempScriptPath}`, { 
-          encoding: 'utf8',
-          timeout: 60000 // 60 second timeout
+        const result = execSync(`python3 ${tempScriptPath}`, {
+          encoding: "utf8",
+          timeout: 60_000, // 60 second timeout
         });
-        
+
         logger.info(`Validation results for ${path.basename(testFile)}:`);
         console.log(result);
       } finally {
@@ -914,7 +1062,7 @@ async function runEndpointTests(endpointUrl: string): Promise<void> {
     // Validate URL format
     new URL(endpointUrl);
   } catch {
-    throw new Error('Invalid endpoint URL format');
+    throw new Error("Invalid endpoint URL format");
   }
 
   logger.info(`Testing endpoint: ${endpointUrl}`);
@@ -997,15 +1145,15 @@ else:
 `;
 
     // Write script to temporary file to avoid shell escaping issues
-    const tempScriptPath = path.join(process.cwd(), 'temp_endpoint_test.py');
+    const tempScriptPath = path.join(process.cwd(), "temp_endpoint_test.py");
     fs.writeFileSync(tempScriptPath, testScript);
-    
+
     try {
-      const result = execSync(`python3 ${tempScriptPath}`, { 
-        encoding: 'utf8',
-        timeout: 120000 // 2 minute timeout
+      const result = execSync(`python3 ${tempScriptPath}`, {
+        encoding: "utf8",
+        timeout: 120_000, // 2 minute timeout
       });
-      
+
       console.log(result);
     } finally {
       // Clean up temporary file
@@ -1018,27 +1166,39 @@ else:
   }
 }
 
-async function runPipelineTests(projectConfig: ProjectConfig, dataPath?: string): Promise<void> {
-  logger.info('Testing complete ML pipeline...');
-  
+async function runPipelineTests(
+  projectConfig: ProjectConfig,
+  dataPath?: string
+): Promise<void> {
+  logger.info("Testing complete ML pipeline...");
+
   // Run tests in sequence: data loading -> model -> inference -> validation
   const pipelineSteps = [
-    { name: 'Environment', test: () => runEnvironmentTests(projectConfig) },
-    { name: 'Data Loading', test: () => runDataTests() },
-    { name: 'Model Creation', test: () => runModelTests(projectConfig) },
-    { name: 'Inference', test: () => runInferenceTests(dataPath) }
+    { name: "Environment", test: () => runEnvironmentTests(projectConfig) },
+    { name: "Data Loading", test: () => runDataTests() },
+    { name: "Model Creation", test: () => runModelTests(projectConfig) },
+    { name: "Inference", test: () => runInferenceTests(dataPath) },
   ];
-  
+
   // Add validation if data path provided
-  if (dataPath || fs.existsSync('data/sample') || fs.existsSync('data/validation')) {
-    pipelineSteps.push({ 
-      name: 'Validation', 
-      test: () => runValidationTests(projectConfig, dataPath)
+  if (
+    dataPath ||
+    fs.existsSync("data/sample") ||
+    fs.existsSync("data/validation")
+  ) {
+    pipelineSteps.push({
+      name: "Validation",
+      test: () => runValidationTests(projectConfig, dataPath),
     });
   }
 
-  const results: { step: string; success: boolean; time: number; error?: string }[] = [];
-  
+  const results: {
+    step: string;
+    success: boolean;
+    time: number;
+    error?: string;
+  }[] = [];
+
   for (const step of pipelineSteps) {
     const startTime = Date.now();
     try {
@@ -1048,7 +1208,7 @@ async function runPipelineTests(projectConfig: ProjectConfig, dataPath?: string)
       results.push({
         step: step.name,
         success: true,
-        time: endTime - startTime
+        time: endTime - startTime,
       });
       logger.info(`✓ ${step.name} completed in ${endTime - startTime}ms`);
     } catch (error) {
@@ -1057,23 +1217,23 @@ async function runPipelineTests(projectConfig: ProjectConfig, dataPath?: string)
         step: step.name,
         success: false,
         time: endTime - startTime,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       logger.error(`✗ ${step.name} failed: ${error}`);
       throw new Error(`Pipeline failed at step: ${step.name}`);
     }
   }
-  
+
   // Summary
   const totalTime = results.reduce((sum, result) => sum + result.time, 0);
-  const successfulSteps = results.filter(r => r.success).length;
-  
-  logger.info(`\n=== Pipeline Test Results ===`);
+  const successfulSteps = results.filter((r) => r.success).length;
+
+  logger.info("\n=== Pipeline Test Results ===");
   logger.info(`Steps completed: ${successfulSteps}/${results.length}`);
   logger.info(`Total time: ${totalTime}ms`);
-  
-  results.forEach(result => {
-    const status = result.success ? '✓' : '✗';
+
+  results.forEach((result) => {
+    const status = result.success ? "✓" : "✗";
     logger.info(`${status} ${result.step}: ${result.time}ms`);
   });
 }

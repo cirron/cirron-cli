@@ -6,17 +6,29 @@
  */
 export function dedent(text: string): string {
   let body = text;
-  if (body.startsWith('\n')) body = body.slice(1);
-  if (body.endsWith('\n')) body = body.replace(/\n[ \t]*$/, '\n');
+  if (body.startsWith("\n")) {
+    body = body.slice(1);
+  }
+  if (body.endsWith("\n")) {
+    body = body.replace(/\n[ \t]*$/, "\n");
+  }
 
-  const lines = body.split('\n');
+  const lines = body.split("\n");
   let minIndent = Number.POSITIVE_INFINITY;
   for (const line of lines) {
-    if (line.trim() === '') continue;
+    if (line.trim() === "") {
+      continue;
+    }
     const match = line.match(/^[ \t]*/);
     const indent = match ? match[0].length : 0;
-    if (indent < minIndent) minIndent = indent;
+    if (indent < minIndent) {
+      minIndent = indent;
+    }
   }
-  if (!Number.isFinite(minIndent) || minIndent === 0) return body;
-  return lines.map((line) => (line.length >= minIndent ? line.slice(minIndent) : line)).join('\n');
+  if (!Number.isFinite(minIndent) || minIndent === 0) {
+    return body;
+  }
+  return lines
+    .map((line) => (line.length >= minIndent ? line.slice(minIndent) : line))
+    .join("\n");
 }

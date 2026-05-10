@@ -1,10 +1,10 @@
-import yaml from 'js-yaml';
-import { dedent } from '../../utils/dedent';
+import yaml from "js-yaml";
+import { dedent } from "../../utils/dedent";
 import {
   buildOnnxServeScript,
   buildSyntheticTabularServingConfig,
   writeProjectFiles,
-} from './shared';
+} from "./shared";
 
 const TF_REQUIREMENTS = dedent(`
   tensorflow>=2.18.0
@@ -13,16 +13,19 @@ const TF_REQUIREMENTS = dedent(`
   onnxruntime>=1.20.0
 `);
 
-function buildTensorflowTrainScript(modelType: string, withTrainingLoop: boolean): string {
-  const isRegression = modelType === 'regression';
-  const finalUnits = isRegression ? '1' : '2';
+function buildTensorflowTrainScript(
+  modelType: string,
+  withTrainingLoop: boolean
+): string {
+  const isRegression = modelType === "regression";
+  const finalUnits = isRegression ? "1" : "2";
   const lossName = isRegression ? '"mse"' : '"sparse_categorical_crossentropy"';
-  const finalActivation = isRegression ? 'None' : '"softmax"';
-  const yDtype = isRegression ? 'np.float32' : 'np.int64';
-  const epochs = withTrainingLoop ? '10' : '3';
+  const finalActivation = isRegression ? "None" : '"softmax"';
+  const yDtype = isRegression ? "np.float32" : "np.int64";
+  const epochs = withTrainingLoop ? "10" : "3";
   const yExpr = isRegression
-    ? `(X @ rng.normal(size=NUM_FEATURES).astype(np.float32) + rng.normal(scale=0.1, size=n).astype(np.float32))`
-    : `(X.sum(axis=1) > 0).astype(np.int64)`;
+    ? "(X @ rng.normal(size=NUM_FEATURES).astype(np.float32) + rng.normal(scale=0.1, size=n).astype(np.float32))"
+    : "(X.sum(axis=1) > 0).astype(np.int64)";
 
   return dedent(`
     """Train a small Keras model and export to ONNX for serving."""
@@ -69,14 +72,18 @@ function buildTensorflowTrainScript(modelType: string, withTrainingLoop: boolean
   `);
 }
 
-function buildCirronYaml(projectName: string, modelType: string, description: string): string {
+function buildCirronYaml(
+  projectName: string,
+  modelType: string,
+  description: string
+): string {
   const cfg = {
     name: projectName,
-    framework: 'tensorflow',
+    framework: "tensorflow",
     type: modelType,
-    version: '1.0.0',
+    version: "1.0.0",
     description,
-    servingConfig: buildSyntheticTabularServingConfig('onnx', modelType),
+    servingConfig: buildSyntheticTabularServingConfig("onnx", modelType),
   };
   return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
 }
@@ -84,27 +91,27 @@ function buildCirronYaml(projectName: string, modelType: string, description: st
 export async function createTensorFlowFiles(
   projectPath: string,
   projectName: string,
-  options: { modelType: string },
+  options: { modelType: string }
 ): Promise<void> {
   const description = `TensorFlow ${options.modelType} scaffold from Cirron CLI. Trains a small Keras model and exports to ONNX.`;
   await writeProjectFiles(projectPath, {
-    'cirron.yaml': buildCirronYaml(projectName, options.modelType, description),
-    'requirements.txt': TF_REQUIREMENTS,
-    'train.py': buildTensorflowTrainScript(options.modelType, false),
-    'serve.py': buildOnnxServeScript(),
+    "cirron.yaml": buildCirronYaml(projectName, options.modelType, description),
+    "requirements.txt": TF_REQUIREMENTS,
+    "train.py": buildTensorflowTrainScript(options.modelType, false),
+    "serve.py": buildOnnxServeScript(),
   });
 }
 
 export async function createTensorFlowTrainingFiles(
   projectPath: string,
   projectName: string,
-  options: { modelType: string },
+  options: { modelType: string }
 ): Promise<void> {
   const description = `TensorFlow ${options.modelType} training scaffold from Cirron CLI. 10-epoch training loop, exports to ONNX.`;
   await writeProjectFiles(projectPath, {
-    'cirron.yaml': buildCirronYaml(projectName, options.modelType, description),
-    'requirements.txt': TF_REQUIREMENTS,
-    'train.py': buildTensorflowTrainScript(options.modelType, true),
-    'serve.py': buildOnnxServeScript(),
+    "cirron.yaml": buildCirronYaml(projectName, options.modelType, description),
+    "requirements.txt": TF_REQUIREMENTS,
+    "train.py": buildTensorflowTrainScript(options.modelType, true),
+    "serve.py": buildOnnxServeScript(),
   });
 }

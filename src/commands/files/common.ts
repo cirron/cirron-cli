@@ -1,5 +1,5 @@
-import fs from 'fs-extra';
-import path from 'path';
+import fs from "fs-extra";
+import path from "path";
 
 /**
  * Shared scaffolding shared across all templates. Matches the
@@ -16,9 +16,9 @@ export async function createCommonMLFiles(
     modelType: string;
     includeSampleData: boolean;
     includeNotebook: boolean;
-  },
+  }
 ): Promise<void> {
-  const artifactsDir = path.join(projectPath, 'artifacts');
+  const artifactsDir = path.join(projectPath, "artifacts");
   await fs.ensureDir(artifactsDir);
-  await fs.writeFile(path.join(artifactsDir, '.gitkeep'), '');
+  await fs.writeFile(path.join(artifactsDir, ".gitkeep"), "");
 }

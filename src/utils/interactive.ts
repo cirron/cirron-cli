@@ -1,31 +1,31 @@
-import inquirer from 'inquirer';
-import chalk from 'chalk';
-import { logger } from './logger';
+import chalk from "chalk";
+import inquirer from "inquirer";
+import { logger } from "./logger";
 
 export interface InteractiveOptions {
-  message: string;
-  default?: boolean;
-  type?: 'confirm' | 'select' | 'input';
   choices?: string[] | { name: string; value: any }[];
+  default?: boolean;
   description?: string;
-  impact?: 'low' | 'medium' | 'high';
   estimatedTime?: string;
+  impact?: "low" | "medium" | "high";
+  message: string;
+  type?: "confirm" | "select" | "input";
 }
 
 export interface StepConfirmationOptions {
-  stepName: string;
-  description: string;
-  impact?: 'low' | 'medium' | 'high';
-  estimatedTime?: string;
-  dependencies?: string[];
   default?: boolean;
+  dependencies?: string[];
+  description: string;
+  estimatedTime?: string;
+  impact?: "low" | "medium" | "high";
+  stepName: string;
 }
 
 export class InteractiveManager {
   private continueAll = false;
   private interactive: boolean;
 
-  constructor(isInteractive: boolean = false) {
+  constructor(isInteractive = false) {
     this.interactive = isInteractive;
   }
 
@@ -44,48 +44,53 @@ export class InteractiveManager {
     }
 
     // Display step information
-    console.log('\n' + chalk.bold.blue(`${options.stepName}`));
+    console.log("\n" + chalk.bold.blue(`${options.stepName}`));
     console.log(chalk.gray(`   ${options.description}`));
-    
+
     if (options.estimatedTime) {
       console.log(chalk.gray(`   Estimated time: ${options.estimatedTime}`));
     }
 
     if (options.impact) {
-      const impactColor = options.impact === 'high' ? chalk.red : 
-                         options.impact === 'medium' ? chalk.yellow : 
-                         chalk.green;
+      const impactColor =
+        options.impact === "high"
+          ? chalk.red
+          : options.impact === "medium"
+            ? chalk.yellow
+            : chalk.green;
       console.log(chalk.gray(`   Impact: ${impactColor(options.impact)}`));
     }
 
     if (options.dependencies && options.dependencies.length > 0) {
-      console.log(chalk.gray(`   Dependencies: ${options.dependencies.join(', ')}`));
+      console.log(
+        chalk.gray(`   Dependencies: ${options.dependencies.join(", ")}`)
+      );
     }
 
     const choices = [
-      { name: 'Yes', value: 'yes' },
-      { name: 'No', value: 'no' },
-      { name: 'Continue All (skip remaining prompts)', value: 'continue-all' }
+      { name: "Yes", value: "yes" },
+      { name: "No", value: "no" },
+      { name: "Continue All (skip remaining prompts)", value: "continue-all" },
     ];
 
     const { action } = await inquirer.prompt([
       {
-        type: 'select',
-        name: 'action',
+        type: "select",
+        name: "action",
         message: `Proceed with ${options.stepName}?`,
         choices,
-        default: options.default !== false ? 'yes' : 'no',
-        loop: false // Prevent infinite carousel - stop at top and bottom
-      }
+        default: options.default === false ? "no" : "yes",
+        loop: false, // Prevent infinite carousel - stop at top and bottom
+      },
     ]);
 
-    if (action === 'continue-all') {
+    if (action === "continue-all") {
       this.continueAll = true;
-      logger.info(chalk.blue('Continuing with all remaining steps...'));
+      logger.info(chalk.blue("Continuing with all remaining steps..."));
       return true;
     }
 
-    return action === 'yes';
+    return action === "yes";
   }
 
   /**
@@ -96,19 +101,21 @@ export class InteractiveManager {
       // Return first choice or default if not interactive
       if (options.choices && options.choices.length > 0) {
         const firstChoice = options.choices[0];
-        return typeof firstChoice === 'object' ? firstChoice.value : firstChoice;
+        return typeof firstChoice === "object"
+          ? firstChoice.value
+          : firstChoice;
       }
-      return options.default || true;
+      return true;
     }
 
     if (options.description) {
-      console.log('\n' + chalk.gray(options.description));
+      console.log("\n" + chalk.gray(options.description));
     }
 
     const promptConfig: any = {
-      type: options.type || 'select',
-      name: 'selection',
-      message: options.message
+      type: options.type || "select",
+      name: "selection",
+      message: options.message,
     };
 
     if (options.choices) {
@@ -120,7 +127,7 @@ export class InteractiveManager {
     }
 
     // Add loop: false for select prompts to prevent infinite carousel
-    if (options.type === 'select') {
+    if (options.type === "select") {
       promptConfig.loop = false;
     }
 
@@ -131,22 +138,26 @@ export class InteractiveManager {
   /**
    * Get user input for a value
    */
-  async getInput(message: string, defaultValue?: string, description?: string): Promise<string> {
+  async getInput(
+    message: string,
+    defaultValue?: string,
+    description?: string
+  ): Promise<string> {
     if (!this.interactive) {
-      return defaultValue || '';
+      return defaultValue || "";
     }
 
     if (description) {
-      console.log('\n' + chalk.gray(description));
+      console.log("\n" + chalk.gray(description));
     }
 
     const { input } = await inquirer.prompt([
       {
-        type: 'input',
-        name: 'input',
+        type: "input",
+        name: "input",
         message,
-        default: defaultValue
-      }
+        default: defaultValue,
+      },
     ]);
 
     return input;
@@ -156,34 +167,34 @@ export class InteractiveManager {
    * Confirm a potentially destructive or resource-intensive operation
    */
   async confirmCriticalOperation(
-    operationName: string, 
-    details: string[], 
+    operationName: string,
+    details: string[],
     warning?: string
   ): Promise<boolean> {
     if (!this.interactive) {
       return true;
     }
 
-    console.log('\n' + chalk.bold.yellow(`${operationName}`));
-    
+    console.log("\n" + chalk.bold.yellow(`${operationName}`));
+
     if (details.length > 0) {
-      console.log(chalk.gray('This operation will:'));
-      details.forEach(detail => {
+      console.log(chalk.gray("This operation will:"));
+      details.forEach((detail) => {
         console.log(chalk.gray(`  • ${detail}`));
       });
     }
 
     if (warning) {
-      console.log('\n' + chalk.red(`Warning: ${warning}`));
+      console.log("\n" + chalk.red(`Warning: ${warning}`));
     }
 
     const { confirmed } = await inquirer.prompt([
       {
-        type: 'confirm',
-        name: 'confirmed',
+        type: "confirm",
+        name: "confirmed",
         message: `Are you sure you want to proceed with ${operationName}?`,
-        default: false
-      }
+        default: false,
+      },
     ]);
 
     return confirmed;
@@ -194,62 +205,65 @@ export class InteractiveManager {
    */
   async selectSteps(
     availableSteps: { name: string; description: string; default?: boolean }[],
-    _message: string = 'Which steps would you like to run?'
+    _message = "Which steps would you like to run?"
   ): Promise<string[]> {
     if (!this.interactive) {
       // Return all steps that are default true, or all if none specified
-      const defaultSteps = availableSteps.filter(step => step.default !== false);
-      return defaultSteps.length > 0 ? defaultSteps.map(s => s.name) : availableSteps.map(s => s.name);
+      const defaultSteps = availableSteps.filter(
+        (step) => step.default !== false
+      );
+      return defaultSteps.length > 0
+        ? defaultSteps.map((s) => s.name)
+        : availableSteps.map((s) => s.name);
     }
 
     // First, let the user choose a preset or custom selection
     const { selectionType } = await inquirer.prompt([
       {
-        type: 'select',
-        name: 'selectionType',
-        message: 'How would you like to select steps?',
+        type: "select",
+        name: "selectionType",
+        message: "How would you like to select steps?",
         choices: [
-          { name: 'All steps', value: 'all' },
-          { name: 'Essential only (quick)', value: 'essential' },
-          { name: 'Custom selection', value: 'custom' },
-          { name: 'None (skip all)', value: 'none' }
+          { name: "All steps", value: "all" },
+          { name: "Essential only (quick)", value: "essential" },
+          { name: "Custom selection", value: "custom" },
+          { name: "None (skip all)", value: "none" },
         ],
-        loop: false // Prevent infinite carousel - stop at top and bottom
-      }
+        loop: false, // Prevent infinite carousel - stop at top and bottom
+      },
     ]);
 
     // Handle preset selections
-    if (selectionType === 'all') {
-      return availableSteps.map(s => s.name);
+    if (selectionType === "all") {
+      return availableSteps.map((s) => s.name);
     }
-    
-    if (selectionType === 'none') {
+
+    if (selectionType === "none") {
       return [];
     }
 
-    if (selectionType === 'essential') {
+    if (selectionType === "essential") {
       // Return essential steps (those marked as default or critical)
       return availableSteps
-        .filter(step => step.default !== false)
-        .map(s => s.name);
+        .filter((step) => step.default !== false)
+        .map((s) => s.name);
     }
 
     // Custom selection - show individual checkboxes
     const { selectedSteps } = await inquirer.prompt([
       {
-        type: 'checkbox',
-        name: 'selectedSteps',
-        message: 'Select individual steps to run:',
-        choices: availableSteps.map(step => ({
+        type: "checkbox",
+        name: "selectedSteps",
+        message: "Select individual steps to run:",
+        choices: availableSteps.map((step) => ({
           name: `${step.name} - ${step.description}`,
           value: step.name,
-          checked: step.default !== false
+          checked: step.default !== false,
         })),
         loop: false, // Prevent infinite carousel - stop at top and bottom
-        validate: (input) => {
-          return input.length > 0 ? true : 'Please select at least one step';
-        }
-      }
+        validate: (input) =>
+          input.length > 0 ? true : "Please select at least one step",
+      },
     ]);
 
     return selectedSteps;
@@ -268,12 +282,12 @@ export class InteractiveManager {
       return true;
     }
 
-    console.log('\n' + chalk.bold.blue('Progress Update'));
-    
+    console.log("\n" + chalk.bold.blue("Progress Update"));
+
     // Show completed steps
     if (completedSteps.length > 0) {
-      console.log(chalk.green('Completed:'));
-      completedSteps.forEach(step => {
+      console.log(chalk.green("Completed:"));
+      completedSteps.forEach((step) => {
         console.log(chalk.green(`  ✓ ${step}`));
       });
     }
@@ -288,8 +302,8 @@ export class InteractiveManager {
 
     // Show remaining steps
     if (remainingSteps.length > 0) {
-      console.log(chalk.gray('Remaining:'));
-      remainingSteps.forEach(step => {
+      console.log(chalk.gray("Remaining:"));
+      remainingSteps.forEach((step) => {
         console.log(chalk.gray(`  ○ ${step}`));
       });
     }
@@ -297,31 +311,30 @@ export class InteractiveManager {
     if (error) {
       const { action } = await inquirer.prompt([
         {
-          type: 'select',
-          name: 'action',
-          message: 'How would you like to proceed?',
+          type: "select",
+          name: "action",
+          message: "How would you like to proceed?",
           choices: [
-            { name: 'Continue with remaining steps', value: 'continue' },
-            { name: 'Retry current step', value: 'retry' },
-            { name: 'Abort operation', value: 'abort' }
+            { name: "Continue with remaining steps", value: "continue" },
+            { name: "Retry current step", value: "retry" },
+            { name: "Abort operation", value: "abort" },
           ],
-          loop: false // Prevent infinite carousel - stop at top and bottom
-        }
+          loop: false, // Prevent infinite carousel - stop at top and bottom
+        },
       ]);
 
-      return action !== 'abort';
-    } else {
-      const { shouldContinue } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'shouldContinue',
-          message: 'Continue with remaining steps?',
-          default: true
-        }
-      ]);
-
-      return shouldContinue;
+      return action !== "abort";
     }
+    const { shouldContinue } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "shouldContinue",
+        message: "Continue with remaining steps?",
+        default: true,
+      },
+    ]);
+
+    return shouldContinue;
   }
 
   /**
@@ -349,7 +362,9 @@ export class InteractiveManager {
 /**
  * Helper function to create a new interactive manager
  */
-export function createInteractiveManager(isInteractive: boolean): InteractiveManager {
+export function createInteractiveManager(
+  isInteractive: boolean
+): InteractiveManager {
   return new InteractiveManager(isInteractive);
 }
 
@@ -357,9 +372,9 @@ export function createInteractiveManager(isInteractive: boolean): InteractiveMan
  * Quick helper for simple confirmations
  */
 export async function simpleConfirm(
-  message: string, 
-  defaultValue: boolean = true,
-  isInteractive: boolean = false
+  message: string,
+  defaultValue = true,
+  isInteractive = false
 ): Promise<boolean> {
   if (!isInteractive) {
     return defaultValue;
@@ -367,11 +382,11 @@ export async function simpleConfirm(
 
   const { confirmed } = await inquirer.prompt([
     {
-      type: 'confirm',
-      name: 'confirmed',
+      type: "confirm",
+      name: "confirmed",
       message,
-      default: defaultValue
-    }
+      default: defaultValue,
+    },
   ]);
 
   return confirmed;

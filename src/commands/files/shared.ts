@@ -1,6 +1,6 @@
-import fs from 'fs-extra';
-import path from 'path';
-import { dedent } from '../../utils/dedent';
+import fs from "fs-extra";
+import path from "path";
+import { dedent } from "../../utils/dedent";
 
 /**
  * Write a flat map of relative file paths -> contents into projectPath. Used
@@ -8,7 +8,7 @@ import { dedent } from '../../utils/dedent';
  */
 export async function writeProjectFiles(
   projectPath: string,
-  files: Record<string, string>,
+  files: Record<string, string>
 ): Promise<void> {
   for (const [relPath, content] of Object.entries(files)) {
     const fullPath = path.join(projectPath, relPath);
@@ -25,38 +25,38 @@ export async function writeProjectFiles(
  */
 export function buildSyntheticTabularServingConfig(
   runtime: string,
-  modelType: string,
+  modelType: string
 ): Record<string, unknown> {
   const featureNames = Array.from({ length: 10 }, (_, i) => `feature${i + 1}`);
   const featureProperties: Record<string, unknown> = {};
   for (const name of featureNames) {
     featureProperties[name] = {
-      type: 'number',
+      type: "number",
       title: name,
       description: `Numeric input ${name}`,
     };
   }
 
-  const isClassification = modelType === 'classification';
+  const isClassification = modelType === "classification";
   const outputProperties: Record<string, unknown> = isClassification
     ? {
-        prediction: { type: 'number', title: 'Predicted Class' },
-        probabilities: { type: 'array', title: 'Class Probabilities' },
+        prediction: { type: "number", title: "Predicted Class" },
+        probabilities: { type: "array", title: "Class Probabilities" },
       }
     : {
-        prediction: { type: 'number', title: 'Predicted Value' },
+        prediction: { type: "number", title: "Predicted Value" },
       };
 
   return {
     runtime,
     feature_order: featureNames,
     input_schema: {
-      type: 'object',
+      type: "object",
       properties: featureProperties,
       required: featureNames,
     },
     output_schema: {
-      type: 'object',
+      type: "object",
       properties: outputProperties,
     },
   };

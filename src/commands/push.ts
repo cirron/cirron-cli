@@ -1,31 +1,36 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
-import crypto from 'crypto';
-import os from 'os';
-import { logger } from '../utils/logger';
-import { CirronApi } from '../utils/api';
-import { ConfigManager } from '../utils/config';
-import { CirronIgnore } from '../utils/ignore';
-import { getShortCommitHash } from '../utils/git';
-import { loadProjectConfig as loadProjectConfigUtil } from '../utils/project-config';
+import chalk from "chalk";
+import crypto from "crypto";
+import fs from "fs-extra";
+import ora from "ora";
+import os from "os";
+import path from "path";
 import type {
-  PushOptions,
-  PushFileInfo,
-  PushResult,
-  PushSummary,
-  PushArtifactInfo,
-  PushSessionInfo,
-  PushResourceType,
   ProjectConfig,
-} from '../types';
+  PushArtifactInfo,
+  PushFileInfo,
+  PushOptions,
+  PushResourceType,
+  PushResult,
+  PushSessionInfo,
+  PushSummary,
+} from "../types";
+import { CirronApi } from "../utils/api";
+import { ConfigManager } from "../utils/config";
+import { getShortCommitHash } from "../utils/git";
+import { CirronIgnore } from "../utils/ignore";
+import { logger } from "../utils/logger";
+import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
 
 // --- Constants ---
 
-const KNOWN_RESOURCE_TYPES: PushResourceType[] = ['model', 'image', 'build', 'runtime'];
+const KNOWN_RESOURCE_TYPES: PushResourceType[] = [
+  "model",
+  "image",
+  "build",
+  "runtime",
+];
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
-const UPLOAD_SESSIONS_DIR = path.join(os.homedir(), '.cirron', 'uploads');
+const UPLOAD_SESSIONS_DIR = path.join(os.homedir(), ".cirron", "uploads");
 
 // --- Helpers ---
 
@@ -33,9 +38,9 @@ function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
   const currentConfig = configManager.load();
 
-  if (!currentConfig.token && !currentConfig.auth?.accessToken) {
-    logger.error('Not authenticated');
-    logger.info(`Run ${chalk.cyan('cirron auth login')} to authenticate`);
+  if (!(currentConfig.token || currentConfig.auth?.accessToken)) {
+    logger.error("Not authenticated");
+    logger.info(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
     return null;
   }
 
@@ -47,7 +52,7 @@ function isResourceTyped(resource: string): boolean {
 }
 
 function parseNameTag(nameArg: string): { name: string; tag?: string } {
-  const colonIndex = nameArg.lastIndexOf(':');
+  const colonIndex = nameArg.lastIndexOf(":");
   if (colonIndex > 0) {
     return {
       name: nameArg.substring(0, colonIndex),
@@ -66,19 +71,25 @@ function loadProjectConfig(): ProjectConfig | null {
 }
 
 export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 export async function computeFileChecksum(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
+    const hash = crypto.createHash("sha256");
     const stream = fs.createReadStream(filePath);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
   });
 }
 
@@ -86,9 +97,13 @@ function resolveTag(
   optionTag: string | undefined,
   parsedTag: string | undefined
 ): string | undefined {
-  if (optionTag) return optionTag;
-  if (parsedTag) return parsedTag;
-  return undefined;
+  if (optionTag) {
+    return optionTag;
+  }
+  if (parsedTag) {
+    return parsedTag;
+  }
+  return;
 }
 
 // --- File Collection ---
@@ -134,7 +149,7 @@ async function collectProjectFiles(
     }
   }
 
-  const commonDirs = ['models', 'artifacts', 'build'];
+  const commonDirs = ["models", "artifacts", "build"];
   for (const dir of commonDirs) {
     const dirPath = path.join(cwd, dir);
     if (await fs.pathExists(dirPath)) {
@@ -156,7 +171,7 @@ async function collectProjectFiles(
   // Apply .cirronignore + --ignore patterns
   const ignore = new CirronIgnore();
   if (ignorePatterns) {
-    const patterns = ignorePatterns.split(',').map((p) => p.trim());
+    const patterns = ignorePatterns.split(",").map((p) => p.trim());
     for (const pattern of patterns) {
       ignore.addPattern(pattern);
     }
@@ -185,33 +200,30 @@ async function resolveResourceFile(
   const cwd = process.cwd();
   const searchPaths: string[] = [];
 
-  if (resource === 'model') {
+  if (resource === "model") {
     if (projectConfig?.artifacts?.modelPath) {
       searchPaths.push(path.join(cwd, projectConfig.artifacts.modelPath));
     }
     searchPaths.push(
-      path.join(cwd, 'models', name),
-      path.join(cwd, 'models', `${name}.pth`),
-      path.join(cwd, 'models', `${name}.pt`),
-      path.join(cwd, 'models', `${name}.joblib`),
-      path.join(cwd, 'models', `${name}.pkl`),
-      path.join(cwd, 'models', `${name}.h5`),
-      path.join(cwd, 'models', `${name}.onnx`),
+      path.join(cwd, "models", name),
+      path.join(cwd, "models", `${name}.pth`),
+      path.join(cwd, "models", `${name}.pt`),
+      path.join(cwd, "models", `${name}.joblib`),
+      path.join(cwd, "models", `${name}.pkl`),
+      path.join(cwd, "models", `${name}.h5`),
+      path.join(cwd, "models", `${name}.onnx`),
       path.join(cwd, name)
     );
-  } else if (resource === 'build') {
+  } else if (resource === "build") {
     searchPaths.push(
-      path.join(cwd, 'artifacts', name),
-      path.join(cwd, 'build', name),
-      path.join(cwd, 'dist', name),
+      path.join(cwd, "artifacts", name),
+      path.join(cwd, "build", name),
+      path.join(cwd, "dist", name),
       path.join(cwd, name)
     );
-  } else if (resource === 'runtime') {
-    searchPaths.push(
-      path.join(cwd, name),
-      path.join(cwd, 'runtime', name)
-    );
-  } else if (resource === 'image') {
+  } else if (resource === "runtime") {
+    searchPaths.push(path.join(cwd, name), path.join(cwd, "runtime", name));
+  } else if (resource === "image") {
     searchPaths.push(
       path.join(cwd, name),
       path.join(cwd, `${name}.tar`),
@@ -246,7 +258,10 @@ async function loadUploadSession(
 
 async function saveUploadSession(session: PushSessionInfo): Promise<void> {
   await fs.ensureDir(UPLOAD_SESSIONS_DIR);
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${session.checksum}.json`);
+  const sessionFile = path.join(
+    UPLOAD_SESSIONS_DIR,
+    `${session.checksum}.json`
+  );
   await fs.writeJSON(sessionFile, session, { spaces: 2 });
 }
 
@@ -280,8 +295,12 @@ export async function uploadSingleFile(
     spinner.text = `Checking for duplicates for ${displayName}...`;
 
     const dedupeOpts: { resource?: string; name?: string } = {};
-    if (options.resource) dedupeOpts.resource = options.resource;
-    if (options.name) dedupeOpts.name = options.name;
+    if (options.resource) {
+      dedupeOpts.resource = options.resource;
+    }
+    if (options.name) {
+      dedupeOpts.name = options.name;
+    }
 
     const dedupeResult = await api.checkDedupe(fileInfo.checksum, dedupeOpts);
 
@@ -289,10 +308,10 @@ export async function uploadSingleFile(
       return {
         file: fileInfo,
         artifact: {
-          id: dedupeResult.artifactId || '',
+          id: dedupeResult.artifactId || "",
           name: dedupeResult.artifactName || displayName,
-          type: options.resource || 'file',
-          tag: dedupeResult.tag || options.tag || '',
+          type: options.resource || "file",
+          tag: dedupeResult.tag || options.tag || "",
           filename: path.basename(fileInfo.filePath),
           size: fileInfo.size,
           checksum: fileInfo.checksum,
@@ -300,7 +319,7 @@ export async function uploadSingleFile(
         },
         verified: true,
         skipped: true,
-        skipReason: 'deduplicated',
+        skipReason: "deduplicated",
       };
     }
   }
@@ -321,16 +340,31 @@ export async function uploadSingleFile(
     size: fileInfo.size,
     checksum: fileInfo.checksum,
   };
-  if (options.resource) uploadUrlOpts.resource = options.resource;
-  if (options.name) uploadUrlOpts.name = options.name;
-  if (options.tag) uploadUrlOpts.tag = options.tag;
-  if (options.registry) uploadUrlOpts.registry = options.registry;
+  if (options.resource) {
+    uploadUrlOpts.resource = options.resource;
+  }
+  if (options.name) {
+    uploadUrlOpts.name = options.name;
+  }
+  if (options.tag) {
+    uploadUrlOpts.tag = options.tag;
+  }
+  if (options.registry) {
+    uploadUrlOpts.registry = options.registry;
+  }
 
   const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
 
   // Step 3: Upload file
   if (fileInfo.size > CHUNK_SIZE) {
-    await uploadChunked(api, fileInfo, uploadInfo.uploadUrl, uploadInfo.chunkSize || CHUNK_SIZE, spinner, displayName);
+    await uploadChunked(
+      api,
+      fileInfo,
+      uploadInfo.uploadUrl,
+      uploadInfo.chunkSize || CHUNK_SIZE,
+      spinner,
+      displayName
+    );
   } else {
     spinner.text = `Uploading ${displayName} (${formatSize(fileInfo.size)})...`;
     await api.uploadFile(
@@ -360,11 +394,21 @@ export async function uploadSingleFile(
     checksum: fileInfo.checksum,
     size: fileInfo.size,
   };
-  if (options.resource) confirmOpts.resource = options.resource;
-  if (options.name) confirmOpts.name = options.name;
-  if (options.tag) confirmOpts.tag = options.tag;
-  if (options.message) confirmOpts.message = options.message;
-  if (options.gitHash) confirmOpts.gitHash = options.gitHash;
+  if (options.resource) {
+    confirmOpts.resource = options.resource;
+  }
+  if (options.name) {
+    confirmOpts.name = options.name;
+  }
+  if (options.tag) {
+    confirmOpts.tag = options.tag;
+  }
+  if (options.message) {
+    confirmOpts.message = options.message;
+  }
+  if (options.gitHash) {
+    confirmOpts.gitHash = options.gitHash;
+  }
 
   const confirmation = await api.confirmUpload(confirmOpts);
 
@@ -401,7 +445,10 @@ async function uploadChunked(
   let session = await loadUploadSession(fileInfo.checksum);
 
   // Discard stale session if chunk parameters no longer match
-  if (session && (session.chunkSize !== chunkSize || session.totalChunks !== totalChunks)) {
+  if (
+    session &&
+    (session.chunkSize !== chunkSize || session.totalChunks !== totalChunks)
+  ) {
     logger.info(
       `Discarding stale upload session for ${displayName} (chunk parameters changed)`
     );
@@ -458,7 +505,10 @@ async function uploadChunked(
       chunkSize,
       fileInfo.size,
       (uploaded, _chunkTotal) => {
-        const overallUploaded = Math.min(completedChunks.size * chunkSize + uploaded, fileInfo.size);
+        const overallUploaded = Math.min(
+          completedChunks.size * chunkSize + uploaded,
+          fileInfo.size
+        );
         const pct = Math.round((overallUploaded / fileInfo.size) * 100);
         spinner.text = `Uploading ${displayName}: ${pct}% (chunk ${chunkNum}/${totalChunks})`;
       }
@@ -484,19 +534,26 @@ function printDryRun(
 ): void {
   if (jsonOutput) {
     const result = files.map((f) => {
-      const entry: { path: string; size: number; checksum: string; tag?: string } = {
+      const entry: {
+        path: string;
+        size: number;
+        checksum: string;
+        tag?: string;
+      } = {
         path: f.relativePath,
         size: f.size,
         checksum: f.checksum,
       };
-      if (tag) entry.tag = tag;
+      if (tag) {
+        entry.tag = tag;
+      }
       return entry;
     });
     console.log(JSON.stringify(result, null, 2));
     return;
   }
 
-  logger.info(chalk.bold('Dry run - the following files would be pushed:'));
+  logger.info(chalk.bold("Dry run - the following files would be pushed:"));
   console.log();
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
@@ -512,7 +569,7 @@ function printDryRun(
   if (tag) {
     logger.info(`Tag: ${chalk.cyan(tag)}`);
   }
-  logger.info(chalk.gray('No files were uploaded. Remove --dry-run to push.'));
+  logger.info(chalk.gray("No files were uploaded. Remove --dry-run to push."));
 }
 
 // --- Main Command ---
@@ -524,7 +581,9 @@ export async function pushCommand(
 ): Promise<void> {
   // Auth check
   const auth = checkAuth();
-  if (!auth) return;
+  if (!auth) {
+    return;
+  }
   const { api } = auth;
 
   // Handle --all mode
@@ -535,10 +594,12 @@ export async function pushCommand(
 
   // Validate resource is provided when not using --all
   if (!resource) {
-    logger.error('Resource type or path is required');
-    logger.info(`Usage: ${chalk.cyan('cirron push <resource> [name] [options]')}`);
-    logger.info(`       ${chalk.cyan('cirron push --all')}`);
-    logger.info(`Resource types: ${KNOWN_RESOURCE_TYPES.join(', ')}`);
+    logger.error("Resource type or path is required");
+    logger.info(
+      `Usage: ${chalk.cyan("cirron push <resource> [name] [options]")}`
+    );
+    logger.info(`       ${chalk.cyan("cirron push --all")}`);
+    logger.info(`Resource types: ${KNOWN_RESOURCE_TYPES.join(", ")}`);
     return;
   }
 
@@ -568,7 +629,7 @@ export async function pushArtifact(
 ): Promise<PushResult> {
   const auth = checkAuth();
   if (!auth) {
-    throw new Error('Not authenticated');
+    throw new Error("Not authenticated");
   }
   const { api } = auth;
 
@@ -587,18 +648,34 @@ export async function pushArtifact(
       force?: boolean;
       gitHash?: string;
     } = {};
-    if (options.resource) uploadOpts.resource = options.resource;
-    if (options.name) uploadOpts.name = options.name;
-    if (options.tag) uploadOpts.tag = options.tag;
-    if (options.message) uploadOpts.message = options.message;
-    if (options.registry) uploadOpts.registry = options.registry;
-    if (options.force) uploadOpts.force = options.force;
-    if (gitHash) uploadOpts.gitHash = gitHash;
+    if (options.resource) {
+      uploadOpts.resource = options.resource;
+    }
+    if (options.name) {
+      uploadOpts.name = options.name;
+    }
+    if (options.tag) {
+      uploadOpts.tag = options.tag;
+    }
+    if (options.message) {
+      uploadOpts.message = options.message;
+    }
+    if (options.registry) {
+      uploadOpts.registry = options.registry;
+    }
+    if (options.force) {
+      uploadOpts.force = options.force;
+    }
+    if (gitHash) {
+      uploadOpts.gitHash = gitHash;
+    }
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
     if (result.skipped) {
-      spinner.info(`Skipped ${chalk.cyan(fileInfo.relativePath)} (${result.skipReason})`);
+      spinner.info(
+        `Skipped ${chalk.cyan(fileInfo.relativePath)} (${result.skipReason})`
+      );
     } else {
       spinner.succeed(`Pushed ${chalk.cyan(fileInfo.relativePath)}`);
     }
@@ -619,8 +696,12 @@ async function pushResourceTyped(
   options: PushOptions
 ): Promise<void> {
   if (!name) {
-    logger.error(`Resource name is required for ${chalk.cyan(`cirron push ${resource}`)}`);
-    logger.info(`Usage: ${chalk.cyan(`cirron push ${resource} <name> [--tag <tag>]`)}`);
+    logger.error(
+      `Resource name is required for ${chalk.cyan(`cirron push ${resource}`)}`
+    );
+    logger.info(
+      `Usage: ${chalk.cyan(`cirron push ${resource} <name> [--tag <tag>]`)}`
+    );
     return;
   }
 
@@ -631,22 +712,30 @@ async function pushResourceTyped(
   const gitHash = getShortCommitHash() || undefined;
 
   // Resolve the file to push
-  const filePath = await resolveResourceFile(resource, resolvedName, projectConfig);
+  const filePath = await resolveResourceFile(
+    resource,
+    resolvedName,
+    projectConfig
+  );
   if (!filePath) {
     logger.error(`Could not locate ${resource} file for "${resolvedName}"`);
-    logger.info('Ensure the artifact exists in your project or specify a path directly.');
+    logger.info(
+      "Ensure the artifact exists in your project or specify a path directly."
+    );
     return;
   }
 
-  const tagDisplay = resolvedTag ? `:${resolvedTag}` : '';
-  const spinner = ora(`Preparing to push ${resource} ${resolvedName}${tagDisplay}...`).start();
+  const tagDisplay = resolvedTag ? `:${resolvedTag}` : "";
+  const spinner = ora(
+    `Preparing to push ${resource} ${resolvedName}${tagDisplay}...`
+  ).start();
 
   try {
     const fileInfo = await prepareFileInfo(filePath);
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun([fileInfo], resolvedTag, options.json || false);
+      printDryRun([fileInfo], resolvedTag, options.json);
       return;
     }
 
@@ -662,11 +751,21 @@ async function pushResourceTyped(
       resource,
       name: resolvedName,
     };
-    if (resolvedTag) uploadOpts.tag = resolvedTag;
-    if (options.message) uploadOpts.message = options.message;
-    if (options.registry) uploadOpts.registry = options.registry;
-    if (options.force) uploadOpts.force = options.force;
-    if (gitHash) uploadOpts.gitHash = gitHash;
+    if (resolvedTag) {
+      uploadOpts.tag = resolvedTag;
+    }
+    if (options.message) {
+      uploadOpts.message = options.message;
+    }
+    if (options.registry) {
+      uploadOpts.registry = options.registry;
+    }
+    if (options.force) {
+      uploadOpts.force = options.force;
+    }
+    if (gitHash) {
+      uploadOpts.gitHash = gitHash;
+    }
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -687,11 +786,16 @@ async function pushResourceTyped(
     spinner.fail(`Failed to push ${resource} ${resolvedName}`);
     if (error instanceof Error) {
       logger.error(error.message);
-      if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) {
-        logger.info(`If this project is not yet registered, run: ${chalk.cyan('cirron register')}`);
+      if (
+        error.message.toLowerCase().includes("not found") ||
+        error.message.includes("404")
+      ) {
+        logger.info(
+          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
+        );
       }
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
@@ -704,7 +808,7 @@ async function pushPathBased(
   resourcePath: string,
   options: PushOptions
 ): Promise<void> {
-  if (!await fs.pathExists(resourcePath)) {
+  if (!(await fs.pathExists(resourcePath))) {
     logger.error(`Path not found: ${resourcePath}`);
     return;
   }
@@ -730,7 +834,7 @@ async function pushPathBased(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun(fileInfos, resolvedTag, options.json || false);
+      printDryRun(fileInfos, resolvedTag, options.json);
       return;
     }
 
@@ -744,25 +848,41 @@ async function pushPathBased(
         force?: boolean;
         gitHash?: string;
       } = {};
-      if (resolvedTag) uploadOpts.tag = resolvedTag;
-      if (options.message) uploadOpts.message = options.message;
-      if (options.registry) uploadOpts.registry = options.registry;
-      if (options.force) uploadOpts.force = options.force;
-      if (gitHash) uploadOpts.gitHash = gitHash;
+      if (resolvedTag) {
+        uploadOpts.tag = resolvedTag;
+      }
+      if (options.message) {
+        uploadOpts.message = options.message;
+      }
+      if (options.registry) {
+        uploadOpts.registry = options.registry;
+      }
+      if (options.force) {
+        uploadOpts.force = options.force;
+      }
+      if (gitHash) {
+        uploadOpts.gitHash = gitHash;
+      }
 
       const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
       if (result.skipped) {
-        spinner.info(`Skipped ${chalk.cyan(resourcePath)} (${result.skipReason})`);
+        spinner.info(
+          `Skipped ${chalk.cyan(resourcePath)} (${result.skipReason})`
+        );
       } else {
-        spinner.succeed(`Pushed ${chalk.cyan(resourcePath)} (${formatSize(fileInfo.size)})`);
+        spinner.succeed(
+          `Pushed ${chalk.cyan(resourcePath)} (${formatSize(fileInfo.size)})`
+        );
       }
 
       if (options.json) {
         console.log(JSON.stringify(result, null, 2));
       }
     } else {
-      spinner.succeed(`Found ${fileInfos.length} file(s) in ${chalk.cyan(resourcePath)}`);
+      spinner.succeed(
+        `Found ${fileInfos.length} file(s) in ${chalk.cyan(resourcePath)}`
+      );
 
       const multiOpts: {
         tag?: string;
@@ -772,12 +892,24 @@ async function pushPathBased(
         json?: boolean;
         gitHash?: string;
       } = {};
-      if (resolvedTag) multiOpts.tag = resolvedTag;
-      if (options.message) multiOpts.message = options.message;
-      if (options.registry) multiOpts.registry = options.registry;
-      if (options.force) multiOpts.force = options.force;
-      if (options.json) multiOpts.json = options.json;
-      if (gitHash) multiOpts.gitHash = gitHash;
+      if (resolvedTag) {
+        multiOpts.tag = resolvedTag;
+      }
+      if (options.message) {
+        multiOpts.message = options.message;
+      }
+      if (options.registry) {
+        multiOpts.registry = options.registry;
+      }
+      if (options.force) {
+        multiOpts.force = options.force;
+      }
+      if (options.json) {
+        multiOpts.json = options.json;
+      }
+      if (gitHash) {
+        multiOpts.gitHash = gitHash;
+      }
 
       await pushMultipleFiles(api, fileInfos, multiOpts);
     }
@@ -785,11 +917,16 @@ async function pushPathBased(
     spinner.fail(`Failed to push ${resourcePath}`);
     if (error instanceof Error) {
       logger.error(error.message);
-      if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) {
-        logger.info(`If this project is not yet registered, run: ${chalk.cyan('cirron register')}`);
+      if (
+        error.message.toLowerCase().includes("not found") ||
+        error.message.includes("404")
+      ) {
+        logger.info(
+          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
+        );
       }
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
@@ -797,27 +934,30 @@ async function pushPathBased(
 
 // --- Push all ---
 
-async function pushAll(
-  api: CirronApi,
-  options: PushOptions
-): Promise<void> {
+async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
   const projectConfig = loadProjectConfig();
   if (!projectConfig) {
-    logger.error('No cirron config found (cirron.yaml or cirron.json) in current directory');
+    logger.error(
+      "No cirron config found (cirron.yaml or cirron.json) in current directory"
+    );
     logger.info(
-      `Run ${chalk.cyan('cirron init')} to initialize a project, or use ${chalk.cyan('cirron push <resource> <name>')} to push a specific artifact`
+      `Run ${chalk.cyan("cirron init")} to initialize a project, or use ${chalk.cyan("cirron push <resource> <name>")} to push a specific artifact`
     );
     return;
   }
 
-  const spinner = ora(`Collecting project artifacts for ${projectConfig.name}...`).start();
+  const spinner = ora(
+    `Collecting project artifacts for ${projectConfig.name}...`
+  ).start();
 
   try {
     const filePaths = await collectProjectFiles(projectConfig, options.ignore);
 
     if (filePaths.length === 0) {
-      spinner.info('No artifact files found in project');
-      logger.info('Ensure your project config has artifacts configured, or use path-based push.');
+      spinner.info("No artifact files found in project");
+      logger.info(
+        "Ensure your project config has artifacts configured, or use path-based push."
+      );
       return;
     }
 
@@ -832,7 +972,7 @@ async function pushAll(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun(fileInfos, resolvedTag, options.json || false);
+      printDryRun(fileInfos, resolvedTag, options.json);
       return;
     }
 
@@ -851,23 +991,40 @@ async function pushAll(
     } = {
       projectName: projectConfig.name,
     };
-    if (resolvedTag) allOpts.tag = resolvedTag;
-    if (options.message) allOpts.message = options.message;
-    if (options.registry) allOpts.registry = options.registry;
-    if (options.force) allOpts.force = options.force;
-    if (options.json) allOpts.json = options.json;
-    if (gitHash) allOpts.gitHash = gitHash;
+    if (resolvedTag) {
+      allOpts.tag = resolvedTag;
+    }
+    if (options.message) {
+      allOpts.message = options.message;
+    }
+    if (options.registry) {
+      allOpts.registry = options.registry;
+    }
+    if (options.force) {
+      allOpts.force = options.force;
+    }
+    if (options.json) {
+      allOpts.json = options.json;
+    }
+    if (gitHash) {
+      allOpts.gitHash = gitHash;
+    }
 
     await pushMultipleFiles(api, fileInfos, allOpts);
   } catch (error) {
-    spinner.fail('Failed to push project artifacts');
+    spinner.fail("Failed to push project artifacts");
     if (error instanceof Error) {
       logger.error(error.message);
-      if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) {
-        logger.info(`If this project is not yet registered, run: ${chalk.cyan('cirron register')}`);
+      if (
+        error.message.toLowerCase().includes("not found") ||
+        error.message.includes("404")
+      ) {
+        logger.info(
+          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
+        );
       }
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
@@ -907,13 +1064,28 @@ async function pushMultipleFiles(
         force?: boolean;
         gitHash?: string;
       } = {};
-      if (options.tag) uploadOpts.tag = options.tag;
-      if (options.message) uploadOpts.message = options.message;
-      if (options.registry) uploadOpts.registry = options.registry;
-      if (options.force) uploadOpts.force = options.force;
-      if (options.gitHash) uploadOpts.gitHash = options.gitHash;
+      if (options.tag) {
+        uploadOpts.tag = options.tag;
+      }
+      if (options.message) {
+        uploadOpts.message = options.message;
+      }
+      if (options.registry) {
+        uploadOpts.registry = options.registry;
+      }
+      if (options.force) {
+        uploadOpts.force = options.force;
+      }
+      if (options.gitHash) {
+        uploadOpts.gitHash = options.gitHash;
+      }
 
-      const result = await uploadSingleFile(api, fileInfo, uploadOpts, itemSpinner);
+      const result = await uploadSingleFile(
+        api,
+        fileInfo,
+        uploadOpts,
+        itemSpinner
+      );
 
       if (result.skipped) {
         itemSpinner.info(
@@ -930,14 +1102,14 @@ async function pushMultipleFiles(
 
       results.push(result);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
+      const msg = error instanceof Error ? error.message : "Unknown error";
       itemSpinner.fail(`Failed to push ${fileInfo.relativePath}: ${msg}`);
       failCount++;
       const failedArtifact: PushArtifactInfo = {
-        id: '',
+        id: "",
         name: fileInfo.relativePath,
-        type: 'file',
-        tag: options.tag || '',
+        type: "file",
+        tag: options.tag || "",
         filename: path.basename(fileInfo.filePath),
         size: fileInfo.size,
         checksum: fileInfo.checksum,
@@ -976,14 +1148,22 @@ async function pushMultipleFiles(
           projectName: options.projectName,
           artifacts: artifactEntries,
         };
-        if (options.tag) versionOpts.tag = options.tag;
-        if (options.message) versionOpts.message = options.message;
-        if (options.gitHash) versionOpts.gitHash = options.gitHash;
+        if (options.tag) {
+          versionOpts.tag = options.tag;
+        }
+        if (options.message) {
+          versionOpts.message = options.message;
+        }
+        if (options.gitHash) {
+          versionOpts.gitHash = options.gitHash;
+        }
 
         await api.createVersion(versionOpts);
       }
     } catch (error) {
-      logger.warn('Failed to create version entry. Artifacts were uploaded successfully.');
+      logger.warn(
+        "Failed to create version entry. Artifacts were uploaded successfully."
+      );
       if (error instanceof Error) {
         logger.debug(`Version creation error: ${error.message}`);
       }
@@ -992,11 +1172,21 @@ async function pushMultipleFiles(
 
   // Summary
   console.log();
-  logger.info(chalk.bold('Push summary:'));
-  logger.info(`  Uploaded: ${chalk.green(String(successCount))} (${formatSize(uploadedBytes)})`);
-  if (skipCount > 0) logger.info(`  Skipped:  ${chalk.yellow(String(skipCount))} (identical content)`);
-  if (failCount > 0) logger.info(`  Failed:   ${chalk.red(String(failCount))}`);
-  if (options.tag) logger.info(`  Tag:      ${chalk.cyan(options.tag)}`);
+  logger.info(chalk.bold("Push summary:"));
+  logger.info(
+    `  Uploaded: ${chalk.green(String(successCount))} (${formatSize(uploadedBytes)})`
+  );
+  if (skipCount > 0) {
+    logger.info(
+      `  Skipped:  ${chalk.yellow(String(skipCount))} (identical content)`
+    );
+  }
+  if (failCount > 0) {
+    logger.info(`  Failed:   ${chalk.red(String(failCount))}`);
+  }
+  if (options.tag) {
+    logger.info(`  Tag:      ${chalk.cyan(options.tag)}`);
+  }
 
   if (options.json) {
     const summary: PushSummary = {
@@ -1006,7 +1196,7 @@ async function pushMultipleFiles(
       failed: failCount,
       totalBytes: files.reduce((sum, f) => sum + f.size, 0),
       uploadedBytes,
-      tag: options.tag || '',
+      tag: options.tag || "",
       results,
     };
     console.log(JSON.stringify(summary, null, 2));
