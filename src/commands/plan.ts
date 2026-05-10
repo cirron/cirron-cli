@@ -420,7 +420,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
 }
 
 // Plan lint subcommand
-async function planLintCommand(options: PlanOptions): Promise<void> {
+export async function planLintCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing linting scope...").start();
 
   try {
@@ -466,7 +466,7 @@ async function planLintCommand(options: PlanOptions): Promise<void> {
 }
 
 // Plan test subcommand
-async function planTestCommand(options: PlanOptions): Promise<void> {
+export async function planTestCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing test suite...").start();
 
   try {
@@ -941,7 +941,7 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
 }
 
 // Plan compare command (interactive)
-async function planCompareCommand(
+export async function planCompareCommand(
   planA?: string,
   planB?: string,
   options: PlanCompareOptions = {}

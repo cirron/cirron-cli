@@ -373,4 +373,3 @@ async function listRegistry(
     logger.error("Error:", error);
   }
 }
-

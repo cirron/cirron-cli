@@ -181,7 +181,7 @@ async function collectProjectFiles(
   return allFiles;
 }
 
-export async function prepareFileInfo(filePath: string): Promise<PushFileInfo> {
+async function prepareFileInfo(filePath: string): Promise<PushFileInfo> {
   const stat = await fs.stat(filePath);
   const checksum = await computeFileChecksum(filePath);
   return {
