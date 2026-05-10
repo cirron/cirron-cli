@@ -56,22 +56,19 @@ export async function registerCommand(options: RegisterOptions = {}): Promise<vo
     process.exit(1);
   }
 
-  const template = config.template || config.framework;
-  if (!template) {
-    logger.error('Project template or framework is required. Set "template" or "framework" in your config file');
+  if (!config.framework) {
+    logger.error('Project framework is required. Set "framework" in your cirron.yaml');
     process.exit(1);
   }
 
   // Build payload
   const payload: Record<string, any> = {
     name: projectName,
-    template,
+    framework: config.framework,
     path: projectDir,
   };
 
   if (config.description) payload['description'] = config.description;
-  if (config.framework) payload['framework'] = config.framework;
-  if (config.modelType) payload['modelType'] = config.modelType;
   if (config.type) payload['type'] = config.type;
   if (config.servingConfig) payload['servingConfig'] = config.servingConfig;
   if (options.repo) {

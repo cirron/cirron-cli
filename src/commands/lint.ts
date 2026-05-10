@@ -120,7 +120,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     const config: ProjectConfig = projectConfigResult.config;
 
     // Validate required fields
-    const requiredFields = ['name', 'projectVersion', 'template'];
+    const requiredFields = ['name', 'version', 'framework'];
     for (const field of requiredFields) {
       if (!config[field as keyof ProjectConfig]) {
         addResult(summary, {
@@ -151,7 +151,7 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     }
 
     // Validate version format
-    if (config.projectVersion && !/^\d+\.\d+\.\d+/.test(config.projectVersion)) {
+    if (config.version && !/^\d+\.\d+\.\d+/.test(config.version)) {
       addResult(summary, {
         category: 'config',
         severity: 'warning',
