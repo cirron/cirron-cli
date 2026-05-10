@@ -335,9 +335,9 @@ async function loadIndexFile(indexPath: string): Promise<any> {
       return await fs.readJSON(indexPath);
     }
     if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("yaml");
+      const yaml = require("js-yaml");
       const content = await fs.readFile(indexPath, "utf8");
-      return yaml.parse(content);
+      return yaml.load(content);
     }
     throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
   } catch (error) {

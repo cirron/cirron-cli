@@ -374,5 +374,3 @@ async function listRegistry(
   }
 }
 
-// Export individual list functions for direct use
-export { listBuilds, listDeployments, listImages, listModels, listRegistry };

@@ -420,7 +420,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
 }
 
 // Plan lint subcommand
-export async function planLintCommand(options: PlanOptions): Promise<void> {
+async function planLintCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing linting scope...").start();
 
   try {
@@ -466,7 +466,7 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
 }
 
 // Plan test subcommand
-export async function planTestCommand(options: PlanOptions): Promise<void> {
+async function planTestCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing test suite...").start();
 
   try {
@@ -597,9 +597,9 @@ async function loadIndexFile(indexPath: string): Promise<any> {
       return await fs.readJSON(indexPath);
     }
     if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("yaml");
+      const yaml = require("js-yaml");
       const content = await fs.readFile(indexPath, "utf8");
-      return yaml.parse(content);
+      return yaml.load(content);
     }
     throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
   } catch (error) {
@@ -941,7 +941,7 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
 }
 
 // Plan compare command (interactive)
-export async function planCompareCommand(
+async function planCompareCommand(
   planA?: string,
   planB?: string,
   options: PlanCompareOptions = {}
