@@ -149,7 +149,7 @@ export class PlanFormatter {
       // Warnings
       if (plan.warnings && plan.warnings.length > 0) {
         sections.push('');
-        sections.push(colorize('⚠️  Warnings:', chalk.bold.yellow));
+        sections.push(colorize('Warnings:', chalk.bold.yellow));
         for (const warning of plan.warnings) {
           sections.push(colorize(`  • ${warning}`, chalk.yellow));
         }

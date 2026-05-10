@@ -830,7 +830,7 @@ async function analyzeBuild(projectConfig: ProjectConfig, _options: BuildOptions
 
     if (analysis.recommendations.length > 0) {
       console.log();
-      logger.info(chalk.bold('💡 Recommendations:'));
+      logger.info(chalk.bold('Recommendations:'));
       analysis.recommendations.forEach(rec => {
         logger.info(`  ${chalk.yellow('•')} ${rec}`);
       });

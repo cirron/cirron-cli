@@ -439,7 +439,7 @@ export function formatExecutionError(result: ExecutionResult, showDetails = fals
       
       // Suggestions
       if (error.suggestions && error.suggestions.length > 0) {
-        parts.push(colorize('     💡 Suggestions:', chalk.cyan));
+        parts.push(colorize('     Suggestions:', chalk.cyan));
         error.suggestions.forEach(suggestion => {
           parts.push(colorize(`       • ${suggestion}`, chalk.green));
         });

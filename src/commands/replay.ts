@@ -430,7 +430,7 @@ function displayReplayPlan(plan: any, metadata: any, _options: ReplayOptions): v
   
   if (plan.warnings && plan.warnings.length > 0) {
     console.log('');
-    console.log(colorize('⚠️  Warnings:', chalk.bold.yellow));
+    console.log(colorize('Warnings:', chalk.bold.yellow));
     for (const warning of plan.warnings) {
       console.log(colorize(`  • ${warning}`, chalk.yellow));
     }
