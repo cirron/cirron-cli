@@ -59,10 +59,8 @@ export class CirronApi {
 
   async createProject(projectData: {
     name: string;
-    template: string;
+    framework: string;
     path: string;
-    framework?: string;
-    modelType?: string;
     type?: string;
     servingConfig?: Record<string, any>;
     repositoryId?: string;
