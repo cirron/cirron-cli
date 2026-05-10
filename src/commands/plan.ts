@@ -24,7 +24,7 @@ import { loadProjectConfig } from "../utils/project-config";
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating compilation plan...").start();
   const strictMode = false; // Plans don't use strict mode
-  const interactive = createInteractiveManager(options.interactive);
+  const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
     // Load project configuration
@@ -203,7 +203,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
     } else {
       const formatOptions = {
         useColors: process.stdout.isTTY,
-        showDetails: options.verbose,
+        showDetails: options.verbose ?? false,
         compact: false,
       };
       console.log("\n" + PlanFormatter.formatConsole(plan, formatOptions));
@@ -238,7 +238,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
 // Plan build subcommand
 export async function planBuildCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating build plan...").start();
-  const interactive = createInteractiveManager(options.interactive);
+  const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
     // Load project configuration
@@ -405,7 +405,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
     } else {
       const formatOptions = {
         useColors: process.stdout.isTTY,
-        showDetails: options.verbose,
+        showDetails: options.verbose ?? false,
         compact: false,
       };
       console.log("\n" + PlanFormatter.formatConsole(plan, formatOptions));
@@ -1027,7 +1027,7 @@ export async function planCompareCommand(
         );
 
         // Show enhanced diff format for dependencies
-        formatEnhancedDiff(comparison, options.verbose);
+        formatEnhancedDiff(comparison, options.verbose ?? false);
       }
 
       // Save comparison if requested

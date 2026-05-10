@@ -80,7 +80,7 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
           projectConfig,
           modelAnalysis,
           cirronJsonPath,
-          options.dryRun
+          options.dryRun ?? false
         );
         return;
       }

@@ -27,8 +27,8 @@ interface CompileOptions {
 
 export async function compileCommand(options: CompileOptions): Promise<void> {
   const spinner = ora("Preparing compilation...").start();
-  const strictMode = options.strict;
-  const interactive = createInteractiveManager(options.interactive);
+  const strictMode = options.strict ?? false;
+  const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
     // Load project configuration
