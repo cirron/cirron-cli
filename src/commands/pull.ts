@@ -491,7 +491,10 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
       try {
         const destPath = await resolveOutputPath(artifact, options.output);
 
-        const shouldProceed = await checkConflict(destPath, options.force ?? false);
+        const shouldProceed = await checkConflict(
+          destPath,
+          options.force ?? false
+        );
         if (!shouldProceed) {
           itemSpinner.info(`Skipped ${artifact.name} (file exists)`);
           skipCount++;

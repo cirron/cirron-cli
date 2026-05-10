@@ -8,6 +8,11 @@
         // error paths). Hitting this score doesn't indicate a real defect.
         "noExcessiveCognitiveComplexity": "off"
       },
+      "correctness": {
+        // tsconfig targets module:commonjs, so __dirname/__filename are required;
+        // import.meta.dirname (the suggested replacement) is ESM-only.
+        "noGlobalDirnameFilename": "off"
+      },
       "performance": {
         // CLI regexes are typically cold (run once per invocation). Hoisting them
         // to module scope is noise without measurable perf impact.
