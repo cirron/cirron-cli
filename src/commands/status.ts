@@ -35,7 +35,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     // Get local status
     const localStatus = await getLocalStatus(projectConfig);
 
-    let remoteStatus = null;
+    let remoteStatus: Awaited<ReturnType<typeof getRemoteStatus>> | null = null;
     if (options.remote) {
       remoteStatus = await getRemoteStatus(projectConfig);
     }

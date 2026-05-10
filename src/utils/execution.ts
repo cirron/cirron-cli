@@ -239,8 +239,7 @@ export function parseErrors(stderr: string): ParsedError[] {
   let currentTraceback: string[] = [];
   let inTraceback = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (const line of lines) {
     if (!line) {
       continue;
     }

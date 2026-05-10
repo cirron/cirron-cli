@@ -453,7 +453,7 @@ export class PlanGenerator {
     // Base resource estimates
     let diskSpace = 100 * 1024 * 1024; // 100MB base
     let memory = 500 * 1024 * 1024; // 500MB base
-    let gpuMemory;
+    let gpuMemory: number | undefined;
 
     // Framework-specific baseline time estimates (in seconds)
     const baselineTimes = {

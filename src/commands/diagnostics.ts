@@ -248,7 +248,9 @@ async function testConnectivity(config: CirronConfig): Promise<any> {
 
   // Temporarily suppress console warnings during API test
   const originalWarn = console.warn;
-  console.warn = () => {}; // Suppress warnings during diagnostics
+  console.warn = () => {
+    // Intentionally empty: suppress warnings during diagnostics
+  };
 
   try {
     // Set a shorter timeout for diagnostics to avoid hanging
