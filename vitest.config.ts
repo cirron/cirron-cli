@@ -23,10 +23,10 @@ export default defineConfig({
       // been driven through their full happy/error/dry-run flows with the
       // shared mock-api helpers (push/pull/sync/deploy).
       thresholds: {
-        lines: 30,
-        statements: 30,
-        functions: 38,
-        branches: 21,
+        lines: 35,
+        statements: 35,
+        functions: 42,
+        branches: 25,
         "src/utils/api-errors.ts": {
           lines: 90,
           functions: 90,
@@ -68,6 +68,9 @@ export default defineConfig({
         "src/commands/pull.ts": { lines: 85 },
         "src/commands/sync.ts": { lines: 80 },
         "src/commands/deploy.ts": { lines: 85 },
+        "src/commands/spool.ts": { lines: 85 },
+        "src/commands/replay.ts": { lines: 80 },
+        "src/commands/run.ts": { lines: 80 },
       },
     },
   },
