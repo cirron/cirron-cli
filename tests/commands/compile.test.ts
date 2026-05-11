@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileCommand } from "../../src/commands/compile";
+import { ModelConfigManager } from "../../src/utils/model-config";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 /**
@@ -25,6 +26,9 @@ describe("compileCommand entry-point error paths", () => {
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(ModelConfigManager.prototype, "loadModelConfig").mockResolvedValue(
+      null
+    );
   });
 
   afterEach(() => {
@@ -54,5 +58,63 @@ describe("compileCommand entry-point error paths", () => {
     // the missing-config branch should not have been the cause.
     const firstCallArg = exitSpy.mock.calls[0]?.[0];
     expect(firstCallArg).not.toBe(31);
+  });
+
+  it("enters the compilation flow for a pytorch project", async () => {
+    fs.writeFileSync(
+      path.join(tmp.dir, "cirron.yaml"),
+      "name: demo\nframework: pytorch\npythonVersion: '3.10'\ntype: model\nversion: 0.1.0\n"
+    );
+    await compileCommand({ arch: "cpu" });
+    const firstCallArg = exitSpy.mock.calls[0]?.[0];
+    expect(firstCallArg).not.toBe(31);
+  });
+
+  it("runs validation pass when --validate is set", async () => {
+    fs.writeFileSync(
+      path.join(tmp.dir, "cirron.yaml"),
+      "name: demo\nframework: pytorch\npythonVersion: '3.10'\ntype: model\nversion: 0.1.0\n"
+    );
+    await compileCommand({ arch: "cpu", validate: true });
+    const firstCallArg = exitSpy.mock.calls[0]?.[0];
+    expect(firstCallArg).not.toBe(31);
+  });
+
+  it("handles --dry-run for a pytorch project", async () => {
+    fs.writeFileSync(
+      path.join(tmp.dir, "cirron.yaml"),
+      "name: demo\nframework: pytorch\npythonVersion: '3.10'\ntype: model\nversion: 0.1.0\n"
+    );
+    await compileCommand({ arch: "cpu", dryRun: true });
+    // dry-run shouldn't exit with PROJECT_NOT_FOUND
+    const firstCallArg = exitSpy.mock.calls[0]?.[0];
+    expect(firstCallArg).not.toBe(31);
+  });
+
+  it("handles cuda architecture target", async () => {
+    fs.writeFileSync(
+      path.join(tmp.dir, "cirron.yaml"),
+      "name: demo\nframework: pytorch\npythonVersion: '3.10'\ntype: model\nversion: 0.1.0\n"
+    );
+    await compileCommand({ arch: "cuda" });
+    expect(exitSpy.mock.calls[0]?.[0]).not.toBe(31);
+  });
+
+  it("handles a tensorflow project", async () => {
+    fs.writeFileSync(
+      path.join(tmp.dir, "cirron.yaml"),
+      "name: demo\nframework: tensorflow\npythonVersion: '3.10'\ntype: model\nversion: 0.1.0\n"
+    );
+    await compileCommand({ arch: "cpu" });
+    expect(exitSpy.mock.calls[0]?.[0]).not.toBe(31);
+  });
+
+  it("handles a sklearn project with --strict", async () => {
+    fs.writeFileSync(
+      path.join(tmp.dir, "cirron.yaml"),
+      "name: demo\nframework: sklearn\npythonVersion: '3.10'\ntype: model\nversion: 0.1.0\n"
+    );
+    await compileCommand({ arch: "cpu", strict: true });
+    expect(exitSpy).toHaveBeenCalled();
   });
 });
