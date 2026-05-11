@@ -33,7 +33,7 @@ export async function envListCommand(options: EnvOptions): Promise<void> {
     }
 
     console.log();
-    logger.info(chalk.bold(`🔧 Environment Variables (${environment})`));
+    logger.info(chalk.bold(`Environment Variables (${environment})`));
     console.log();
 
     for (const [key, value] of Object.entries(envVars)) {

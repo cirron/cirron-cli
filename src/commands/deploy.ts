@@ -169,7 +169,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
     }
 
     if (finalDeployment.status === "success") {
-      spinner.succeed(chalk.green("Deployment completed successfully! 🚀"));
+      spinner.succeed(chalk.green("Deployment completed successfully"));
 
       logger.info(`Environment: ${chalk.cyan(options.env)}`);
       logger.info(`Deployment ID: ${chalk.cyan(finalDeployment.id)}`);

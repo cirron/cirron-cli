@@ -499,21 +499,21 @@ export class PlanDiffAnalyzer {
         lines.push("");
       }
     } else {
-      lines.push(colorize("✅ No differences found", chalk.green));
+      lines.push(colorize("No differences found", chalk.green));
     }
 
     return lines.join("\n");
   }
 
   private static getCategoryIcon(category: string): string {
-    const icons: Record<string, string> = {
-      dependencies: "📦",
-      artifacts: "",
-      model: "🧠",
-      resources: "💾",
-      config: "⚙️",
+    const labels: Record<string, string> = {
+      dependencies: "[deps]",
+      artifacts: "[artifacts]",
+      model: "[model]",
+      resources: "[resources]",
+      config: "[config]",
     };
-    return icons[category] || "🔧";
+    return labels[category] || "[other]";
   }
 
   private static formatBytes(bytes: number): string {
