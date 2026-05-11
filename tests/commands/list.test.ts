@@ -58,6 +58,68 @@ describe("listCommand", () => {
     });
   });
 
+  describe("happy paths (mocked API)", () => {
+    beforeEach(() => {
+      new ConfigManager().save({
+        apiUrl: "http://localhost:1",
+        defaultEnv: "production",
+        timeout: 1000,
+        retries: 0,
+        token: "fake-token",
+      });
+    });
+
+    it("deployments: --json emits JSON array of deployments", async () => {
+      vi.spyOn(
+        CirronApi.prototype,
+        "getDeploymentExecutions"
+      ).mockResolvedValue([
+        {
+          id: "deploy-id-very-long-string",
+          status: "COMPLETED",
+          environment: "production",
+          createdAt: new Date().toISOString(),
+        },
+      ] as never);
+
+      await listCommand("deployments", { json: true });
+      const output = infoSpy.mock.calls.flat().join("\n");
+      const match = output.match(/\[[\s\S]*\]/);
+      expect(match).not.toBeNull();
+      const parsed = JSON.parse(match![0]);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].status).toBe("COMPLETED");
+    });
+
+    it("deployments: prints 'No deployments found' on empty result", async () => {
+      vi.spyOn(
+        CirronApi.prototype,
+        "getDeploymentExecutions"
+      ).mockResolvedValue([] as never);
+
+      await listCommand("deployments", {});
+      const output = infoSpy.mock.calls.flat().join(" ");
+      expect(output).toMatch(/No deployments found/);
+    });
+
+    it("builds: returns 'No builds found' on empty result", async () => {
+      vi.spyOn(CirronApi.prototype, "getBuilds").mockResolvedValue([] as never);
+      await listCommand("builds", {});
+      const output = infoSpy.mock.calls.flat().join(" ");
+      expect(output).toMatch(/No builds found/);
+    });
+
+    it("models: returns 'No models found' on empty result", async () => {
+      vi.spyOn(
+        CirronApi.prototype,
+        "getModelInstances"
+      ).mockResolvedValue([] as never);
+      await listCommand("models", {});
+      const output = infoSpy.mock.calls.flat().join(" ");
+      expect(output).toMatch(/No models found/);
+    });
+  });
+
   describe("graceful platform errors", () => {
     beforeEach(() => {
       new ConfigManager().save({

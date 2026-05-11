@@ -1,6 +1,6 @@
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { authCommand } from "../../src/commands/auth";
+import { authCommand, logoutCommand } from "../../src/commands/auth";
 import { CirronApi } from "../../src/utils/api";
 import {
   NotAuthenticatedError,
@@ -85,6 +85,66 @@ describe("authCommand graceful error handling", () => {
     expect(exitSpy).toHaveBeenCalledWith(2);
     const stderr = errorSpy.mock.calls.flat().join(" ");
     expect(stderr).toMatch(/cirron auth login/);
+  });
+
+  it("authCommand reports 'authenticated' on valid JWT", async () => {
+    new ConfigManager().save({
+      apiUrl: "http://localhost:1",
+      defaultEnv: "production",
+      timeout: 1000,
+      retries: 0,
+      auth: {
+        accessToken: "valid-token",
+        refreshToken: "refresh",
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    });
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: true,
+      user: { email: "user@example.com", name: "Test User" },
+      token: {
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        scopes: ["read", "write"],
+      },
+    } as never);
+
+    await authCommand();
+
+    const output = infoSpy.mock.calls.flat().join(" ");
+    expect(output).toMatch(/Authenticated|user@example\.com/);
+  });
+
+  it("logoutCommand is a no-op when not logged in (no exit, no API call)", async () => {
+    // Spinner-only output goes to stderr (ora's TTY writer), not console.log,
+    // so we verify the behavior instead of the message: no exit, no API call.
+    const verifySpy = vi
+      .spyOn(CirronApi.prototype, "verifyAuth")
+      .mockResolvedValue({} as never);
+    await logoutCommand();
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(verifySpy).not.toHaveBeenCalled();
+  });
+
+  it("logoutCommand clears both legacy token and JWT auth", async () => {
+    const cm = new ConfigManager();
+    cm.save({
+      apiUrl: "http://localhost:1",
+      defaultEnv: "production",
+      timeout: 1000,
+      retries: 0,
+      token: "legacy-token",
+      auth: {
+        accessToken: "jwt-token",
+        refreshToken: "refresh",
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    });
+
+    await logoutCommand();
+
+    const reloaded = cm.load();
+    expect(reloaded.token).toBeUndefined();
+    expect(reloaded.auth).toBeUndefined();
   });
 
   it("does not leak stack traces for PlatformError types", async () => {
