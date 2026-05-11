@@ -433,7 +433,7 @@ export class PlanDiffAnalyzer {
     lines.push("");
 
     // Summary
-    lines.push(colorize("📈 Summary:", chalk.bold.yellow));
+    lines.push(colorize("Summary:", chalk.bold.yellow));
     lines.push(
       colorize(
         `  • Total changes: ${comparison.summary.totalChanges}`,
@@ -460,7 +460,7 @@ export class PlanDiffAnalyzer {
 
     // Detailed changes
     if (comparison.differences.length > 0) {
-      lines.push(colorize("🔍 Detailed Changes:", chalk.bold.magenta));
+      lines.push(colorize("Detailed Changes:", chalk.bold.magenta));
 
       // Group by category
       const byCategory: Record<string, PlanDiff[]> = {};
@@ -487,7 +487,7 @@ export class PlanDiffAnalyzer {
                 ? chalk.yellow
                 : chalk.green;
           const typeIcon =
-            diff.type === "added" ? "➕" : diff.type === "removed" ? "➖" : "";
+            diff.type === "added" ? "+" : diff.type === "removed" ? "-" : "~";
 
           lines.push(
             colorize(
