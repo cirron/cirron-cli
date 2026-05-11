@@ -72,7 +72,7 @@ export class PlanFormatter {
       sections.push("");
 
       // Dependencies
-      sections.push(colorize("📦 Dependencies:", chalk.bold.magenta));
+      sections.push(colorize("Dependencies:", chalk.bold.magenta));
       if (plan.dependencies.length > 0) {
         const categorized = PlanFormatter.categorizeDependencies(
           plan.dependencies
@@ -146,7 +146,7 @@ export class PlanFormatter {
 
       // Model Shape Analysis
       if (plan.modelShape) {
-        sections.push(colorize("🧠 Model Analysis:", chalk.bold.green));
+        sections.push(colorize("Model Analysis:", chalk.bold.green));
         sections.push(
           colorize(
             `  • Architecture: ${plan.modelShape.architecture}`,
@@ -216,7 +216,7 @@ export class PlanFormatter {
           }
         }
       } else {
-        sections.push(colorize("🧠 Model Analysis:", chalk.bold.green));
+        sections.push(colorize("Model Analysis:", chalk.bold.green));
         sections.push(
           colorize(
             "  └─ Model analysis not available (run after model creation)",
@@ -228,7 +228,7 @@ export class PlanFormatter {
       sections.push("");
 
       // Resource Estimates
-      sections.push(colorize("💾 Resource Estimates:", chalk.bold.red));
+      sections.push(colorize("Resource Estimates:", chalk.bold.red));
       sections.push(
         colorize(
           `  • Disk space: ${PlanFormatter.formatBytes(plan.resources.diskSpace)}`,
@@ -352,23 +352,23 @@ export class PlanFormatter {
   }
 
   private static getArtifactIcon(type: ArtifactPlan["type"]): string {
-    const icons = {
-      model: "🤖",
-      metadata: "📄",
-      config: "⚙️",
-      checkpoint: "💾",
+    const labels = {
+      model: "[model]",
+      metadata: "[meta]",
+      config: "[config]",
+      checkpoint: "[ckpt]",
     };
-    return icons[type] || "📄";
+    return labels[type] || "[artifact]";
   }
 
   private static getCategoryIcon(category: string): string {
-    const icons: Record<string, string> = {
-      "ml-framework": "🧠",
-      "data-processing": "",
-      utility: "🔧",
-      development: "👨‍💻",
+    const labels: Record<string, string> = {
+      "ml-framework": "[ml]",
+      "data-processing": "[data]",
+      utility: "[util]",
+      development: "[dev]",
     };
-    return icons[category] || "📦";
+    return labels[category] || "[other]";
   }
 
   private static getCategoryName(category: string): string {
