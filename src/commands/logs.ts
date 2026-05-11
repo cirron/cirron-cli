@@ -3,6 +3,7 @@ import chalk from "chalk";
 import ora from "ora";
 import type { LogEntry } from "../types";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
@@ -62,7 +63,9 @@ export async function logsCommand(options: LogsOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Failed to fetch logs"));
+    handlePlatformError(error);
     logger.error("Error:", error);
+    process.exit(1);
   }
 }
 

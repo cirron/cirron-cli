@@ -2,6 +2,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
@@ -133,6 +134,7 @@ export async function registerCommand(
     }
   } catch (error: any) {
     spinner.fail(chalk.red("Failed to register project"));
+    handlePlatformError(error);
     const message = error?.message || error;
     logger.error(`Error: ${message}`);
     process.exit(1);

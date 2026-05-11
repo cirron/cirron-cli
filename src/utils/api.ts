@@ -19,6 +19,13 @@ import type {
   RunInfo,
   SyncDiffResult,
 } from "../types";
+import {
+  classifyFetchError,
+  classifyHttpError,
+  NotAuthenticatedError,
+  PlatformBadRequestError,
+  PlatformError,
+} from "./api-errors";
 import { USER_AGENT } from "./version";
 
 export class CirronApi {
@@ -926,8 +933,7 @@ export class CirronApi {
     try {
       return await this.requestRaw(endpoint, options);
     } catch (error) {
-      const isUnauthorized =
-        error instanceof Error && error.message.includes("401");
+      const isUnauthorized = error instanceof NotAuthenticatedError;
       if (!(isUnauthorized && this.config.auth?.refreshToken)) {
         throw error;
       }
@@ -1019,25 +1025,29 @@ export class CirronApi {
             (errorData as any)?.message ||
             (errorData as any)?.error ||
             `HTTP ${response.status}: ${response.statusText}`;
-          throw new Error(errorMessage);
+          throw classifyHttpError(response.status, errorMessage);
         }
 
         const data = await response.json();
         return data as ApiResponse;
       } catch (error) {
-        lastError = error as Error;
+        // Convert raw fetch/network failures into typed PlatformError.
+        const classified =
+          error instanceof PlatformError ? error : classifyFetchError(error);
+        lastError = classified as Error;
 
-        // Don't retry on authentication errors
+        // Don't retry on auth errors or other client-side (4xx) failures —
+        // the request is wrong, retrying won't fix it.
         if (
-          error instanceof Error &&
-          (error.message.includes("401") || error.message.includes("403"))
+          classified instanceof NotAuthenticatedError ||
+          classified instanceof PlatformBadRequestError
         ) {
-          throw error;
+          throw classified;
         }
 
         // Don't retry refresh failures — let caller decide (fail fast, no 7s retry storm)
         if (endpoint === "/api/cli/auth/refresh") {
-          throw error;
+          throw classified;
         }
 
         attempt++;

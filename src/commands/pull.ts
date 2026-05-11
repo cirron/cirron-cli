@@ -12,6 +12,7 @@ import type {
   PullResult,
 } from "../types";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
@@ -552,6 +553,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Failed to fetch project artifacts");
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
     } else {

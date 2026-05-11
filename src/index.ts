@@ -52,18 +52,26 @@ import {
   tracesSnapshotsCommand,
   tracesViewCommand,
 } from "./commands/traces";
+import { handlePlatformError } from "./utils/api-errors";
 import { logger } from "./utils/logger";
 import { CLI_VERSION } from "./utils/version";
 
 const program = new Command();
 
-// Global error handling
+// Global error handling — platform errors get a clean single-line message,
+// anything else falls back to a generic dump for visibility.
 process.on("uncaughtException", (error) => {
+  if (handlePlatformError(error)) {
+    return;
+  }
   logger.error("Uncaught exception:", error.message);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (error) => {
+  if (handlePlatformError(error)) {
+    return;
+  }
   logger.error("Unhandled rejection:", error);
   process.exit(1);
 });
@@ -137,6 +145,7 @@ program
       const { registerCommand } = await import("./commands/register");
       await registerCommand(options);
     } catch (error) {
+      handlePlatformError(error);
       logger.error("Failed to load register command:", error);
       process.exit(1);
     }
@@ -556,6 +565,7 @@ program
       const { statusCommand } = await import("./commands/status");
       await statusCommand(options);
     } catch (error) {
+      handlePlatformError(error);
       logger.error("Failed to load status command:", error);
       process.exit(1);
     }
@@ -573,6 +583,7 @@ program
       const { logsCommand } = await import("./commands/logs");
       await logsCommand(options);
     } catch (error) {
+      handlePlatformError(error);
       logger.error("Failed to load logs command:", error);
       process.exit(1);
     }
@@ -592,6 +603,7 @@ envCmd
       const { envListCommand } = await import("./commands/env");
       await envListCommand(options);
     } catch (error) {
+      handlePlatformError(error);
       logger.error("Failed to load env list command:", error);
       process.exit(1);
     }
@@ -608,6 +620,7 @@ envCmd
       const { envSetCommand } = await import("./commands/env");
       await envSetCommand(key, value, options);
     } catch (error) {
+      handlePlatformError(error);
       logger.error("Failed to load env set command:", error);
       process.exit(1);
     }
@@ -623,6 +636,7 @@ envCmd
       const { envDeleteCommand } = await import("./commands/env");
       await envDeleteCommand(key, options);
     } catch (error) {
+      handlePlatformError(error);
       logger.error("Failed to load env delete command:", error);
       process.exit(1);
     }
