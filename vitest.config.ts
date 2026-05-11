@@ -26,10 +26,10 @@ export default defineConfig({
       // protect the offline-capable surface that ships in v0.1.0 and the
       // graceful-error layer that wraps the platform-coupled commands.
       thresholds: {
-        lines: 7,
-        statements: 7,
-        functions: 12,
-        branches: 5,
+        lines: 18,
+        statements: 18,
+        functions: 27,
+        branches: 13,
         "src/utils/api-errors.ts": {
           lines: 90,
           functions: 90,
@@ -58,6 +58,15 @@ export default defineConfig({
           lines: 60,
           functions: 80,
         },
+        "src/commands/env.ts": { lines: 80 },
+        "src/commands/diagnostics.ts": { lines: 65 },
+        "src/commands/lint.ts": { lines: 55 },
+        "src/commands/doctor.ts": { lines: 45 },
+        "src/commands/status.ts": { lines: 45 },
+        "src/commands/register.ts": { lines: 50 },
+        "src/commands/list.ts": { lines: 40 },
+        "src/commands/init.ts": { lines: 40 },
+        "src/commands/config.ts": { lines: 40 },
       },
     },
   },
