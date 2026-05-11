@@ -18,6 +18,7 @@ import type {
   SyncSummary,
 } from "../types";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
@@ -1124,6 +1125,7 @@ export async function syncCommand(
     diffSpinner.succeed("Sync diff computed");
   } catch (error) {
     diffSpinner.fail("Failed to compute sync diff");
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
     } else {

@@ -15,6 +15,7 @@ import type {
   PushSummary,
 } from "../types";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { getShortCommitHash } from "../utils/git";
 import { CirronIgnore } from "../utils/ignore";
@@ -784,6 +785,7 @@ async function pushResourceTyped(
     }
   } catch (error) {
     spinner.fail(`Failed to push ${resource} ${resolvedName}`);
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
       if (

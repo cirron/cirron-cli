@@ -6,6 +6,7 @@ import inquirer from "inquirer";
 import ora from "ora";
 import type { DeploymentInfo, DeployOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
@@ -201,6 +202,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Deployment failed"));
+    handlePlatformError(error);
 
     if (error instanceof Error) {
       logger.error(error.message);

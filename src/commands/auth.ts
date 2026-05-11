@@ -3,6 +3,7 @@ import open from "open";
 import ora from "ora";
 import type { CirronConfig, DeviceTokenResponse } from "../types";
 import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 
@@ -29,6 +30,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
     // Default to device flow
     return deviceFlowLogin(currentConfig, config);
   } catch (error) {
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
@@ -234,6 +236,7 @@ export async function logoutCommand(): Promise<void> {
     spinner.succeed(chalk.green("Successfully logged out"));
   } catch (error) {
     spinner.fail(chalk.red("Logout failed"));
+    handlePlatformError(error);
     logger.error("Error during logout:", error);
     process.exit(1);
   }
@@ -303,10 +306,12 @@ export async function authCommand(): Promise<void> {
       }
     } catch (error) {
       spinner.fail(chalk.red("Failed to verify authentication"));
+      handlePlatformError(error);
       logger.error("Error verifying token:", error);
       logger.info(`Run ${chalk.cyan("cirron auth login")} to re-authenticate`);
     }
   } catch (error) {
+    handlePlatformError(error);
     logger.error("Error checking authentication status:", error);
     process.exit(1);
   }
@@ -341,6 +346,7 @@ export async function refreshCommand(): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Failed to refresh token"));
+    handlePlatformError(error);
 
     if (error instanceof Error) {
       logger.error(error.message);
