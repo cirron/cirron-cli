@@ -1,9 +1,11 @@
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
+import inquirer from "inquirer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initCommand } from "../../src/commands/init";
 import { loadProjectConfig } from "../../src/utils/project-config";
+import { writeProjectConfig } from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 /**
@@ -94,5 +96,85 @@ describe("initCommand", () => {
         install: false,
       })
     ).resolves.toBeUndefined();
+  });
+
+  it("cancels when an existing cirron config is in the cwd and user picks 'cancel'", async () => {
+    writeProjectConfig(tmp.dir);
+    vi.spyOn(inquirer, "prompt").mockResolvedValue({
+      action: "cancel",
+    } as never);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await initCommand("demo", { template: "custom", install: false });
+
+    expect(logSpy.mock.calls.flat().join(" ")).toMatch(/cancelled/i);
+  });
+
+  it("overwrites when an existing cwd config is present and user picks 'overwrite'", async () => {
+    writeProjectConfig(tmp.dir, { name: "old-name" });
+    vi.spyOn(inquirer, "prompt").mockResolvedValue({
+      action: "overwrite",
+    } as never);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await initCommand("fresh", { template: "custom", install: false });
+
+    const loaded = loadProjectConfig(path.join(tmp.dir, "fresh"));
+    expect(loaded?.config.name).toBe("fresh");
+  });
+
+  it("prompts for a project name when none is given", async () => {
+    vi.spyOn(inquirer, "prompt").mockResolvedValue({
+      name: "prompted-name",
+    } as never);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await initCommand(undefined, { template: "custom", install: false });
+
+    const loaded = loadProjectConfig(path.join(tmp.dir, "prompted-name"));
+    expect(loaded?.config.name).toBe("prompted-name");
+  });
+
+  it("cancels when target dir has files and user declines the overwrite warning", async () => {
+    const target = path.join(tmp.dir, "occupied");
+    fs.ensureDirSync(target);
+    fs.writeFileSync(path.join(target, "leftover.txt"), "stuff");
+    vi.spyOn(inquirer, "prompt").mockResolvedValue({
+      proceed: false,
+    } as never);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await initCommand("occupied", { template: "custom", install: false });
+
+    expect(logSpy.mock.calls.flat().join(" ")).toMatch(/cancelled/i);
+    // The leftover file should still be there since we cancelled.
+    expect(fs.existsSync(path.join(target, "leftover.txt"))).toBe(true);
+  });
+
+  it("--git initializes a repo (best-effort, no throw)", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await initCommand("with-git", {
+      template: "custom",
+      install: false,
+      git: true,
+    });
+
+    expect(loadProjectConfig(path.join(tmp.dir, "with-git"))).not.toBeNull();
+  });
+
+  it("--install runs postInstall best-effort (no throw on failure)", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await initCommand("with-install", {
+      template: "pytorch",
+      install: true,
+    });
+
+    expect(
+      loadProjectConfig(path.join(tmp.dir, "with-install"))
+    ).not.toBeNull();
   });
 });
