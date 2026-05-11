@@ -1,6 +1,4 @@
-import { vi, type Mock } from "vitest";
-import type { CirronApi } from "../../src/utils/api";
-import { PlatformUnavailableError } from "../../src/utils/api-errors";
+import { type Mock, vi } from "vitest";
 import type {
   DeploymentInfo,
   PullArtifactInfo,
@@ -10,6 +8,8 @@ import type {
   PushUploadUrl,
   SyncDiffResult,
 } from "../../src/types";
+import type { CirronApi } from "../../src/utils/api";
+import { PlatformUnavailableError } from "../../src/utils/api-errors";
 
 /**
  * Build a mock CirronApi where every method rejects with the given error
@@ -23,7 +23,9 @@ import type {
  *   const api = mockApi();
  *   (api.verifyAuth as Mock).mockResolvedValueOnce({ valid: true, user: { ... } });
  */
-export function mockApi(rejectWith: Error = new PlatformUnavailableError("offline")): CirronApi {
+export function mockApi(
+  rejectWith: Error = new PlatformUnavailableError("offline")
+): CirronApi {
   const handler: ProxyHandler<object> = {
     get(_target, prop) {
       if (prop === "then" || typeof prop === "symbol") {
@@ -64,13 +66,12 @@ export function stubProcessExit(): {
  */
 export function stubApi<K extends keyof CirronApi>(
   method: K,
-  value: Awaited<ReturnType<Extract<CirronApi[K], (...args: never[]) => unknown>>>
+  value: Awaited<
+    ReturnType<Extract<CirronApi[K], (...args: never[]) => unknown>>
+  >
 ): Mock {
   return vi
-    .spyOn(
-      require("../../src/utils/api").CirronApi.prototype,
-      method as string
-    )
+    .spyOn(require("../../src/utils/api").CirronApi.prototype, method as string)
     .mockResolvedValue(value as never) as unknown as Mock;
 }
 
@@ -79,10 +80,7 @@ export function stubApiReject<K extends keyof CirronApi>(
   error: Error
 ): Mock {
   return vi
-    .spyOn(
-      require("../../src/utils/api").CirronApi.prototype,
-      method as string
-    )
+    .spyOn(require("../../src/utils/api").CirronApi.prototype, method as string)
     .mockRejectedValue(error) as unknown as Mock;
 }
 
@@ -150,7 +148,9 @@ export function pushConfirmation(
   };
 }
 
-export function syncDiff(overrides: Partial<SyncDiffResult> = {}): SyncDiffResult {
+export function syncDiff(
+  overrides: Partial<SyncDiffResult> = {}
+): SyncDiffResult {
   return {
     localOnly: [],
     remoteOnly: [],

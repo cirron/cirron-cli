@@ -1,9 +1,6 @@
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  runListCommand,
-  runPipelineCommand,
-} from "../../src/commands/run";
+import { runListCommand, runPipelineCommand } from "../../src/commands/run";
 import { ConfigManager } from "../../src/utils/config";
 import { makeTmpDir } from "../helpers/tmpdir";
 

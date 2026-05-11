@@ -45,13 +45,17 @@ describe("spool commands", () => {
 
   describe("spoolFlushCommand", () => {
     it("completes without throwing on empty spool dir", async () => {
-      await expect(spoolFlushCommand({ dir: tmp.dir })).resolves.toBeUndefined();
+      await expect(
+        spoolFlushCommand({ dir: tmp.dir })
+      ).resolves.toBeUndefined();
     });
   });
 
   describe("spoolClearCommand", () => {
     it("completes without throwing on empty spool dir", async () => {
-      await expect(spoolClearCommand({ dir: tmp.dir, yes: true })).resolves.toBeUndefined();
+      await expect(
+        spoolClearCommand({ dir: tmp.dir, yes: true })
+      ).resolves.toBeUndefined();
     });
   });
 });

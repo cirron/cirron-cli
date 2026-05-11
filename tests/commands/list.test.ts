@@ -110,10 +110,9 @@ describe("listCommand", () => {
     });
 
     it("models: returns 'No models found' on empty result", async () => {
-      vi.spyOn(
-        CirronApi.prototype,
-        "getModelInstances"
-      ).mockResolvedValue([] as never);
+      vi.spyOn(CirronApi.prototype, "getModelInstances").mockResolvedValue(
+        [] as never
+      );
       await listCommand("models", {});
       const output = infoSpy.mock.calls.flat().join(" ");
       expect(output).toMatch(/No models found/);
@@ -137,20 +136,17 @@ describe("listCommand", () => {
       ["models", "getModelInstances"],
       ["images", "getModelImages"],
       ["registry", "getRegistryArtifacts"],
-    ])(
-      "%s exits with code 3 when platform is unreachable",
-      async (resource, methodName) => {
-        vi.spyOn(
-          CirronApi.prototype,
-          methodName as keyof CirronApi
-        ).mockRejectedValue(new PlatformUnavailableError("offline"));
+    ])("%s exits with code 3 when platform is unreachable", async (resource, methodName) => {
+      vi.spyOn(
+        CirronApi.prototype,
+        methodName as keyof CirronApi
+      ).mockRejectedValue(new PlatformUnavailableError("offline"));
 
-        await listCommand(resource, {});
+      await listCommand(resource, {});
 
-        expect(exitSpy).toHaveBeenCalledWith(3);
-        const stderr = errorSpy.mock.calls.flat().join(" ");
-        expect(stderr).toMatch(/private preview/i);
-      }
-    );
+      expect(exitSpy).toHaveBeenCalledWith(3);
+      const stderr = errorSpy.mock.calls.flat().join(" ");
+      expect(stderr).toMatch(/private preview/i);
+    });
   });
 });

@@ -55,13 +55,7 @@ describe("offline flow (spawned CLI binary)", () => {
   });
 
   it("`cirron init <name> -t custom --no-install` creates a working project offline", () => {
-    const { status } = runCli([
-      "init",
-      "demo",
-      "-t",
-      "custom",
-      "--no-install",
-    ]);
+    const { status } = runCli(["init", "demo", "-t", "custom", "--no-install"]);
     expect(status).toBe(0);
 
     const projectPath = path.join(tmp.dir, "demo");
@@ -74,7 +68,13 @@ describe("offline flow (spawned CLI binary)", () => {
   });
 
   it("`cirron config set apiUrl=...` persists offline", () => {
-    const set = runCli(["config", "--scope", "cli", "--set", "apiUrl=http://127.0.0.1:1"]);
+    const set = runCli([
+      "config",
+      "--scope",
+      "cli",
+      "--set",
+      "apiUrl=http://127.0.0.1:1",
+    ]);
     expect(set.status).toBe(0);
 
     const list = runCli(["config", "--scope", "cli", "--list"]);

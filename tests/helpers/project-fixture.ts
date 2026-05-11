@@ -28,9 +28,7 @@ export function writeProjectConfig(
     type: overrides.type ?? "model",
     version: overrides.version ?? "0.1.0",
     ...(overrides.artifacts ? { artifacts: overrides.artifacts } : {}),
-    ...(overrides.environments
-      ? { environments: overrides.environments }
-      : {}),
+    ...(overrides.environments ? { environments: overrides.environments } : {}),
     ...(overrides.build ? { build: overrides.build } : {}),
     ...(overrides.deploy ? { deploy: overrides.deploy } : {}),
   };
@@ -41,7 +39,11 @@ export function writeProjectConfig(
 }
 
 /** Create a real on-disk file with the given contents (for checksum tests). */
-export function writeFileAt(dir: string, relPath: string, contents: string): string {
+export function writeFileAt(
+  dir: string,
+  relPath: string,
+  contents: string
+): string {
   const full = path.join(dir, relPath);
   fs.ensureDirSync(path.dirname(full));
   fs.writeFileSync(full, contents);

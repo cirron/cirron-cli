@@ -9,10 +9,7 @@ import {
   PlatformServerError,
   PlatformUnavailableError,
 } from "../../../src/utils/api-errors";
-import {
-  exitCodeFromError,
-  stubProcessExit,
-} from "../../helpers/mock-api";
+import { exitCodeFromError, stubProcessExit } from "../../helpers/mock-api";
 
 describe("PlatformError subclasses", () => {
   it("PlatformUnavailableError has exit code 3 and a user-facing waitlist message", () => {
@@ -79,7 +76,9 @@ describe("classifyFetchError", () => {
   });
 
   it("maps node-fetch FetchError by name", () => {
-    const raw = Object.assign(new Error("fetch failed"), { name: "FetchError" });
+    const raw = Object.assign(new Error("fetch failed"), {
+      name: "FetchError",
+    });
     expect(classifyFetchError(raw)).toBeInstanceOf(PlatformUnavailableError);
   });
 
@@ -106,32 +105,27 @@ describe("classifyFetchError", () => {
 });
 
 describe("classifyHttpError", () => {
-  it.each([401, 403])(
-    "maps HTTP %s to NotAuthenticatedError",
-    (status) => {
-      expect(classifyHttpError(status, "unauthorized")).toBeInstanceOf(
-        NotAuthenticatedError
-      );
-    }
-  );
+  it.each([401, 403])("maps HTTP %s to NotAuthenticatedError", (status) => {
+    expect(classifyHttpError(status, "unauthorized")).toBeInstanceOf(
+      NotAuthenticatedError
+    );
+  });
 
-  it.each([400, 404, 409, 422, 429])(
-    "maps client error HTTP %s to PlatformBadRequestError",
-    (status) => {
-      const err = classifyHttpError(status, "bad request");
-      expect(err).toBeInstanceOf(PlatformBadRequestError);
-      expect((err as PlatformBadRequestError).status).toBe(status);
-    }
-  );
+  it.each([
+    400, 404, 409, 422, 429,
+  ])("maps client error HTTP %s to PlatformBadRequestError", (status) => {
+    const err = classifyHttpError(status, "bad request");
+    expect(err).toBeInstanceOf(PlatformBadRequestError);
+    expect((err as PlatformBadRequestError).status).toBe(status);
+  });
 
-  it.each([500, 502, 503, 504])(
-    "maps server error HTTP %s to PlatformServerError",
-    (status) => {
-      const err = classifyHttpError(status, "boom");
-      expect(err).toBeInstanceOf(PlatformServerError);
-      expect((err as PlatformServerError).status).toBe(status);
-    }
-  );
+  it.each([
+    500, 502, 503, 504,
+  ])("maps server error HTTP %s to PlatformServerError", (status) => {
+    const err = classifyHttpError(status, "boom");
+    expect(err).toBeInstanceOf(PlatformServerError);
+    expect((err as PlatformServerError).status).toBe(status);
+  });
 });
 
 describe("handlePlatformError", () => {

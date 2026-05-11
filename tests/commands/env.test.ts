@@ -49,29 +49,32 @@ describe("env commands", () => {
 
   describe("envListCommand", () => {
     it("displays variables returned by the API", async () => {
-      vi.spyOn(CirronApi.prototype, "getEnvironmentVariables").mockResolvedValue(
-        {
-          DATABASE_URL: "postgres://example",
-          API_KEY: "should-be-masked",
-        }
-      );
+      vi.spyOn(
+        CirronApi.prototype,
+        "getEnvironmentVariables"
+      ).mockResolvedValue({
+        DATABASE_URL: "postgres://example",
+        API_KEY: "should-be-masked",
+      });
       await envListCommand({});
       // No error logged on the happy path
       expect(errorSpy).not.toHaveBeenCalled();
     });
 
     it("reports empty when API returns no variables", async () => {
-      vi.spyOn(CirronApi.prototype, "getEnvironmentVariables").mockResolvedValue(
-        {}
-      );
+      vi.spyOn(
+        CirronApi.prototype,
+        "getEnvironmentVariables"
+      ).mockResolvedValue({});
       await envListCommand({ env: "staging" });
       expect(errorSpy).not.toHaveBeenCalled();
     });
 
     it("handles API failure gracefully (logs error, no throw)", async () => {
-      vi.spyOn(CirronApi.prototype, "getEnvironmentVariables").mockRejectedValue(
-        new Error("server down")
-      );
+      vi.spyOn(
+        CirronApi.prototype,
+        "getEnvironmentVariables"
+      ).mockRejectedValue(new Error("server down"));
       await expect(envListCommand({})).resolves.toBeUndefined();
     });
   });
@@ -93,7 +96,9 @@ describe("env commands", () => {
 
   describe("envDeleteCommand", () => {
     it("does not delete when user declines confirmation", async () => {
-      vi.spyOn(inquirer, "prompt").mockResolvedValue({ confirm: false } as never);
+      vi.spyOn(inquirer, "prompt").mockResolvedValue({
+        confirm: false,
+      } as never);
       const deleteSpy = vi
         .spyOn(CirronApi.prototype, "deleteEnvironmentVariable")
         .mockResolvedValue(undefined);
@@ -102,7 +107,9 @@ describe("env commands", () => {
     });
 
     it("deletes when user confirms", async () => {
-      vi.spyOn(inquirer, "prompt").mockResolvedValue({ confirm: true } as never);
+      vi.spyOn(inquirer, "prompt").mockResolvedValue({
+        confirm: true,
+      } as never);
       const deleteSpy = vi
         .spyOn(CirronApi.prototype, "deleteEnvironmentVariable")
         .mockResolvedValue(undefined);
