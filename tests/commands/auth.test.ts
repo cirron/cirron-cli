@@ -1,12 +1,18 @@
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { authCommand, logoutCommand } from "../../src/commands/auth";
+import {
+  authCommand,
+  loginCommand,
+  logoutCommand,
+  refreshCommand,
+} from "../../src/commands/auth";
 import { CirronApi } from "../../src/utils/api";
 import {
   NotAuthenticatedError,
   PlatformUnavailableError,
 } from "../../src/utils/api-errors";
 import { ConfigManager } from "../../src/utils/config";
+import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 /**
@@ -166,5 +172,150 @@ describe("authCommand graceful error handling", () => {
     const stderr = errorSpy.mock.calls.flat().join(" ");
     expect(stderr).not.toContain("inner stack should not leak");
     expect(stderr).not.toMatch(/at .+\(.+:\d+:\d+\)/); // no "at file:line:col" frames
+  });
+});
+
+describe("loginCommand (legacy --token)", () => {
+  let tmp: ReturnType<typeof makeTmpDir>;
+  let exitStub: ReturnType<typeof stubProcessExit>;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tmp = makeTmpDir("cirron-login-");
+    vi.spyOn(os, "homedir").mockReturnValue(tmp.dir);
+    exitStub = stubProcessExit();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    infoSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    exitStub.restore();
+    vi.restoreAllMocks();
+    tmp.cleanup();
+  });
+
+  it("verifies the token, saves it, and prints the user", async () => {
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: true,
+      user: { email: "ci@example.com", name: "CI Bot" },
+    } as never);
+
+    await loginCommand({ token: "sk-ci-token", url: "https://api.cirron.dev" });
+
+    const cfg = new ConfigManager().load();
+    expect(cfg.token).toBe("sk-ci-token");
+    expect(cfg.apiUrl).toBe("https://api.cirron.dev");
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/ci@example\.com/);
+  });
+
+  it("rejects when the token is invalid", async () => {
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: false,
+    } as never);
+
+    await expect(loginCommand({ token: "bad-token" })).rejects.toThrow(
+      /Invalid token/
+    );
+  });
+
+  it("rejects when verifyAuth throws", async () => {
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockRejectedValue(
+      new NotAuthenticatedError("nope")
+    );
+
+    await expect(loginCommand({ token: "bad-token" })).rejects.toThrow();
+  });
+});
+
+describe("refreshCommand", () => {
+  let tmp: ReturnType<typeof makeTmpDir>;
+  let exitStub: ReturnType<typeof stubProcessExit>;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tmp = makeTmpDir("cirron-refresh-");
+    vi.spyOn(os, "homedir").mockReturnValue(tmp.dir);
+    exitStub = stubProcessExit();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    infoSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    exitStub.restore();
+    vi.restoreAllMocks();
+    tmp.cleanup();
+  });
+
+  it("exits 1 when there's no refresh token", async () => {
+    new ConfigManager().save({
+      apiUrl: "http://localhost:1",
+      defaultEnv: "production",
+      timeout: 1000,
+      retries: 0,
+      token: "legacy-only",
+    });
+
+    let caught: unknown;
+    try {
+      await refreshCommand();
+    } catch (err) {
+      caught = err;
+    }
+    expect(exitCodeFromError(caught)).toBe(1);
+  });
+
+  it("refreshes tokens and persists the new access token", async () => {
+    new ConfigManager().save({
+      apiUrl: "http://localhost:1",
+      defaultEnv: "production",
+      timeout: 1000,
+      retries: 0,
+      auth: {
+        accessToken: "old",
+        refreshToken: "refresh-me",
+        expiresAt: new Date(Date.now() + 1000).toISOString(),
+      },
+    });
+    vi.spyOn(CirronApi.prototype, "refreshToken").mockResolvedValue({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+      expires_in: 604_800,
+      token_type: "bearer",
+    } as never);
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: true,
+      user: { email: "u@example.com" },
+    } as never);
+
+    await refreshCommand();
+
+    const cfg = new ConfigManager().load();
+    expect(cfg.auth?.accessToken).toBe("new-access");
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/u@example\.com/);
+  });
+
+  it("exits 1 when refresh fails", async () => {
+    new ConfigManager().save({
+      apiUrl: "http://localhost:1",
+      defaultEnv: "production",
+      timeout: 1000,
+      retries: 0,
+      auth: {
+        accessToken: "old",
+        refreshToken: "refresh-me",
+        expiresAt: new Date(Date.now() + 1000).toISOString(),
+      },
+    });
+    vi.spyOn(CirronApi.prototype, "refreshToken").mockRejectedValue(
+      new Error("refresh endpoint down")
+    );
+
+    let caught: unknown;
+    try {
+      await refreshCommand();
+    } catch (err) {
+      caught = err;
+    }
+    expect(exitCodeFromError(caught)).toBe(1);
   });
 });
