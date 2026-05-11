@@ -3,6 +3,8 @@ import path from "node:path";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// Namespace import required so vi.spyOn can stub buildCommand.
+// biome-ignore lint/performance/noNamespaceImport: needed for vi.spyOn on named export
 import * as buildModule from "../../src/commands/build";
 import { deployCommand } from "../../src/commands/deploy";
 import { CirronApi } from "../../src/utils/api";
@@ -296,9 +298,7 @@ describe("deployCommand", () => {
 
       await deployCommand({ env: "staging", rollback: true, force: true });
 
-      expect(errorSpy.mock.calls.flat().join(" ")).toMatch(
-        /Cannot rollback/
-      );
+      expect(errorSpy.mock.calls.flat().join(" ")).toMatch(/Cannot rollback/);
       expect(exitStub.spy).not.toHaveBeenCalled();
     });
 
@@ -317,9 +317,7 @@ describe("deployCommand", () => {
 
       await deployCommand({ env: "staging", rollback: true });
 
-      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
-        /Rollback cancelled/
-      );
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Rollback cancelled/);
     });
 
     it("rolls back successfully and prints rollback URL", async () => {

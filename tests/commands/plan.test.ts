@@ -37,16 +37,13 @@ describe("plan subcommands", () => {
     ["planBuildCommand", planBuildCommand],
     ["planLintCommand", planLintCommand],
     ["planTestCommand", planTestCommand],
-  ])(
-    "%s exits when no cirron config exists",
-    async (_name, fn) => {
-      await fn({});
-      expect(exitSpy).toHaveBeenCalled();
-      // First exit indicates the missing-config branch
-      const firstCall = exitSpy.mock.calls[0]?.[0];
-      expect(firstCall).not.toBe(0);
-    }
-  );
+  ])("%s exits when no cirron config exists", async (_name, fn) => {
+    await fn({});
+    expect(exitSpy).toHaveBeenCalled();
+    // First exit indicates the missing-config branch
+    const firstCall = exitSpy.mock.calls[0]?.[0];
+    expect(firstCall).not.toBe(0);
+  });
 
   it("planCompileCommand progresses past config check when cirron.yaml exists", async () => {
     fs.writeFileSync(

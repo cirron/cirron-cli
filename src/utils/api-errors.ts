@@ -33,8 +33,8 @@ export class PlatformUnavailableError extends PlatformError {
   readonly exitCode = 3;
   readonly userMessage =
     "Cirron platform is unavailable — currently in private preview. Local commands (init, compile, build, config, doctor, env, hardware, status) work without it.\n Are you or your team interested in early access to the platform? Join the waitlist at https://cirron.com/waitlist.";
-    // TODO update this message when public endpoint is live
-    // "Could not reach the Cirron platform. Check your network connection or run 'cirron config get apiUrl' to verify the endpoint.";
+  // TODO update this message when public endpoint is live
+  // "Could not reach the Cirron platform. Check your network connection or run 'cirron config get apiUrl' to verify the endpoint.";
 }
 
 /**
@@ -56,7 +56,11 @@ export class PlatformBadRequestError extends PlatformError {
   readonly status: number;
   readonly userMessage: string;
 
-  constructor(status: number, serverMessage: string, options?: { cause?: unknown }) {
+  constructor(
+    status: number,
+    serverMessage: string,
+    options?: { cause?: unknown }
+  ) {
     super(serverMessage, options);
     this.status = status;
     this.userMessage = serverMessage;
@@ -72,7 +76,11 @@ export class PlatformServerError extends PlatformError {
   readonly status: number;
   readonly userMessage: string;
 
-  constructor(status: number, serverMessage: string, options?: { cause?: unknown }) {
+  constructor(
+    status: number,
+    serverMessage: string,
+    options?: { cause?: unknown }
+  ) {
     super(serverMessage, options);
     this.status = status;
     this.userMessage = `Cirron platform error (${status}): ${serverMessage}. Please try again later.`;
@@ -152,7 +160,10 @@ export function handlePlatformError(error: unknown): boolean {
 
   logger.error(error.userMessage);
 
-  if (process.env["CIRRON_VERBOSE"] === "true" && (error as { cause?: unknown }).cause) {
+  if (
+    process.env["CIRRON_VERBOSE"] === "true" &&
+    (error as { cause?: unknown }).cause
+  ) {
     logger.debug("Cause:", (error as { cause?: unknown }).cause);
   }
 

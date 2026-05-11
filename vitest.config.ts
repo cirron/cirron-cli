@@ -12,24 +12,21 @@ export default defineConfig({
       // CLI entry wiring is exercised by the integration test, not unit-tested.
       // Template file generators are validated by init.test.ts via file presence.
       // Type-only files have nothing to cover.
-      exclude: [
-        "src/index.ts",
-        "src/types/**",
-        "src/commands/files/**",
-      ],
+      exclude: ["src/index.ts", "src/types/**", "src/commands/files/**"],
       // v0.1.0 coverage strategy:
       //
-      // Global thresholds are intentionally low because most untested code is
-      // platform-coupled (push/pull/sync/deploy/test/traces/spool) and will be
-      // covered as we add backend-mocking utilities post-launch. The Boolean
-      // gate that actually matters is the per-file thresholds below — these
-      // protect the offline-capable surface that ships in v0.1.0 and the
-      // graceful-error layer that wraps the platform-coupled commands.
+      // Global thresholds remain conservative because the still-untested code
+      // (test/traces/spool/run/replay/info/compile/build) is platform-coupled
+      // and pending its own mock-API rollout. The Boolean gate that actually
+      // matters is the per-file thresholds below — these protect the
+      // offline-capable surface plus the platform-coupled commands that have
+      // been driven through their full happy/error/dry-run flows with the
+      // shared mock-api helpers (push/pull/sync/deploy).
       thresholds: {
-        lines: 18,
-        statements: 18,
-        functions: 27,
-        branches: 13,
+        lines: 30,
+        statements: 30,
+        functions: 38,
+        branches: 21,
         "src/utils/api-errors.ts": {
           lines: 90,
           functions: 90,
@@ -67,6 +64,10 @@ export default defineConfig({
         "src/commands/list.ts": { lines: 40 },
         "src/commands/init.ts": { lines: 40 },
         "src/commands/config.ts": { lines: 40 },
+        "src/commands/push.ts": { lines: 80 },
+        "src/commands/pull.ts": { lines: 85 },
+        "src/commands/sync.ts": { lines: 80 },
+        "src/commands/deploy.ts": { lines: 85 },
       },
     },
   },

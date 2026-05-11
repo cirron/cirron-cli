@@ -111,9 +111,7 @@ export class PlanFormatter {
                 );
               } else if (dep.estimatedSize >= 100 * 1024 * 1024) {
                 // 100MB+
-                sections.push(
-                  colorize("       Large package", chalk.yellow)
-                );
+                sections.push(colorize("       Large package", chalk.yellow));
               }
 
               if (showDetails && dep.conflicts && dep.conflicts.length > 0) {
