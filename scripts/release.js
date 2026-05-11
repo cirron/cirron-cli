@@ -5,7 +5,7 @@ const path = require("node:path");
 const { execSync } = require("node:child_process");
 const semver = require("semver");
 
-const packageJsonPath = path.join(import.meta.dirname, "..", "package.json");
+const packageJsonPath = path.join(__dirname, "..", "package.json");
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 
 function log(message) {
