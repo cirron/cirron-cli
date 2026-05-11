@@ -18,7 +18,7 @@ export function mockApi(rejectWith: Error = new PlatformUnavailableError("offlin
   const handler: ProxyHandler<object> = {
     get(_target, prop) {
       if (prop === "then" || typeof prop === "symbol") {
-        return undefined;
+        return;
       }
       return vi.fn().mockRejectedValue(rejectWith);
     },
@@ -50,7 +50,9 @@ export function stubProcessExit(): {
  * code. Returns null if the error doesn't match the sentinel format.
  */
 export function exitCodeFromError(error: unknown): number | null {
-  if (!(error instanceof Error)) return null;
+  if (!(error instanceof Error)) {
+    return null;
+  }
   const match = error.message.match(/^__process\.exit\((\d+)\)__$/);
   return match?.[1] ? Number.parseInt(match[1], 10) : null;
 }
