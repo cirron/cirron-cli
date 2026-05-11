@@ -105,7 +105,7 @@ export class PlanFormatter {
                 // 500MB+
                 sections.push(
                   colorize(
-                    "       ⚠ Very large package - consider alternatives",
+                    "       Very large package - consider alternatives",
                     chalk.yellow
                   )
                 );
@@ -119,7 +119,7 @@ export class PlanFormatter {
               if (showDetails && dep.conflicts && dep.conflicts.length > 0) {
                 sections.push(
                   colorize(
-                    `       ⚠ Potential conflicts: ${dep.conflicts.join(", ")}`,
+                    `       Potential conflicts: ${dep.conflicts.join(", ")}`,
                     chalk.yellow
                   )
                 );
