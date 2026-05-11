@@ -1,4 +1,5 @@
 import os from "node:os";
+import inquirer from "inquirer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configCommand } from "../../src/commands/config";
 import { ConfigManager } from "../../src/utils/config";
@@ -88,7 +89,7 @@ describe("configCommand (cli scope)", () => {
     void errorSpy;
   });
 
-  it("--reset removes the config file", async () => {
+  it("--reset removes the config file after user confirmation", async () => {
     const cm = new ConfigManager();
     cm.save({
       apiUrl: "http://x",
@@ -98,7 +99,24 @@ describe("configCommand (cli scope)", () => {
     });
     expect(cm.exists()).toBe(true);
 
+    vi.spyOn(inquirer, "prompt").mockResolvedValue({ confirm: true } as never);
+
     await configCommand({ scope: "cli", reset: true });
     expect(new ConfigManager().exists()).toBe(false);
+  });
+
+  it("--reset is cancelled when user does not confirm", async () => {
+    const cm = new ConfigManager();
+    cm.save({
+      apiUrl: "http://x",
+      defaultEnv: "production",
+      timeout: 1000,
+      retries: 0,
+    });
+
+    vi.spyOn(inquirer, "prompt").mockResolvedValue({ confirm: false } as never);
+
+    await configCommand({ scope: "cli", reset: true });
+    expect(new ConfigManager().exists()).toBe(true);
   });
 });
