@@ -19,6 +19,8 @@ import * as jsonMod from "../../src/utils/export/json";
 import * as otlpMod from "../../src/utils/export/otlp";
 // biome-ignore lint/performance/noNamespaceImport: required for vi.spyOn
 import * as parquetMod from "../../src/utils/export/parquet";
+// biome-ignore lint/performance/noNamespaceImport: required for vi.spyOn
+import * as safetensorsMod from "../../src/utils/safetensors";
 import type {
   Session,
   SpoolSnapshot,
@@ -463,6 +465,144 @@ describe("traces commands", () => {
 
       const out = infoSpy.mock.calls.flat().join(" ");
       expect(out).toMatch(/mean|histogram/);
+    });
+
+    it("summary view lists safetensors blobs when they exist", async () => {
+      vi.spyOn(sessionMod, "loadSessions").mockResolvedValue([
+        makeSession({}, [makeSnapshot({ mode: "full" })]),
+      ]);
+      vi.spyOn(safetensorsMod, "safetensorsFileExists").mockReturnValue(true);
+      vi.spyOn(safetensorsMod, "readSafetensorsInfo").mockResolvedValue({
+        path: "/tmp/weights.safetensors",
+        fileSize: 4096,
+        headerByteLen: 64,
+        metadata: {},
+        tensors: [
+          {
+            name: "weight",
+            dtype: "F32",
+            shape: [4],
+            byteSize: 16,
+            dataOffsets: [0, 16],
+          },
+        ],
+      } as never);
+
+      await tracesSnapshotCommand("span-child", undefined, { noColor: true });
+
+      const out = infoSpy.mock.calls.flat().join(" ");
+      expect(out).toMatch(/weights\.safetensors|NAME|DTYPE/);
+    });
+
+    it("targeted tensor reads from the blob and previews values", async () => {
+      vi.spyOn(sessionMod, "loadSessions").mockResolvedValue([
+        makeSession({}, [makeSnapshot({ mode: "full" })]),
+      ]);
+      vi.spyOn(safetensorsMod, "safetensorsFileExists").mockReturnValue(true);
+      vi.spyOn(safetensorsMod, "readSafetensorsInfo").mockResolvedValue({
+        path: "/tmp/weights.safetensors",
+        fileSize: 4096,
+        headerByteLen: 64,
+        metadata: {},
+        tensors: [
+          {
+            name: "weight",
+            dtype: "F32",
+            shape: [4],
+            byteSize: 16,
+            dataOffsets: [0, 16],
+          },
+        ],
+      } as never);
+      vi.spyOn(safetensorsMod, "readSafetensorsTensor").mockResolvedValue(
+        new Float32Array([1, 2, 3, 4]) as never
+      );
+      vi.spyOn(safetensorsMod, "tensorPreview").mockReturnValue([
+        1, 2,
+      ] as never);
+
+      await tracesSnapshotCommand("span-child", "weight", {
+        noColor: true,
+        preview: "2",
+        tail: "2",
+      });
+
+      const out = infoSpy.mock.calls.flat().join(" ");
+      expect(out).toMatch(/Blob|first|last/);
+    });
+
+    it("--export copies blobs to a directory", async () => {
+      const fs = await import("fs-extra");
+      const path = await import("node:path");
+      // Lay down a real blob so fs.copy succeeds.
+      const spanDir = path.join(tmp.dir, ".cirron", "snapshots", "span-child");
+      fs.ensureDirSync(spanDir);
+      fs.writeFileSync(path.join(spanDir, "weights.safetensors"), "blob");
+      fs.writeFileSync(path.join(spanDir, "gradients.safetensors"), "blob");
+      vi.spyOn(sessionMod, "loadSessions").mockResolvedValue([
+        makeSession({}, [makeSnapshot({ mode: "full" })]),
+      ]);
+      vi.spyOn(safetensorsMod, "safetensorsFileExists").mockReturnValue(true);
+
+      await tracesSnapshotCommand("span-child", undefined, {
+        noColor: true,
+        export: path.join(tmp.dir, "out-dir"),
+      });
+
+      expect(
+        fs.existsSync(path.join(tmp.dir, "out-dir", "weights.safetensors"))
+      ).toBe(true);
+    });
+
+    it("--export with no blobs sets exitCode 1", async () => {
+      vi.spyOn(sessionMod, "loadSessions").mockResolvedValue([
+        makeSession({}, [makeSnapshot({ mode: "full" })]),
+      ]);
+      vi.spyOn(safetensorsMod, "safetensorsFileExists").mockReturnValue(false);
+
+      await tracesSnapshotCommand("span-child", undefined, {
+        noColor: true,
+        export: "out-dir",
+      });
+
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("targeted tensor --export writes a single-tensor file", async () => {
+      const fs = await import("fs-extra");
+      const path = await import("node:path");
+      const spanDir = path.join(tmp.dir, ".cirron", "snapshots", "span-child");
+      fs.ensureDirSync(spanDir);
+      fs.writeFileSync(path.join(spanDir, "weights.safetensors"), "blob");
+      vi.spyOn(sessionMod, "loadSessions").mockResolvedValue([
+        makeSession({}, [makeSnapshot({ mode: "full" })]),
+      ]);
+      vi.spyOn(safetensorsMod, "safetensorsFileExists").mockReturnValue(true);
+      vi.spyOn(safetensorsMod, "readSafetensorsInfo").mockResolvedValue({
+        path: path.join(spanDir, "weights.safetensors"),
+        fileSize: 4096,
+        headerByteLen: 64,
+        metadata: {},
+        tensors: [
+          {
+            name: "weight",
+            dtype: "F32",
+            shape: [4],
+            byteSize: 16,
+            dataOffsets: [0, 16],
+          },
+        ],
+      } as never);
+      const writeSpy = vi
+        .spyOn(safetensorsMod, "writeSingleTensorSafetensors")
+        .mockResolvedValue(undefined as never);
+
+      await tracesSnapshotCommand("span-child", "weight", {
+        noColor: true,
+        export: path.join(tmp.dir, "weight.safetensors"),
+      });
+
+      expect(writeSpy).toHaveBeenCalled();
     });
   });
 });

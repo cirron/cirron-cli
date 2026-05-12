@@ -20,20 +20,70 @@ describe("settingsCommand", () => {
 
   function globalSettings() {
     return {
-      general: { theme: "dark", telemetry: false },
-      ui: { color: true },
-      development: { verbose: false },
-      cloud: { region: "us-east-1" },
-      api: { token: "sk-abcdef1234567890" },
+      general: {
+        theme: "dark",
+        telemetry: false,
+        defaultTemplate: "pytorch",
+        autoUpdate: true,
+        verboseLogging: false,
+      },
+      ui: {
+        color: true,
+        colorOutput: true,
+        progressBars: true,
+        confirmPrompts: true,
+        interactiveMode: true,
+      },
+      development: {
+        verbose: false,
+        autoFormat: true,
+        autoLint: true,
+        defaultPythonVersion: "3.10",
+        preferredIDE: "vscode",
+      },
+      cloud: {
+        region: "us-east-1",
+        defaultRegion: "us-east-1",
+        preferredProvider: "aws",
+        syncSettings: false,
+      },
+      api: {
+        token: "sk-abcdef1234567890",
+        url: "https://api.cirron.dev",
+        timeout: 30_000,
+        retries: 3,
+      },
     };
   }
 
   function projectSettings() {
     return {
-      general: { name: "demo" },
-      build: { parallel: true },
-      test: { coverage: false },
-      deployment: { strategy: "rolling" },
+      general: {
+        name: "demo",
+        autoSave: true,
+        buildOnChange: false,
+        testOnBuild: true,
+      },
+      build: {
+        parallel: true,
+        defaultArch: "cpu",
+        enableCache: true,
+        pushOnBuild: false,
+        validateBeforeBuild: true,
+      },
+      test: {
+        coverage: false,
+        coverageThreshold: 80,
+        failFast: false,
+        includeBenchmarks: false,
+        runParallel: true,
+      },
+      deployment: {
+        strategy: "rolling",
+        autoRollback: true,
+        defaultEnvironment: "production",
+        healthCheckTimeout: 60,
+      },
     };
   }
 
@@ -282,6 +332,185 @@ describe("settingsCommand", () => {
         .mockResolvedValueOnce({ file: "x.json" } as never);
       await settingsCommand({});
       expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe("--edit (interactive editors)", () => {
+    it("global → general category", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "general" } as never)
+        .mockResolvedValueOnce({
+          defaultTemplate: "tensorflow",
+          autoUpdate: false,
+          telemetry: true,
+          verboseLogging: true,
+        } as never);
+
+      await settingsCommand({ edit: true, global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
+    });
+
+    it("global → ui category", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "ui" } as never)
+        .mockResolvedValueOnce({
+          colorOutput: false,
+          progressBars: false,
+          confirmPrompts: false,
+          interactiveMode: false,
+        } as never);
+
+      await settingsCommand({ edit: true, global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
+    });
+
+    it("global → development category", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "development" } as never)
+        .mockResolvedValueOnce({
+          autoFormat: false,
+          autoLint: false,
+          defaultPythonVersion: "3.11",
+          preferredIDE: "pycharm",
+        } as never);
+
+      await settingsCommand({ edit: true, global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
+    });
+
+    it("global → cloud category (sync off)", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "cloud" } as never)
+        .mockResolvedValueOnce({ syncSettings: false } as never);
+
+      await settingsCommand({ edit: true, global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
+    });
+
+    it("global → cloud category (sync on, sets region/provider)", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "cloud" } as never)
+        .mockResolvedValueOnce({ syncSettings: true } as never)
+        .mockResolvedValueOnce({
+          defaultRegion: "eu-west-1",
+          preferredProvider: "gcp",
+        } as never);
+
+      await settingsCommand({ edit: true, global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
+    });
+
+    it("global → api category", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "api" } as never)
+        .mockResolvedValueOnce({
+          url: "https://other.cirron.dev",
+          timeout: 45_000,
+          retries: 5,
+        } as never);
+
+      await settingsCommand({ edit: true, global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
+    });
+
+    it("project → general category", async () => {
+      vi.spyOn(settingsManager, "loadProjectSettings").mockReturnValue(
+        projectSettings() as never
+      );
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "general" } as never)
+        .mockResolvedValueOnce({
+          autoSave: false,
+          buildOnChange: true,
+          testOnBuild: false,
+        } as never);
+
+      await settingsCommand({ edit: true, project: true });
+      expect(settingsManager.saveProjectSettings).toHaveBeenCalled();
+    });
+
+    it("project → build category", async () => {
+      vi.spyOn(settingsManager, "loadProjectSettings").mockReturnValue(
+        projectSettings() as never
+      );
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "build" } as never)
+        .mockResolvedValueOnce({
+          defaultArch: "cuda",
+          enableCache: false,
+          pushOnBuild: true,
+          validateBeforeBuild: false,
+        } as never);
+
+      await settingsCommand({ edit: true, project: true });
+      expect(settingsManager.saveProjectSettings).toHaveBeenCalled();
+    });
+
+    it("project → test category", async () => {
+      vi.spyOn(settingsManager, "loadProjectSettings").mockReturnValue(
+        projectSettings() as never
+      );
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "test" } as never)
+        .mockResolvedValueOnce({
+          coverageThreshold: 90,
+          failFast: true,
+          includeBenchmarks: true,
+          runParallel: false,
+        } as never);
+
+      await settingsCommand({ edit: true, project: true });
+      expect(settingsManager.saveProjectSettings).toHaveBeenCalled();
+    });
+
+    it("project → deployment category", async () => {
+      vi.spyOn(settingsManager, "loadProjectSettings").mockReturnValue(
+        projectSettings() as never
+      );
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "deployment" } as never)
+        .mockResolvedValueOnce({
+          autoRollback: false,
+          defaultEnvironment: "staging",
+          healthCheckTimeout: 120,
+        } as never);
+
+      await settingsCommand({ edit: true, project: true });
+      expect(settingsManager.saveProjectSettings).toHaveBeenCalled();
+    });
+
+    it("project → uses defaults when no project settings exist", async () => {
+      vi.spyOn(settingsManager, "loadProjectSettings").mockReturnValue(
+        null as never
+      );
+      vi.spyOn(settingsManager, "getDefaultProjectSettings").mockReturnValue(
+        projectSettings() as never
+      );
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ category: "general" } as never)
+        .mockResolvedValueOnce({
+          autoSave: true,
+          buildOnChange: false,
+          testOnBuild: true,
+        } as never);
+
+      await settingsCommand({ edit: true, project: true });
+      expect(settingsManager.saveProjectSettings).toHaveBeenCalled();
+    });
+
+    it("interactive 'edit' action routes into the editor", async () => {
+      vi.spyOn(inquirer, "prompt")
+        .mockResolvedValueOnce({ action: "edit" } as never)
+        .mockResolvedValueOnce({ category: "general" } as never)
+        .mockResolvedValueOnce({
+          defaultTemplate: "custom",
+          autoUpdate: true,
+          telemetry: false,
+          verboseLogging: false,
+        } as never);
+
+      await settingsCommand({ global: true });
+      expect(settingsManager.saveGlobalSettings).toHaveBeenCalled();
     });
   });
 
