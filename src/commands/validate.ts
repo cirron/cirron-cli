@@ -40,8 +40,8 @@ function validateModelConfig(config: ProjectConfig): ConfigIssues {
   }
 
   if (config.framework && !KNOWN_FRAMEWORKS.includes(config.framework)) {
-    errors.push(
-      `unknown framework "${config.framework}" (expected one of: ${KNOWN_FRAMEWORKS.join(", ")})`
+    warnings.push(
+      `framework "${config.framework}" is not one of the built-in frameworks (${KNOWN_FRAMEWORKS.join(", ")}); it will be treated as a custom framework`
     );
   }
 

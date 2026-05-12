@@ -60,8 +60,17 @@ describe("validateCommand", () => {
     expect(out()).toMatch(/valid/i);
   });
 
-  it("fails a single-model config with a bad framework", async () => {
+  it("warns (does not fail) on a non-built-in framework", async () => {
     writeConfig(tmp.dir, "cirron.json", model({ framework: "mxnet" }));
+    await validateCommand({});
+    expect(out()).toMatch(/PASS/);
+    expect(out()).toMatch(/not one of the built-in frameworks/);
+  });
+
+  it("fails a single-model config that is missing a required field", async () => {
+    const cfg = model({ name: "solo" });
+    delete cfg.version;
+    writeConfig(tmp.dir, "cirron.json", cfg);
     let code: number | null = null;
     try {
       await validateCommand({});
@@ -69,7 +78,7 @@ describe("validateCommand", () => {
       code = exitCodeFromError(e as Error);
     }
     expect(code).toBe(1);
-    expect(out()).toMatch(/unknown framework/);
+    expect(out()).toMatch(/missing required field: version/);
   });
 
   it("errors when --model does not match the single project", async () => {
