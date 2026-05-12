@@ -45,6 +45,11 @@ export default defineConfig({
         "src/utils/version.ts": {
           lines: 80,
         },
+        "src/utils/workspace.ts": {
+          lines: 90,
+          functions: 90,
+          branches: 75,
+        },
         "src/utils/plan-diff.ts": {
           lines: 65,
           functions: 80,
@@ -80,6 +85,7 @@ export default defineConfig({
         "src/commands/compile.ts": { lines: 50 },
         "src/commands/test.ts": { lines: 60 },
         "src/commands/build.ts": { lines: 52 },
+        "src/commands/validate.ts": { lines: 90, functions: 90, branches: 80 },
       },
     },
   },
