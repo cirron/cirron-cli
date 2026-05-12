@@ -89,7 +89,9 @@ describe("isWorkspaceConfig", () => {
     );
   });
   it("rejects a plain model config", () => {
-    expect(isWorkspaceConfig({ name: "demo", framework: "custom" })).toBe(false);
+    expect(isWorkspaceConfig({ name: "demo", framework: "custom" })).toBe(
+      false
+    );
   });
   it("rejects non-objects and a non-object workspace value", () => {
     expect(isWorkspaceConfig(null)).toBe(false);
@@ -201,7 +203,11 @@ describe("discoverModels", () => {
       {
         workspace: {
           name: "ws",
-          models: [{ path: "models/a" }, { path: "models/a/" }, { path: "models/*" }],
+          models: [
+            { path: "models/a" },
+            { path: "models/a/" },
+            { path: "models/*" },
+          ],
         },
       },
       tmp.dir
@@ -212,8 +218,18 @@ describe("discoverModels", () => {
 
 describe("filterModels", () => {
   const models = [
-    { name: "model-a", path: "models/a", configPath: "", config: modelConfig() },
-    { name: "model-b", path: "models/b", configPath: "", config: modelConfig() },
+    {
+      name: "model-a",
+      path: "models/a",
+      configPath: "",
+      config: modelConfig(),
+    },
+    {
+      name: "model-b",
+      path: "models/b",
+      configPath: "",
+      config: modelConfig(),
+    },
   ];
 
   it("matches by name", () => {

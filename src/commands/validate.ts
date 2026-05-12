@@ -27,13 +27,7 @@ interface ModelReport {
   warnings: string[];
 }
 
-const KNOWN_FRAMEWORKS = [
-  "pytorch",
-  "tensorflow",
-  "sklearn",
-  "onnx",
-  "custom",
-];
+const KNOWN_FRAMEWORKS = ["pytorch", "tensorflow", "sklearn", "onnx", "custom"];
 
 function validateModelConfig(config: ProjectConfig): ConfigIssues {
   const errors: string[] = [];
@@ -71,7 +65,11 @@ function validateRootConfig(workspace: WorkspaceConfig): string[] {
     errors.push("workspace.models must be a non-empty array");
   } else {
     ws.models.forEach((entry, i) => {
-      if (!entry || typeof entry.path !== "string" || entry.path.trim() === "") {
+      if (
+        !entry ||
+        typeof entry.path !== "string" ||
+        entry.path.trim() === ""
+      ) {
         errors.push(`workspace.models[${i}] must have a non-empty "path"`);
       }
     });
@@ -115,7 +113,12 @@ async function runSingleMode(
     if (requested.length > 0 || !options.model.includes(config.name)) {
       const msg = `--model ${options.model.join(", ")} did not match this project (${config.name})`;
       if (options.json) {
-        logger.json({ name: config.name, ok: false, errors: [msg], warnings: [] });
+        logger.json({
+          name: config.name,
+          ok: false,
+          errors: [msg],
+          warnings: [],
+        });
       } else {
         logger.error(msg);
       }
@@ -130,7 +133,11 @@ async function runSingleMode(
     logger.json({ name: config.name, ok, errors, warnings });
   } else {
     printModelReport({ name: config.name, path: ".", ok, errors, warnings });
-    logger.info(ok ? chalk.green("Configuration is valid.") : chalk.red("Configuration is invalid."));
+    logger.info(
+      ok
+        ? chalk.green("Configuration is valid.")
+        : chalk.red("Configuration is invalid.")
+    );
   }
 
   if (!ok) {
@@ -176,12 +183,20 @@ async function runMonorepoMode(
       logger.info(`  ${chalk.red("error")}  ${err}`);
     }
     for (const m of missing) {
-      logger.info(`  ${chalk.red("error")}  model path not found or has no cirron config: ${m}`);
+      logger.info(
+        `  ${chalk.red("error")}  model path not found or has no cirron config: ${m}`
+      );
     }
     for (const u of unmatched) {
-      logger.info(`  ${chalk.red("error")}  --model "${u}" did not match any model in the workspace`);
+      logger.info(
+        `  ${chalk.red("error")}  --model "${u}" did not match any model in the workspace`
+      );
     }
-    if (reports.length === 0 && missing.length === 0 && rootErrors.length === 0) {
+    if (
+      reports.length === 0 &&
+      missing.length === 0 &&
+      rootErrors.length === 0
+    ) {
       logger.info("  no models to validate");
     }
     for (const report of reports) {
@@ -192,7 +207,9 @@ async function runMonorepoMode(
     logger.info(
       ok
         ? chalk.green(`All ${passed} model(s) valid.`)
-        : chalk.red(`${passed}/${reports.length} model(s) valid; workspace validation failed.`)
+        : chalk.red(
+            `${passed}/${reports.length} model(s) valid; workspace validation failed.`
+          )
     );
   }
 
@@ -221,7 +238,8 @@ export async function validateCommand(
 
   await runMonorepoMode(
     detected.workspace.config,
-    detected.workspace.configPath.replace(/[\\/][^\\/]+$/, "") || detected.rootDir,
+    detected.workspace.configPath.replace(/[\\/][^\\/]+$/, "") ||
+      detected.rootDir,
     options
   );
 }
