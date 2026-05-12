@@ -1,591 +1,298 @@
 # Cirron CLI
-Cirron's integrated CLI tool for machine learning engineers, data scientists, and anyone with an interest. The Cirron CLI streamlines the development, testing, and deployment of ML models with features like:
 
-- **Project Templates**: Quick-start with PyTorch, TensorFlow, or scikit-learn, with more to come
-- **Automated Testing**: Built-in test suite for ML environments, data pipelines, and model inference
-- **Container Management**: Simplified Docker builds and deployments
-- **Environment Validation**: Checks for Python, CUDA, and dependency compatibility
-- **Development Tools**: Code quality checks, dependency management, and more
+Official command line interface for [Cirron](https://cirron.com). Scaffold, compile, build, test, and profile machine learning models on your own machine, and connect to the Cirron platform when you want hosted registry, deployments, and remote runs.
 
-Install globally with:
+The CLI is fully usable today without an account. Everything in the local workflow (init, compile, build, test, lint, validate, plan, traces, doctor) runs offline. Platform features (auth, registry push/pull, deploy, remote runs, logs) are being rolled out to users. The commands are already here, ready when access opens up.
+
+License: Apache-2.0.
+
+## Installation
+
+Install globally with npm (requires Node.js 18 or newer):
+
 ```bash
-npm install -g cirron-cli
-```
-or 
-```bash
-curl -fsSL https://cli.cirron.com | bash 
+npm install -g cirron
 ```
 
-## Usage
-1. Initialize New Projects Anywhere:
-```bash
-# From your home directory
-cd ~
-cirron init my-new-model --template pytorch
-
-# From your projects folder
-cd ~/projects
-cirron init sentiment-analysis --template tensorflow
-
-# From anywhere
-cd /tmp
-cirron init test-model --template sklearn
-```
-2. Work on Existing Projects:
-```bash
-# Navigate to any existing cirron project
-cd ~/projects/my-pytorch-model
-
-# Use cirron commands (it finds cirron.json automatically)
-cirron test
-cirron build
-cirron deploy
-```
-
-3. How Cirron Finds Project Config:
-The CLI looks for cirron.json in the current working directory:
-```bash
-my-pytorch-model/
-├── cirron.json          ← CLI finds this
-├── src/
-├── Dockerfile
-└── requirements.txt
-
-# When you run:
-cd my-pytorch-model
-cirron build              # ✅ Works - finds cirron.json
-```
+Verify the install:
 
 ```bash
-# If you're in the wrong directory:
-cd ~
-cirron build              # ❌ Fails - no cirron.json found
-```
-
-4. Multi-Project Workflow:
-
-```bash
-# Work on multiple projects
-cd ~/ml-projects/model-a
-cirron build --tag v1.0.0
-
-cd ~/ml-projects/model-b  
-cirron test --model
-
-cd ~/ml-projects/model-c
-cirron deploy --env staging
-```
-
-🔧 Pro Tips:
-Check if You're in a Cirron Project:
-```bash
- # Shows project info if cirron.json exists
-cirron status 
-```
-
-Global Commands (Work Anywhere):
-```bash
-cirron --version          # ✅ Works from anywhere
-cirron --help             # ✅ Works from anywhere  
-cirron auth login         # ✅ Works from anywhere
-cirron config --list     # ✅ Works from anywhere
-```
-
-Project Commands (Need cirron.json):
-```bash
-cirron init               # ✅ Works anywhere (creates new project)
-cirron build              # ❌ Needs cirron.json in current directory
-cirron test               # ❌ Needs cirron.json in current directory
-cirron deploy             # ❌ Needs cirron.json in current directory
-```
-
-🚀 Typical Multi-Project Setup:
-```bash
-~/ml-projects/
-├── sentiment-model/
-│   ├── cirron.json
-│   └── src/
-├── image-classifier/
-│   ├── cirron.json  
-│   └── src/
-└── recommendation-engine/
-    ├── cirron.json
-    └── src/
-
-# Work on any project:
-cd ~/ml-projects/sentiment-model && cirron build
-cd ~/ml-projects/image-classifier && cirron test
-cd ~/ml-projects/recommendation-engine && cirron deploy
-```
-
-
-## Development Commands
-In your cirron-cli directory
-
-```bash
-npm install        # Install dependencies
-npm run build      # Build TypeScript
-npm link           # Create global symlink
-
-# Now you can use 'cirron' anywhere
 cirron --version
-cirron init test-project
 ```
 
-To unlink later:
+A `curl` one-line installer and a Homebrew formula are coming. For now, npm is the supported distribution channel.
+
+## Quick start
 
 ```bash
-npm unlink -g cirron-cli
+cirron init my-model --template pytorch   # scaffold a project
+cd my-model
+cirron test                               # run the local test suite
+cirron compile                            # compile the model locally
+cirron build                              # build a container image
 ```
 
-## Structure
+Project commands look for a `cirron.yaml` in the current directory. `cirron.yml` and `cirron.json` are also accepted. Run any command with `--help` for its full option list, or see the docs at [docs.cirron.com/cli](https://docs.cirron.com/cli).
+
+## Project layout and configuration
+
+`cirron init` generates a working ML project. The exact files depend on the template; a PyTorch project looks like:
+
 ```
-cirron-cli/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── release.yml
-├── bin/
-│   └── cirron
-├── scripts/
-│   ├── install.sh
-│   └── release.js
-├── src/
-│   ├── commands/
-│   │   ├── auth.ts
-│   │   ├── build.ts
-│   │   ├── compile.ts
-│   │   ├── config.ts        # Unified config (CLI + global + project scopes)
-│   │   ├── deploy.ts
-│   │   ├── diagnostics.ts   # Internal module, delegated from info --diagnostics
-│   │   ├── env.ts
-│   │   ├── files/
-│   │   ├── hardware.ts      # Internal module, delegated from config hardware
-│   │   ├── info.ts
-│   │   ├── init.ts
-│   │   ├── lint.ts
-│   │   ├── list.ts
-│   │   ├── logs.ts
-│   │   ├── plan.ts
-│   │   ├── pull.ts
-│   │   ├── push.ts
-│   │   ├── replay.ts        # Internal module, delegated from plan replay
-│   │   ├── run.ts
-│   │   ├── settings.ts      # Internal module, delegated from config --scope global/project
-│   │   ├── status.ts
-│   │   ├── sync.ts
-│   │   └── test.ts
-│   ├── utils/
-│   │   ├── api.ts
-│   │   ├── config.ts
-│   │   └── logger.ts
-│   ├── types/
-│   │   └── index.ts
-│   └── index.ts
-├── .gitignore
-├── .npmignore
-├── package.json
-├── tsconfig.json
-├── jest.config.js
-├── README.md
-└── LICENSE
+my-model/
+├── cirron.yaml          # project manifest (the CLI looks for this)
+├── train.py             # training entry point
+├── serve.py             # serving entry point
+├── requirements.txt     # Python dependencies
+├── models/              # trained model files
+├── artifacts/           # build and run artifacts
+└── build/               # build output
 ```
 
-## Compile
+After `cirron init` you can run the project directly (`python train.py`, then `python serve.py`) or drive it through the CLI (`cirron test`, `cirron compile`, `cirron build`).
 
-ML model compilation with architecture optimization:
+Configuration resolves in three layers, each overriding the one before it: global config in `~/.cirron/config.json`, the project `cirron.yaml`, then command line flags. Manage global and CLI settings with `cirron config`.
+
+A minimal `cirron.yaml`:
+
+```yaml
+name: iris-classifier
+framework: sklearn
+type: classification
+version: "1.0.0"
+description: Random-forest classifier on the Iris dataset
+servingConfig:
+  runtime: onnx
+env:
+  THRESHOLD: "0.6"
+```
+
+Generated manifests also include a `servingConfig` with `feature_order`, `input_schema`, and `output_schema` describing the model's serving contract.
+
+### File exclusion (.cirronignore)
+
+A `.cirronignore` file controls which files Cirron commands process, using the same glob syntax as `.dockerignore` and `.gitignore`, including `!` negation. Build folds these patterns into a temporary `.dockerignore`, test uses them when scanning data directories, and file operations skip them. Add one at the project root to keep large data files, model artifacts, caches, and temp files out of Cirron operations. See [docs.cirron.com/cli/utils/cirronignore](https://docs.cirron.com/cli/utils/cirronignore).
+
+### Registry settings
+
+Container image names follow `registry/organization/project:tag`. Configure the registry and org with environment variables:
 
 ```bash
-cirron compile                        # Compile with default architecture
-cirron compile --arch cuda           # Compile for CUDA
-cirron compile --arch gpu            # Compile for GPU (TensorFlow)
-cirron compile --validate            # Run validation checks before compile
-cirron compile --dry-run             # Simulate compilation without execution
-cirron compile --index config.json   # Use custom configuration file
-cirron compile --interactive         # Step-by-step compilation confirmations
+export CIRRON_REGISTRY=localhost:5000
+export CIRRON_ORG=mycompany
+# image becomes: localhost:5000/mycompany/iris-classifier:latest
 ```
 
-## Build
+## Templates
 
-Smart Project Detection:
-- ML Projects (PyTorch, TensorFlow, sklearn) → ML builds with architecture templates
-- Traditional Projects → Standard build process
+`cirron init <name> --template <template>`:
 
-### Basic Build Commands
+| Template | What you get |
+| --- | --- |
+| `pytorch` | PyTorch inference project |
+| `pytorch-train` | PyTorch training pipeline |
+| `tensorflow` | TensorFlow / Keras inference project |
+| `tensorflow-train` | TensorFlow training pipeline |
+| `sklearn` | scikit-learn model project |
+| `sklearn-pipeline` | scikit-learn full pipeline |
+| `custom` | blank Python project |
+
+Run `cirron init` with no template to choose interactively.
+
+## Commands
+
+Run `cirron <command> --help` for full flags, or browse [docs.cirron.com/cli](https://docs.cirron.com/cli).
+
+### Project
+
+| Command | Description |
+| --- | --- |
+| `cirron init [name]` | Scaffold a new project from a template |
+| `cirron register` | Register an existing project with Cirron |
+| `cirron validate` | Validate the project config, or every model in a workspace |
+| `cirron status` | Show project status (`--remote` to include platform state) |
+| `cirron info` | Model info, diagnostics, and hardware details |
+| `cirron doctor` | Diagnose the local environment: extras, config, spool, connectivity |
+| `cirron config` | Manage CLI, global, and project configuration |
+| `cirron config hardware` | Detect, configure, and save hardware profiles |
+| `cirron lint` | Project health checks: config, structure, dependencies, code |
+
+### Model lifecycle
+
+| Command | Description |
+| --- | --- |
+| `cirron compile` | Compile the model locally, with architecture targeting and validation |
+| `cirron build` | Build a container image, with architecture templates and validation |
+| `cirron test` | Run ML tests: env, requirements, unit, model, data, inference, pipeline |
+| `cirron deploy` | Deploy the project to an environment, with rollback support |
+
+### Planning
+
+| Command | Description |
+| --- | --- |
+| `cirron plan compile` | Preview a compile: artifact paths, dependencies, resource estimates |
+| `cirron plan build` | Preview a build: artifacts, model shape, resource usage |
+| `cirron plan diff <planA> <planB>` | Compare two saved plans |
+| `cirron plan save [type]` | Save plans to disk for later comparison and auditing |
+| `cirron plan replay --plan <file>` | Execute a previously saved plan |
+
+### Execution and jobs
+
+| Command | Description |
+| --- | --- |
+| `cirron run pipeline [name]` | Trigger a pipeline run |
+| `cirron run job` | Run a single-task job |
+| `cirron run inference [deployment]` | Trigger batch inference |
+| `cirron run sweep` | Trigger a hyperparameter sweep |
+| `cirron run list` | List runs and jobs |
+| `cirron run status <runId>` | Get run status |
+| `cirron run cancel <runId>` | Cancel a run |
+| `cirron run logs <runId>` | Stream run logs |
+
+### Registry and sync
+
+| Command | Description |
+| --- | --- |
+| `cirron push [resource] [name]` | Push artifacts (model, image, build, runtime) to the registry |
+| `cirron pull [resource] [name]` | Pull artifacts from the registry |
+| `cirron sync [path]` | Bidirectional state sync with conflict resolution |
+| `cirron list <resource>` | List deployments, builds, models, images, registry, runs, pipelines |
+| `cirron logs` | View deployment logs (`-f` to follow) |
+| `cirron env` | Manage per-environment variables (`list`, `set`, `delete`) |
+
+### Observability
+
+| Command | Description |
+| --- | --- |
+| `cirron traces view` | Render the local scope tree as a text flamegraph |
+| `cirron traces list` | List trace sessions in the local spool |
+| `cirron traces export --format <fmt>` | Export traces to parquet, otel, csv, or json |
+| `cirron traces clear` | Delete trace sessions and their snapshots |
+| `cirron traces snapshots [spanId]` | List weight and gradient snapshots by span |
+| `cirron traces snapshot <spanId> [tensor]` | Inspect a span's snapshots: stats, histogram, tensor preview |
+| `cirron spool inspect` | Show spool file count, size, and timestamp range |
+| `cirron spool flush` | Upload spool batches to the platform and delete on success |
+| `cirron spool clear` | Delete all spool files |
+
+### Auth (platform)
+
+| Command | Description |
+| --- | --- |
+| `cirron auth login` | Authenticate with the Cirron platform |
+| `cirron auth logout` | Sign out |
+| `cirron auth status` | Show authentication status |
+| `cirron auth refresh` | Refresh the auth token |
+
+## Use cases
+
+### Scaffold and iterate on a model locally
+
 ```bash
-cirron build                           # Build container: localhost:5000/user/project:latest
-cirron build --env staging             # Build: localhost:5000/user/project:staging-1.0.0  
-cirron build --tag v1.2.3             # Build: localhost:5000/user/project:v1.2.3
-cirron build --push                   # Build + push to registry
-cirron build --clean                  # No-cache build
+cirron init image-captioner --template pytorch --git
+cd image-captioner
+# edit train.py and serve.py
+python train.py                # train and export the model
+cirron test --model            # model loads and instantiates
+cirron test --inference        # inference pipeline runs
+cirron compile --validate      # compile with integrity checks
+cirron build --validate        # build a container image
 ```
 
-### Architecture Templates
-Use pre-built templates for common ML patterns:
+### Health check before committing
+
 ```bash
-cirron build --arch transformer       # Build with transformer architecture
-cirron build --arch xgboost          # Build with XGBoost model template
-cirron build --arch resnet           # Build with ResNet architecture
-cirron build --arch lstm             # Build with LSTM/RNN template
-cirron build --arch autoencoder      # Build with encoder-decoder template
+cirron validate                # config is well formed
+cirron lint --fix              # structure, dependencies, code quality, auto-fix what it can
+cirron doctor                  # local environment, extras, connectivity
 ```
 
-### Validation and Dry-Run
-```bash
-cirron build --validate              # Run comprehensive validation checks
-cirron build --dry-run               # Simulate build without execution
-cirron build --dry-run --validate    # Full validation + build simulation
-cirron build --index manifest.json   # Build with custom manifest file
-cirron build --interactive           # Step-by-step build confirmations
-```
-
-### Registry Configuration:
-Uses environment variables for flexibility:
-```bash
-export CIRRON_REGISTRY=localhost:5000        # Default local registry
-export CIRRON_ORG=mycompany                  # Your organization
-# Image becomes: localhost:5000/mycompany/project:tag
-```
-Image Naming Convention:
-
-Format: `registry/organization/project:tag`
-
-Examples:
-- `localhost:5000/john/my-pytorch-model:latest`
-- `harbor.company.com/ml-team/sentiment-model:v1.0.0`
-
-
-Build Output:
-```bash
-Container build completed successfully!
-
-Build Results
-Image: localhost:5000/john/my-model:development-1.0.0
-Environment: development  
-Size: 2.1 GB
-
-Next steps:
-  docker run -p 8000:8000 localhost:5000/john/my-model:development-1.0.0 - Test locally
-  cirron build --push - Push to registry
-  cirron deploy - Deploy to environment
-Environment Variable Substitution:
-Your cirron.json build commands can use:
-
-${PROJECT_NAME} → project name
-${VERSION} → project version
-${IMAGE_NAME} → full image name
-```
-
-## File Exclusion (.cirronignore)
-
-Control which files are processed by Cirron commands using a `.cirronignore` file, similar to `.dockerignore`:
+### Preview and replay a build
 
 ```bash
-# Create .cirronignore in your project root
-echo "*.log" > .cirronignore
-echo "temp_*" >> .cirronignore
-echo "__pycache__/" >> .cirronignore
-```
-
-### .cirronignore Syntax
-
-```bash
-# Comments start with #
-# Exclude all log files
-*.log
-
-# Exclude temporary files
-temp_*
-*.tmp
-
-# Exclude directories (trailing slash optional)
-__pycache__/
-node_modules
-
-# Exclude directory contents
-build/**
-
-# Include exceptions (negation with !)
-data/
-!data/sample/
-!data/test/
-
-# Exclude large model files but keep configs
-models/*.pth
-models/*.pkl
-!models/config.json
-```
-
-### Default Patterns
-
-When you run `cirron init`, a default `.cirronignore` is created with common patterns:
-
-```bash
-# Version control
-.git/
-.svn/
-
-# Large data files
-data/raw/
-data/processed/
-*.csv
-!data/sample/*.csv
-
-# Model artifacts
-models/*.pth
-models/*.pkl
-models/*.joblib
-
-# Development files
-.vscode/
-.idea/
-__pycache__/
-*.pyc
-
-# Temporary files
-temp_*
-*.tmp
-*.log
-```
-
-### How .cirronignore Works
-
-- **Build Command**: Automatically integrates patterns into `.dockerignore` during container builds
-- **Test Command**: Filters files when scanning test data directories
-- **File Operations**: Excludes files from processing in various Cirron operations
-- **Pattern Matching**: Uses glob patterns with support for negation (`!`)
-
-Example usage:
-```bash
-# These files will be ignored during build and test
-echo "large-dataset.csv" >> .cirronignore
-echo "debug.log" >> .cirronignore
-
-# Run build - ignored files won't be included
-cirron build
-
-# Run tests - ignored files won't be processed  
-cirron test --data
-```
-
-## Plan and Replay
-
-Preview and plan complex operations before execution:
-
-### Plan Commands
-```bash
-# Preview compilation with resource estimates
-cirron plan compile                    # Plan compilation for default architecture
-cirron plan compile --arch cuda        # Plan CUDA-specific compilation
-cirron plan compile --validate         # Include validation checks in plan
-
-# Preview container builds
-cirron plan build                      # Plan build with current configuration
-cirron plan build --arch transformer   # Plan build with transformer template
-cirron plan build --validate           # Include comprehensive validation
-
-# Compare two plan files
-cirron plan diff plan-a.json plan-b.json
-
-# Interactive mode for all commands
-cirron build --interactive            # Step-by-step build confirmations
-cirron compile --interactive          # Interactive compilation with architecture selection
-cirron test --interactive             # Smart test selection and error handling
-cirron plan build --interactive       # Enhanced planning with save options
-```
-
-### Plan Management
-```bash
-# Save plans for later execution
-cirron plan save --name "v1.0-build"   # Save current build plan
-cirron plan save --file build-plan.json # Save to specific file
-
-# Compare two plan files
+cirron plan build --validate --save plan-a.json
+# make some changes, then:
+cirron plan build --validate --save plan-b.json
 cirron plan diff plan-a.json plan-b.json --verbose
+cirron plan replay --plan plan-a.json --dry-run
 ```
 
-### Replay Saved Plans
-```bash
-# Execute previously saved plans
-cirron plan replay --plan build-plan.json           # Execute saved plan file
-cirron plan replay --plan v1.0-build                # Execute named plan
-cirron plan replay --plan v1.0-build --validate     # Validate plan before execution
-cirron plan replay --plan build-plan.json --dry-run # Preview without executing
-```
+### Profile a training run
 
-**Use Cases:**
-- **CI/CD Planning**: Preview deployment impacts before execution
-- **Change Detection**: Compare current vs previous plans to understand modifications
-- **Resource Planning**: Estimate requirements for large ML operations  
-- **Team Collaboration**: Share plans for review before execution
-
-## Lint
-
-Comprehensive project health checking and code quality analysis:
-
-### Basic Lint Commands
-```bash
-cirron lint                            # Run all lint categories
-cirron lint --fix                      # Automatically fix issues where possible
-cirron lint --json                     # Output structured JSON results
-cirron lint --strict                   # Treat warnings as errors
-```
-
-### Category-Specific Linting
-```bash
-cirron lint --config                   # Check cirron.json and configurations
-cirron lint --structure                # Validate project file structure
-cirron lint --dependencies             # Analyze Python requirements conflicts
-cirron lint --code                     # Run code quality checks
-```
-
-### Lint Output
-The lint command provides:
-- **Severity Levels**: Errors, warnings, and info messages
-- **Fixable Indicators**: Shows which issues can be auto-resolved
-- **File Locations**: Specific line numbers for code issues
-- **Fix Suggestions**: Actionable recommendations for resolution
-- **Category Grouping**: Organized by config, structure, dependencies, and code
-
-Example output:
-```bash
-Configuration: All checks passed
-Structure: 2 warnings found
-- Missing model.py in src/ directory (fixable)
-- No test data samples found in data/sample/
-Dependencies: 1 error found  
-- Conflicting versions: torch>=1.9.0 vs torchvision==0.10.0 (requires torch<1.9)
-Code Quality: All checks passed
-
-Summary: 1 error, 2 warnings, 0 info
-Run with --fix to automatically resolve fixable issues
-```
-
-## Test
-
-Comprehensive ML project testing with smart selection and interactive modes:
-
-### Basic Test Commands
-```bash
-cirron test                            # Run default test suite (env, requirements, unit, model, data)
-cirron test --interactive             # Smart test selection with presets and custom options
-cirron test --strict                  # Fail fast on any errors (useful for CI)
-cirron test --json                    # Output results in JSON format
-```
-
-### Individual Test Types
-```bash
-cirron test --env                     # Test Python, CUDA, and environment setup
-cirron test --requirements           # Validate Python requirements and dependencies
-cirron test --unit                   # Run pytest/unittest test suites
-cirron test --model                  # Test model loading and instantiation
-cirron test --data                   # Test data loading functionality
-cirron test --inference              # Test model inference pipeline
-cirron test --lint                   # Run code quality checks
-cirron test --build                  # Test Docker container build
-```
-
-### Advanced Testing
-```bash
-cirron test --val -p data/validation  # Run model validation tests on specific data
-cirron test --endpoint http://api.com # Test deployed endpoint performance
-cirron test --pipeline                # End-to-end ML pipeline testing
-cirron test --watch                   # Watch mode for continuous testing
-```
-
-### Interactive Test Selection
-When using `--interactive` mode, you can choose from:
-- **All steps**: Run complete test suite
-- **Essential only (quick)**: Run core tests (env, requirements, model, data)
-- **Custom selection**: Pick individual test types
-- **None (skip all)**: Skip testing entirely
-
-Example interactive flow:
-```bash
-cirron test --interactive
-? How would you like to select steps?
-  ❯ All steps
-    Essential only (quick)
-    Custom selection
-    None (skip all)
-```
-
-## Run
-
-Training runs, pipeline executions, and job management:
+After running training with the Cirron SDK, the local spool holds trace sessions and snapshots:
 
 ```bash
-# Trigger a pipeline run
-cirron run pipeline my-pipeline -c config.yaml --watch
-
-# List runs
-cirron run list --status running --last 10
-
-# Check run status
-cirron run status <runId> --json
-
-# Cancel a run
-cirron run cancel <runId> --force
-
-# Stream run logs
-cirron run logs <runId> -f
+cirron spool inspect
+cirron traces list
+cirron traces view --last 1 --min-wall 1ms
+cirron traces snapshots --session <id>
+cirron traces snapshot <spanId> --json
+cirron traces export --format parquet --output traces/
 ```
 
-Runs are also accessible via `cirron list runs`.
+### Multiple models in one repository
 
-## Push
+Add a root `cirron.yaml` with a `workspace:` key. The CLI then runs in monorepo mode from the repo root and can discover and validate every model. Running inside a model subdirectory still operates on that model alone (there is no upward search).
 
-Push artifacts to the Cirron registry:
+```yaml
+workspace:
+  name: ml-models
+  models:
+    - path: models/sentiment-rnn
+    - path: models/news-classifier
+    - path: models/*            # each immediate subdir that has a cirron.yaml
+  defaults:                     # inherited by every model
+    profiling:
+      snapshots: stats
+      flush_interval: 1.0
+    env:
+      ENVIRONMENT: production
+```
 
 ```bash
-# Push a specific resource
-cirron push model sentiment-classifier --tag v1.3.0 -m "Improved accuracy"
-
-# Push a file by path
-cirron push model.pt --tag latest
-
-# Push all project artifacts
-cirron push --all
-
-# Dry run to see what would be pushed
-cirron push --all --dry-run
+cirron validate                       # validate every model
+cirron validate --model sentiment-rnn # validate one (by name or path)
+cirron validate --json                # machine-readable output
 ```
 
-## Pull
+Inheritance rules: `env` is shallow-merged and the model's value wins on conflicts. `profiling` is replaced wholesale when the model defines its own block. Any other `defaults` key applies only when the model does not set it. See [docs.cirron.com/cli/monorepo](https://docs.cirron.com/cli/monorepo).
 
-Pull artifacts from the Cirron registry:
+### Connect to the Cirron platform
+
+Platform access is rolling out to users. These commands target `app.cirron.com` and need an account; the local workflow above does not.
 
 ```bash
-# Pull a specific resource
-cirron pull model sentiment-classifier --tag v1.2.0
-
-# Pull all project artifacts
-cirron pull --all
-
-# Pull with type filter
-cirron pull --all --type model
-
-# Dry run to preview
-cirron pull --all --dry-run
+cirron auth login
+cirron register                       # link this project to Cirron
+cirron push model image-captioner --tag v1.3.0 -m "Improved accuracy"
+cirron pull model image-captioner --tag v1.2.0
+cirron deploy --env production
+cirron run pipeline train --config config.yaml --watch
+cirron logs -f
 ```
 
-## Sync
-
-Bidirectional state sync with conflict resolution:
+## Development
 
 ```bash
-# Sync entire project (dry run by default on first sync)
-cirron sync --dry-run
+npm install            # install dependencies
+npm run build          # compile TypeScript to dist/
+npm run build:watch    # watch mode compilation
+npm run dev            # run with ts-node
 
-# Push local changes only
-cirron sync --push-only
+npm test               # run the test suite (Vitest)
+npm run test:watch     # watch mode
+npm run test:coverage  # with coverage
 
-# Pull remote changes only
-cirron sync --pull-only
+npm run lint           # lint
+npm run lint:fix       # lint and fix
 
-# Sync with conflict strategy
-cirron sync --conflicts local-wins
-
-# Sync with exclusions
-cirron sync --exclude "*.log,temp_*" --verbose
+npm link               # symlink `cirron` to this checkout for local testing
+npm unlink -g cirron   # remove the symlink
 ```
+
+Tests live in `tests/`. The CLI source is under `src/` (`src/commands/` for command handlers, `src/utils/` for shared utilities, `src/types/` for types), with project templates in `templates/`. See `CLAUDE.md` for contributor conventions.
+
+## Links
+
+- Docs: [docs.cirron.com/cli](https://docs.cirron.com/cli)
+- Platform: [app.cirron.com](https://app.cirron.com)
+- Issues: [github.com/cirron/cirron-cli/issues](https://github.com/cirron/cirron-cli/issues)
