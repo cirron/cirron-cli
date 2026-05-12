@@ -212,7 +212,6 @@ export async function validateCommand(
     );
     logger.info(`Run ${chalk.cyan("cirron init")} to create a new project.`);
     process.exit(1);
-    return;
   }
 
   if (detected.mode === "single") {
