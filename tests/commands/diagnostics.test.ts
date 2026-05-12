@@ -1,6 +1,7 @@
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { diagnosticsCommand } from "../../src/commands/diagnostics";
+import { CirronApi } from "../../src/utils/api";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 describe("diagnosticsCommand", () => {
@@ -17,6 +18,12 @@ describe("diagnosticsCommand", () => {
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    // The connectivity check otherwise makes a real network request with a
+    // 10s timeout, which blows past vitest's default per-test timeout.
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: true,
+      user: { email: "diag@example.com" },
+    } as never);
   });
 
   afterEach(() => {
