@@ -80,7 +80,9 @@ function findCirronConfigInDir(dir: string): string | null {
  * Load the root workspace config from `dir` (defaults to cwd). Returns null if
  * there is no cirron config there, or if the config has no `workspace` key.
  */
-export function loadWorkspaceConfig(dir?: string): WorkspaceConfigResult | null {
+export function loadWorkspaceConfig(
+  dir?: string
+): WorkspaceConfigResult | null {
   const baseDir = path.resolve(dir || process.cwd());
   for (const filename of CONFIG_FILES) {
     const configPath = path.join(baseDir, filename);
@@ -130,8 +132,11 @@ export function mergeWorkspaceDefaults(
     return { ...modelConfig };
   }
 
-  const { env: defaultEnv, profiling: defaultProfiling, ...otherDefaults } =
-    defaults;
+  const {
+    env: defaultEnv,
+    profiling: defaultProfiling,
+    ...otherDefaults
+  } = defaults;
   const merged: ProjectConfig = { ...modelConfig };
 
   const mergedRecord = merged as unknown as Record<string, unknown>;

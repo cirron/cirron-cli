@@ -10,8 +10,16 @@ function writeConfig(dir: string, name: string, obj: unknown): void {
   fs.writeFileSync(path.join(dir, name), JSON.stringify(obj, null, 2));
 }
 
-function model(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { name: "demo", framework: "custom", type: "model", version: "1.0.0", ...overrides };
+function model(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    name: "demo",
+    framework: "custom",
+    type: "model",
+    version: "1.0.0",
+    ...overrides,
+  };
 }
 
 describe("validateCommand", () => {
@@ -84,8 +92,16 @@ describe("validateCommand", () => {
         defaults: { env: { ENVIRONMENT: "production" } },
       },
     });
-    writeConfig(path.join(tmp.dir, "models/a"), "cirron.json", model({ name: "model-a" }));
-    writeConfig(path.join(tmp.dir, "models/b"), "cirron.json", model({ name: "model-b" }));
+    writeConfig(
+      path.join(tmp.dir, "models/a"),
+      "cirron.json",
+      model({ name: "model-a" })
+    );
+    writeConfig(
+      path.join(tmp.dir, "models/b"),
+      "cirron.json",
+      model({ name: "model-b" })
+    );
     await validateCommand({});
     expect(out()).toMatch(/Workspace: ml-models/);
     expect(out()).toMatch(/PASS model-a/);
@@ -95,9 +111,16 @@ describe("validateCommand", () => {
 
   it("fails the workspace when a model path is missing", async () => {
     writeConfig(tmp.dir, "cirron.json", {
-      workspace: { name: "ws", models: [{ path: "models/a" }, { path: "models/gone" }] },
+      workspace: {
+        name: "ws",
+        models: [{ path: "models/a" }, { path: "models/gone" }],
+      },
     });
-    writeConfig(path.join(tmp.dir, "models/a"), "cirron.json", model({ name: "model-a" }));
+    writeConfig(
+      path.join(tmp.dir, "models/a"),
+      "cirron.json",
+      model({ name: "model-a" })
+    );
     let code: number | null = null;
     try {
       await validateCommand({});
@@ -112,8 +135,16 @@ describe("validateCommand", () => {
     writeConfig(tmp.dir, "cirron.json", {
       workspace: { name: "ws", models: [{ path: "models/*" }] },
     });
-    writeConfig(path.join(tmp.dir, "models/a"), "cirron.json", model({ name: "model-a" }));
-    writeConfig(path.join(tmp.dir, "models/b"), "cirron.json", model({ name: "model-b" }));
+    writeConfig(
+      path.join(tmp.dir, "models/a"),
+      "cirron.json",
+      model({ name: "model-a" })
+    );
+    writeConfig(
+      path.join(tmp.dir, "models/b"),
+      "cirron.json",
+      model({ name: "model-b" })
+    );
     await validateCommand({ model: ["model-a"] });
     expect(out()).toMatch(/PASS model-a/);
     expect(out()).not.toMatch(/model-b/);
@@ -123,7 +154,11 @@ describe("validateCommand", () => {
     writeConfig(tmp.dir, "cirron.json", {
       workspace: { name: "ws", models: [{ path: "models/a" }] },
     });
-    writeConfig(path.join(tmp.dir, "models/a"), "cirron.json", model({ name: "model-a" }));
+    writeConfig(
+      path.join(tmp.dir, "models/a"),
+      "cirron.json",
+      model({ name: "model-a" })
+    );
     let code: number | null = null;
     try {
       await validateCommand({ model: ["bogus"] });
@@ -135,7 +170,9 @@ describe("validateCommand", () => {
   });
 
   it("fails the workspace when the root config is malformed", async () => {
-    writeConfig(tmp.dir, "cirron.json", { workspace: { name: "", models: [] } });
+    writeConfig(tmp.dir, "cirron.json", {
+      workspace: { name: "", models: [] },
+    });
     let code: number | null = null;
     try {
       await validateCommand({});
@@ -151,7 +188,11 @@ describe("validateCommand", () => {
     writeConfig(tmp.dir, "cirron.json", {
       workspace: { name: "ws", models: [{ path: "models/a" }] },
     });
-    writeConfig(path.join(tmp.dir, "models/a"), "cirron.json", model({ name: "model-a" }));
+    writeConfig(
+      path.join(tmp.dir, "models/a"),
+      "cirron.json",
+      model({ name: "model-a" })
+    );
     await validateCommand({ json: true });
     const parsed = JSON.parse(out());
     expect(parsed.workspace).toBe("ws");
@@ -163,7 +204,12 @@ describe("validateCommand", () => {
     writeConfig(tmp.dir, "cirron.json", model({ name: "solo" }));
     await validateCommand({ json: true });
     const parsed = JSON.parse(out());
-    expect(parsed).toEqual({ name: "solo", ok: true, errors: [], warnings: [] });
+    expect(parsed).toEqual({
+      name: "solo",
+      ok: true,
+      errors: [],
+      warnings: [],
+    });
   });
 
   it("operates in single-model mode inside a model subdir of a monorepo", async () => {
