@@ -32,7 +32,7 @@
     "ultracite": "^7.6.5",
     "vitest": "^4.1.5"
   },
-  "name": "cirron-cli",
+  "name": "cirron",
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
@@ -49,7 +49,7 @@
     "lint:fix": "ultracite fix"
   },
   "version": "0.1.0",
-  "description": "Official CLI tool for Cirron - build and deploy with ease",
+  "description": "Official CLI tool for Cirron, providing streamlined commands for building, deploying, and managing ML models on and off the platform.",
   "main": "dist/index.js",
   "bin": {
     "cirron": "./bin/cirron"
@@ -63,8 +63,8 @@
     "devops",
     "automation"
   ],
-  "author": "Cirron Engineering <engineering@cirron.com>",
-  "license": "MIT",
+  "author": "Cirron DX <dx@cirron.com>",
+  "license": "Apache-2.0",
   "homepage": "https://github.com/cirron/cirron-cli#readme",
   "repository": {
     "type": "git",
