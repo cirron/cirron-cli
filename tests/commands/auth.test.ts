@@ -1,5 +1,9 @@
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("open", () => ({ default: vi.fn() }));
+
+import open from "open";
 import {
   authCommand,
   loginCommand,
@@ -14,6 +18,8 @@ import {
 import { ConfigManager } from "../../src/utils/config";
 import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
 import { makeTmpDir } from "../helpers/tmpdir";
+
+const openMock = vi.mocked(open);
 
 /**
  * Verifies the graceful-error layer for the auth command:
@@ -317,5 +323,135 @@ describe("refreshCommand", () => {
       caught = err;
     }
     expect(exitCodeFromError(caught)).toBe(1);
+  });
+});
+
+describe("loginCommand (device flow)", () => {
+  let tmp: ReturnType<typeof makeTmpDir>;
+  let exitStub: ReturnType<typeof stubProcessExit>;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
+  // Originals to restore (these may be undefined on a non-TTY stdin).
+  const orig: Record<string, unknown> = {};
+
+  beforeEach(() => {
+    tmp = makeTmpDir("cirron-deviceflow-");
+    vi.spyOn(os, "homedir").mockReturnValue(tmp.dir);
+    exitStub = stubProcessExit();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    infoSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    openMock.mockReset();
+    openMock.mockResolvedValue(undefined as never);
+    // Directly stub stdin's TTY-ish methods (spyOn fails when they're absent).
+    const stdin = process.stdin as unknown as Record<string, unknown>;
+    for (const key of ["setRawMode", "resume", "pause", "once"]) {
+      orig[key] = stdin[key];
+    }
+    stdin.setRawMode = vi.fn();
+    stdin.resume = vi.fn();
+    stdin.pause = vi.fn();
+    stdin.once = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+      if (event === "data") {
+        setImmediate(() => cb(Buffer.from("\n")));
+      }
+      return process.stdin;
+    });
+    // Skip the polling-interval sleeps.
+    vi.spyOn(global, "setTimeout").mockImplementation(((cb: () => void) => {
+      cb();
+      return 0 as unknown as NodeJS.Timeout;
+    }) as never);
+  });
+
+  afterEach(() => {
+    const stdin = process.stdin as unknown as Record<string, unknown>;
+    for (const key of ["setRawMode", "resume", "pause", "once"]) {
+      if (orig[key] === undefined) {
+        delete stdin[key];
+      } else {
+        stdin[key] = orig[key];
+      }
+    }
+    exitStub.restore();
+    vi.restoreAllMocks();
+    tmp.cleanup();
+  });
+
+  it("completes the device flow and persists JWT tokens", async () => {
+    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockResolvedValue({
+      deviceCode: "dev-123",
+      userCode: "ABCD-1234",
+      verificationUrl: "https://cirron.dev/activate",
+      expiresIn: 600,
+      interval: 1,
+    } as never);
+    vi.spyOn(CirronApi.prototype, "pollDeviceAuthorization")
+      .mockResolvedValueOnce({ status: "pending" } as never)
+      .mockResolvedValueOnce({
+        status: "authorized",
+        accessToken: "access-xyz",
+        refreshToken: "refresh-xyz",
+        expiresIn: 604_800,
+      } as never);
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: true,
+      user: { email: "dev@example.com", name: "Dev User" },
+    } as never);
+
+    await loginCommand({});
+
+    const cfg = new ConfigManager().load();
+    expect(cfg.auth?.accessToken).toBe("access-xyz");
+    expect(cfg.auth?.refreshToken).toBe("refresh-xyz");
+    expect(openMock).toHaveBeenCalledWith("https://cirron.dev/activate");
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/dev@example\.com/);
+  });
+
+  it("rewrites a 'null/...' verification URL using the API base", async () => {
+    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockResolvedValue({
+      deviceCode: "dev-1",
+      userCode: "AAAA-1111",
+      verificationUrl: "null/activate",
+      expiresIn: 600,
+      interval: 1,
+    } as never);
+    vi.spyOn(CirronApi.prototype, "pollDeviceAuthorization").mockResolvedValue({
+      status: "authorized",
+      accessToken: "a",
+      refreshToken: "r",
+      expiresIn: 604_800,
+    } as never);
+    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+      valid: true,
+    } as never);
+
+    await loginCommand({ url: "https://platform.cirron.dev/api" });
+
+    // base = "https://platform.cirron.dev" (with /api stripped)
+    expect(openMock).toHaveBeenCalledWith(
+      "https://platform.cirron.dev/activate"
+    );
+  });
+
+  it("rejects when the device authorization is denied", async () => {
+    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockResolvedValue({
+      deviceCode: "dev-1",
+      userCode: "AAAA-1111",
+      verificationUrl: "https://cirron.dev/activate",
+      expiresIn: 600,
+      interval: 1,
+    } as never);
+    vi.spyOn(CirronApi.prototype, "pollDeviceAuthorization").mockResolvedValue({
+      status: "denied",
+    } as never);
+
+    await expect(loginCommand({})).rejects.toThrow(/denied/);
+  });
+
+  it("rejects when requestDeviceCode fails", async () => {
+    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockRejectedValue(
+      new Error("device endpoint down")
+    );
+
+    await expect(loginCommand({})).rejects.toThrow(/device endpoint down/);
   });
 });
