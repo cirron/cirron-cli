@@ -21,10 +21,10 @@ export default defineConfig({
       // shell out heavily (python/docker) so they sit lower until a deeper
       // child_process mocking layer lands.
       thresholds: {
-        lines: 52,
-        statements: 52,
-        functions: 56,
-        branches: 40,
+        lines: 55,
+        statements: 55,
+        functions: 59,
+        branches: 41,
         "src/utils/api-errors.ts": {
           lines: 90,
           functions: 90,
@@ -65,7 +65,7 @@ export default defineConfig({
         "src/commands/logs.ts": { lines: 90 },
         "src/commands/hardware.ts": { lines: 80 },
         "src/commands/settings.ts": { lines: 78 },
-        "src/commands/auth.ts": { lines: 50 },
+        "src/commands/auth.ts": { lines: 85 },
         "src/commands/plan.ts": { lines: 48 },
         "src/commands/push.ts": { lines: 80 },
         "src/commands/pull.ts": { lines: 85 },
@@ -77,8 +77,8 @@ export default defineConfig({
         "src/commands/traces.ts": { lines: 80 },
         "src/commands/info.ts": { lines: 65 },
         "src/commands/compile.ts": { lines: 50 },
-        "src/commands/test.ts": { lines: 35 },
-        "src/commands/build.ts": { lines: 33 },
+        "src/commands/test.ts": { lines: 60 },
+        "src/commands/build.ts": { lines: 52 },
       },
     },
   },

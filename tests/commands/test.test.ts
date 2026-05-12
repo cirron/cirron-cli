@@ -193,4 +193,95 @@ describe("testCommand", () => {
       expect.any(Object)
     );
   });
+
+  it("--inference runs the inference test (src/inference.py present)", async () => {
+    fullProject("sklearn");
+    writeFileAt(
+      tmp.dir,
+      "src/inference.py",
+      "class ModelInference:\n    pass\n"
+    );
+    await testCommand({ inference: true });
+    expect(executionMod.executePythonFile).toHaveBeenCalled();
+  });
+
+  it("--inference fails without src/inference.py", async () => {
+    writeProjectConfig(tmp.dir, { framework: "sklearn" });
+    let caught: unknown;
+    try {
+      await testCommand({ inference: true });
+    } catch (err) {
+      caught = err;
+    }
+    expect(exitCodeFromError(caught)).toBe(1);
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
+      /Inference file not found|test suites failed/i
+    );
+  });
+
+  it("--val runs the validation test (model.py + inference.py)", async () => {
+    fullProject("sklearn");
+    writeFileAt(
+      tmp.dir,
+      "src/inference.py",
+      "class ModelInference:\n    pass\n"
+    );
+    writeFileAt(tmp.dir, "data/sample/sample_data.csv", "a,b\n1,2\n");
+    await testCommand({ val: true });
+    expect(execSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining("python3"),
+      expect.any(Object)
+    );
+  });
+
+  it("--endpoint rejects an invalid URL", async () => {
+    fullProject("pytorch");
+    let caught: unknown;
+    try {
+      await testCommand({ endpoint: "not a url" });
+    } catch (err) {
+      caught = err;
+    }
+    expect(exitCodeFromError(caught)).toBe(1);
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
+      /Invalid endpoint URL|test suites failed/i
+    );
+  });
+
+  it("--endpoint runs against a valid URL", async () => {
+    fullProject("pytorch");
+    await testCommand({ endpoint: "https://api.example.com/predict" });
+    // endpoint test writes a temp script and execSyncs it
+    expect(execSyncMock).toHaveBeenCalledWith(
+      expect.stringContaining("python3"),
+      expect.any(Object)
+    );
+  });
+
+  it("--pipeline runs the end-to-end pipeline", async () => {
+    fullProject("sklearn");
+    writeFileAt(
+      tmp.dir,
+      "src/inference.py",
+      "class ModelInference:\n    pass\n"
+    );
+    await testCommand({ pipeline: true });
+    // pipeline runs env (execSync python --version) + the others
+    expect(execSyncMock).toHaveBeenCalled();
+  });
+
+  it("CUDA-required pytorch project runs the GPU framework probe", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    const fs2 = require("fs-extra");
+    const path2 = require("node:path");
+    const cfgPath = path2.join(tmp.dir, "cirron.json");
+    const cfg = JSON.parse(fs2.readFileSync(cfgPath, "utf-8"));
+    cfg.gpuRequired = true;
+    fs2.writeFileSync(cfgPath, JSON.stringify(cfg));
+    writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+
+    await testCommand({ env: true });
+    // the GPU probe writes a temp file and runs it via executePythonFile
+    expect(executionMod.executePythonFile).toHaveBeenCalled();
+  });
 });

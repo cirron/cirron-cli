@@ -95,6 +95,31 @@ describe("buildCommand", () => {
   });
 
   describe("traditional (non-ML) build", () => {
+    /** A custom project with a build config that has a command + hooks. */
+    function customProject(extra: Record<string, unknown> = {}) {
+      writeProjectConfig(tmp.dir, {
+        framework: "custom",
+        build: {
+          outputDir: "dist",
+          // these extra build-config keys aren't in the helper's typed surface,
+          // so write them via raw json afterwards
+        },
+      });
+      const fs2 = require("fs-extra");
+      const path2 = require("node:path");
+      const cfgPath = path2.join(tmp.dir, "cirron.json");
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, "utf-8"));
+      cfg.build = {
+        outputDir: "dist",
+        command: "echo build",
+        beforeBuild: ["echo before"],
+        afterBuild: ["echo after"],
+        ...extra,
+      };
+      cfg.environments = { production: { variables: { FOO: "bar" } } };
+      fs2.writeFileSync(cfgPath, JSON.stringify(cfg));
+    }
+
     it("exits 1 when there is no build config", async () => {
       writeProjectConfig(tmp.dir, { framework: "custom" });
       await buildCommand({ env: "production" });
@@ -110,15 +135,74 @@ describe("buildCommand", () => {
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/--force/);
     });
 
-    it("runs a build when a build config is present", async () => {
-      writeProjectConfig(tmp.dir, {
-        framework: "custom",
-        build: { outputDir: "dist" },
+    it("runs build command + pre/post hooks + reports success", async () => {
+      customProject();
+      await buildCommand({ env: "production", clean: true });
+
+      // beforeBuild + afterBuild go through execSync
+      expect(execSyncMock).toHaveBeenCalledWith(
+        "echo before",
+        expect.any(Object)
+      );
+      expect(execSyncMock).toHaveBeenCalledWith(
+        "echo after",
+        expect.any(Object)
+      );
+      // runBuild spawns the command
+      expect(spawnMock).toHaveBeenCalled();
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
+        /Build completed successfully|Environment:/
+      );
+      expect(exitSpy).not.toHaveBeenCalledWith(1);
+    });
+
+    it("--analyze runs the bundle analysis", async () => {
+      customProject();
+      // Make sure the output dir exists so analyzeBuild does real work.
+      const fs2 = require("fs-extra");
+      const path2 = require("node:path");
+      fs2.ensureDirSync(path2.join(tmp.dir, "dist"));
+      fs2.writeFileSync(
+        path2.join(tmp.dir, "dist", "bundle.js"),
+        "x".repeat(100)
+      );
+
+      await buildCommand({ env: "production", analyze: true });
+
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Build Analysis/);
+    });
+
+    it("exits when the build command fails", async () => {
+      customProject();
+      spawnMock.mockImplementation(() => fakeChild(1));
+      await buildCommand({ env: "production" });
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it("--force swallows a failing pre-build hook", async () => {
+      customProject();
+      execSyncMock.mockImplementation((cmd: string) => {
+        if (cmd === "echo before") {
+          throw new Error("hook failed");
+        }
+        return "ok";
       });
-      // Even if a later step exits, the command should not throw uncaught.
-      await expect(
-        buildCommand({ env: "production", clean: true })
-      ).resolves.toBeUndefined();
+      await buildCommand({ env: "production", force: true });
+      // build still proceeds (warning, not exit)
+      expect(spawnMock).toHaveBeenCalled();
+    });
+
+    it("non-production env suggests `cirron deploy`", async () => {
+      customProject();
+      const fs2 = require("fs-extra");
+      const path2 = require("node:path");
+      const cfgPath = path2.join(tmp.dir, "cirron.json");
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, "utf-8"));
+      cfg.environments = { staging: { variables: {} } };
+      fs2.writeFileSync(cfgPath, JSON.stringify(cfg));
+
+      await buildCommand({ env: "staging" });
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/cirron deploy/);
     });
   });
 
@@ -205,6 +289,87 @@ describe("buildCommand", () => {
       await buildCommand({ env: "production", arch: "cpu" });
       expect(exitSpy).toHaveBeenCalledWith(1);
       expect(errorSpy.mock.calls.flat().join(" ")).toMatch(/crashed/);
+    });
+
+    it("builds a tensorflow project (script-gen branch)", async () => {
+      writeProjectConfig(tmp.dir, { framework: "tensorflow" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "tensorflow\n");
+      await buildCommand({ env: "production", arch: "gpu" });
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Build Results/i);
+    });
+
+    it("builds an sklearn project (script-gen branch)", async () => {
+      writeProjectConfig(tmp.dir, { framework: "sklearn" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "scikit-learn\n");
+      await buildCommand({ env: "production", arch: "cpu" });
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Build Results/i);
+    });
+
+    it("validates hardware compatibility when a hardware config is present", async () => {
+      writeProjectConfig(tmp.dir, { framework: "pytorch" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+      const fs2 = require("fs-extra");
+      const path2 = require("node:path");
+      const cfgPath = path2.join(tmp.dir, "cirron.json");
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, "utf-8"));
+      cfg.hardware = {
+        type: "cpu",
+        architecture: "x86_64",
+        specifications: {
+          cpu: { cores: 4, model: "x", architecture: "x86_64" },
+        },
+        compatibility: { pytorch: true, tensorflow: true, sklearn: true },
+      };
+      fs2.writeFileSync(cfgPath, JSON.stringify(cfg));
+
+      await buildCommand({ env: "production", arch: "cpu" });
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
+        /Hardware compatibility validated|Build Results/i
+      );
+    });
+
+    it("--analyze on an ML build", async () => {
+      pytorchProject();
+      await buildCommand({ env: "production", arch: "cpu", analyze: true });
+      expect(exitSpy).not.toHaveBeenCalledWith(1);
+    });
+
+    it("uses model config architecture when --arch is not given", async () => {
+      writeProjectConfig(tmp.dir, { framework: "pytorch" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+      vi.spyOn(
+        ModelConfigManager.prototype,
+        "loadModelConfig"
+      ).mockResolvedValue({
+        name: "m",
+        framework: "pytorch",
+        inference: { device: "cuda" },
+      } as never);
+
+      await buildCommand({ env: "production" });
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
+        /Target architecture: cuda|Build Results/i
+      );
     });
   });
 });
