@@ -334,6 +334,22 @@ program
   )
   .action(lintCommand);
 
+// Validate command
+program
+  .command("validate")
+  .description("Validate the project config, or every model in a workspace")
+  .option("--model <name...>", "Validate only the named model(s) (repeatable)")
+  .option("--json", "Output results as JSON")
+  .action(async (options) => {
+    try {
+      const { validateCommand } = await import("./commands/validate");
+      await validateCommand(options);
+    } catch (error) {
+      logger.error("Failed to load validate command:", error);
+      process.exit(1);
+    }
+  });
+
 // Plan commands
 const planCmd = program
   .command("plan")

@@ -84,6 +84,7 @@ export interface ProjectConfig {
   build?: BuildConfig;
   deploy?: DeployConfig;
   description?: string;
+  env?: Record<string, string>;
   environments?: Record<string, EnvironmentConfig>;
   framework: "pytorch" | "tensorflow" | "sklearn" | "onnx" | "custom";
   gpuRequired?: boolean;
@@ -91,6 +92,7 @@ export interface ProjectConfig {
   metadata?: ModelMetadata;
   // Required core fields, matching the cirron-sample-models reference shape.
   name: string;
+  profiling?: Record<string, unknown>;
 
   // Legacy fields kept optional because their consumer commands (compile,
   // build, test, plan, info, hardware, push, sync, deploy, status) still
@@ -102,6 +104,26 @@ export interface ProjectConfig {
   test?: TestConfig;
   type: string;
   version: string;
+}
+
+// --- Monorepo / workspace configuration ---
+
+export interface WorkspaceModelEntry {
+  path: string;
+}
+
+export interface WorkspaceDefaults {
+  env?: Record<string, string>;
+  profiling?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface WorkspaceConfig {
+  workspace: {
+    defaults?: WorkspaceDefaults;
+    models: WorkspaceModelEntry[];
+    name: string;
+  };
 }
 
 export interface ServingConfig {
