@@ -192,25 +192,26 @@ async function runMonorepoMode(
         `  ${chalk.red("error")}  --model "${u}" did not match any model in the workspace`
       );
     }
-    if (
-      reports.length === 0 &&
-      missing.length === 0 &&
-      rootErrors.length === 0
-    ) {
-      logger.info("  no models to validate");
-    }
     for (const report of reports) {
       printModelReport(report);
     }
     const passed = reports.filter((r) => r.ok).length;
     logger.info("");
-    logger.info(
-      ok
-        ? chalk.green(`All ${passed} model(s) valid.`)
-        : chalk.red(
-            `${passed}/${reports.length} model(s) valid; workspace validation failed.`
-          )
-    );
+    if (reports.length === 0) {
+      logger.info(
+        ok
+          ? chalk.green("No models to validate.")
+          : chalk.red("0 model(s) validated; workspace validation failed.")
+      );
+    } else {
+      logger.info(
+        ok
+          ? chalk.green(`All ${passed} model(s) valid.`)
+          : chalk.red(
+              `${passed}/${reports.length} model(s) valid; workspace validation failed.`
+            )
+      );
+    }
   }
 
   if (!ok) {
@@ -224,10 +225,13 @@ export async function validateCommand(
   const detected = detectMode(options.dir);
 
   if (detected.mode === "none") {
-    logger.error(
-      "No cirron config found (cirron.yaml, cirron.yml, or cirron.json)"
-    );
-    logger.info(`Run ${chalk.cyan("cirron init")} to create a new project.`);
+    const msg = "No cirron config found (cirron.yaml, cirron.yml, or cirron.json)";
+    if (options.json) {
+      logger.json({ ok: false, errors: [msg], warnings: [] });
+    } else {
+      logger.error(msg);
+      logger.info(`Run ${chalk.cyan("cirron init")} to create a new project.`);
+    }
     process.exit(1);
   }
 

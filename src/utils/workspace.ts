@@ -1,11 +1,11 @@
 /**
  * Monorepo / workspace layer for the Cirron CLI.
  *
- * A root `cirron.yaml` with a top-level `workspace:` key puts the CLI in
- * monorepo mode: it discovers the model directories listed under
- * `workspace.models`, applies any `workspace.defaults` to each, and lets
- * commands fan out across them. Without that key the CLI stays in
- * single-model mode (the existing behavior).
+ * A root cirron config (`cirron.yaml`, `cirron.yml`, or `cirron.json`) with a
+ * top-level `workspace:` key puts the CLI in monorepo mode: it discovers the
+ * model directories listed under `workspace.models`, applies any
+ * `workspace.defaults` to each, and lets commands fan out across them. Without
+ * that key the CLI stays in single-model mode (the existing behavior).
  */
 
 import path from "node:path";

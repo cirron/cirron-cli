@@ -53,6 +53,20 @@ describe("validateCommand", () => {
     expect(err()).toMatch(/No cirron config/);
   });
 
+  it("emits JSON when there is no cirron config and --json is set", async () => {
+    let code: number | null = null;
+    try {
+      await validateCommand({ json: true });
+    } catch (e) {
+      code = exitCodeFromError(e as Error);
+    }
+    expect(code).toBe(1);
+    const parsed = JSON.parse(out());
+    expect(parsed.ok).toBe(false);
+    expect(parsed.errors[0]).toMatch(/No cirron config/);
+    expect(err()).toBe("");
+  });
+
   it("validates a single-model config and passes", async () => {
     writeConfig(tmp.dir, "cirron.json", model({ name: "solo" }));
     await validateCommand({});
@@ -176,6 +190,8 @@ describe("validateCommand", () => {
     }
     expect(code).toBe(1);
     expect(out()).toMatch(/did not match any model/);
+    expect(out()).toMatch(/0 model\(s\) validated/);
+    expect(out()).not.toMatch(/0\/0/);
   });
 
   it("fails the workspace when the root config is malformed", async () => {
