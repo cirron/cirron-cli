@@ -149,4 +149,4 @@ Merge access to `main` and release branches is restricted to active members of t
 
 ## Questions
 
-For anything that doesn't fit an issue or PR (design discussions, "is this the right approach," etc.), reach out at `dx@cirron.com`.
+For anything that doesn't fit an issue or PR (design discussions, "is this the right approach," etc.), open a [GitHub Discussion](https://github.com/cirron/cirron-cli/discussions) or reach out at `dx@cirron.com`.

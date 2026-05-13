@@ -291,8 +291,23 @@ npm unlink -g cirron   # remove the symlink
 
 Tests live in `tests/`. The CLI source is under `src/` (`src/commands/` for command handlers, `src/utils/` for shared utilities, `src/types/` for types), with project templates in `templates/`. See `CLAUDE.md` for contributor conventions.
 
+## Contributing
+
+Bug reports, feature requests, and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, the rules we hold the line on, and the PR flow, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
+
+## Security
+
+Do not file public issues for security vulnerabilities. Use GitHub's "Report a vulnerability" link or email `security@cirron.com`. See [SECURITY.md](SECURITY.md) for the full reporting flow, supported-versions policy, and disclosure expectations.
+
+## Trademarks
+
+The Cirron name, logo, and visual identity are trademarks of Cirron, Inc. and are not covered by the Apache 2.0 license that covers the source code. See [TRADEMARKS.md](TRADEMARKS.md) for what's allowed (compatibility statements, factual references) and what isn't (implying endorsement, redistributing under the Cirron name).
+
 ## Links
 
 - Docs: [docs.cirron.com/cli](https://docs.cirron.com/cli)
 - Platform: [app.cirron.com](https://app.cirron.com)
 - Issues: [github.com/cirron/cirron-cli/issues](https://github.com/cirron/cirron-cli/issues)
+- Discussions: [github.com/cirron/cirron-cli/discussions](https://github.com/cirron/cirron-cli/discussions)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security: [SECURITY.md](SECURITY.md)
