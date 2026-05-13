@@ -54,7 +54,7 @@ Older versions receive fixes only at the maintainers' discretion. Pin your insta
 
 In scope:
 
-- Vulnerabilities in the `cirron` package source published on npm (and the standalone binaries built from it).
+- Vulnerabilities in the `@cirron/cli` package source published on npm.
 - Vulnerabilities in how the CLI handles its local state: the project `.cirron/` spool and snapshot directories, the project `cirron.yaml` / `.cirronignore`, and the global config at `~/.cirron/config.json`.
 - Vulnerabilities in the CLI's network interactions with the Cirron platform when authenticated (the auth device flow and token refresh, registry push/pull/sync, deploy, remote runs, and log streaming).
 

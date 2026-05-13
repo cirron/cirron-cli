@@ -1,5 +1,10 @@
 # Cirron CLI
 
+[![npm version](https://img.shields.io/npm/v/@cirron/cli.svg)](https://www.npmjs.com/package/@cirron/cli)
+[![CI](https://github.com/cirron/cirron-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/cirron/cirron-cli/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/node/v/@cirron/cli.svg)](https://nodejs.org/)
+
 Official command line interface for [Cirron](https://cirron.com). Scaffold, compile, build, test, and profile machine learning models on your own machine, and connect to the Cirron platform when you want hosted registry, deployments, and remote runs.
 
 The CLI is fully usable today without an account. Everything in the local workflow (init, compile, build, test, lint, validate, plan, traces, doctor) runs offline. Platform features (auth, registry push/pull, deploy, remote runs, logs) are being rolled out to users. The commands are already here, ready when access opens up.
