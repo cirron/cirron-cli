@@ -48,7 +48,7 @@ We backport security fixes to:
 - The current minor release of the latest major version.
 - The previous major version, for 6 months after the next major ships.
 
-Older versions receive fixes only at the maintainers' discretion. Pin your install (`npm install -g cirron@X`) and upgrade promptly to stay supported.
+Older versions receive fixes only at the maintainers' discretion. Pin your install (`npm install -g @cirron/cli@X`) and upgrade promptly to stay supported.
 
 ## Scope
 

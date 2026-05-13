@@ -11,7 +11,7 @@ License: Apache-2.0.
 Install globally with npm (requires Node.js 18 or newer):
 
 ```bash
-npm install -g cirron
+npm install -g @cirron/cli
 ```
 
 Verify the install:

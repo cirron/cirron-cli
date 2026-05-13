@@ -16,7 +16,7 @@ Before opening a bug report, search the [issue tracker](https://github.com/cirro
 
 - A clear, descriptive title.
 - The smallest `cirron ...` command sequence that triggers it, plus the relevant `cirron.yaml` if a project is involved.
-- Your environment: `cirron --version`, the output of `cirron doctor`, `node -v`, how you installed the CLI (`npm install -g cirron` vs. a local `npm link` checkout), and your OS and hardware.
+- Your environment: `cirron --version`, the output of `cirron doctor`, `node -v`, how you installed the CLI (`npm install -g @cirron/cli` vs. a local `npm link` checkout), and your OS and hardware.
 - The full CLI output / stack trace. If a command exits with an error code, see [`CLI-ERROR-CODES.md`](CLI-ERROR-CODES.md).
 
 ### Suggesting enhancements
