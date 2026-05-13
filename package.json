@@ -15,7 +15,7 @@
     "minimatch": "^10.1.1",
     "node-fetch": "^3.3.2",
     "open": "^11.0.0",
-    "ora": "^9.0.0",
+    "ora": "^9.4.0",
     "semver": "^7.7.3"
   },
   "devDependencies": {
