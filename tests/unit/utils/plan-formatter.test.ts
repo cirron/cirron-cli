@@ -141,7 +141,6 @@ describe("PlanFormatter.formatCIOutput", () => {
     const out = PlanFormatter.formatCIOutput(makePlan());
     expect(out).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
     // CI output should not contain ANSI escape codes
-    // eslint-disable-next-line no-control-regex
-    expect(out).not.toMatch(/\[/);
+    expect(out).not.toContain("\u001b[");
   });
 });
