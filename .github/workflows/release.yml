@@ -20,7 +20,7 @@ jobs:
       contents: write       # push the version bump commit + tag, create the GitHub release
       issues: write         # auto comments on issues fixed by the release
       pull-requests: write  # auto comments on released PRs
-      id-token: write       # npm provenance + trusted publishing (OIDC)
+      id-token: write       # OIDC for npm trusted publishing + build provenance
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,6 +34,10 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
 
+      # npm trusted publishing (OIDC, no token) requires npm >= 11.5.1.
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
@@ -43,12 +47,11 @@ jobs:
       - name: Test
         run: npm test
 
+      # Publishes via npm trusted publishing (OIDC) — no NPM_TOKEN. The package on
+      # npmjs.com must have a trusted publisher configured for this repo + workflow,
+      # and "Require two-factor authentication and disallow tokens" is the matching
+      # publishing-access setting. Provenance is attached automatically.
       - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Until trusted publishing is configured on npmjs, fall back to an automation token.
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Attach build provenance to the published package.
-          NPM_CONFIG_PROVENANCE: "true"
         run: npx auto shipit
