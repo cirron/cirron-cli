@@ -295,11 +295,11 @@ async function configCommand(options: HardwareOptions): Promise<void> {
 
   const saveAnswers = await inquirer.prompt(questions);
 
-  if (saveAnswers.shouldApplyToProject) {
+  if (saveAnswers["shouldApplyToProject"]) {
     await applyToProject(hardwareConfig);
   }
 
-  if (saveAnswers.shouldSaveToFile) {
+  if (saveAnswers["shouldSaveToFile"]) {
     const configPath =
       await HardwareDetector.saveHardwareConfig(hardwareConfig);
     logger.info(

@@ -987,7 +987,7 @@ export async function planCompareCommand(
           name: "planBIndex",
           message: "Select second plan (Plan B):",
           choices: planChoices.filter((_, index) => index !== undefined),
-          validate: (input, answers) => {
+          validate: (input: number, answers?: { planAIndex?: number }) => {
             if (input === answers?.planAIndex) {
               return "Please select a different plan for comparison";
             }
