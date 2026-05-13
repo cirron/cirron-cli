@@ -48,11 +48,11 @@
     "lint": "ultracite check",
     "lint:fix": "ultracite fix"
   },
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Official CLI tool for Cirron, providing streamlined commands for building, deploying, and managing ML models on and off the platform.",
   "main": "dist/index.js",
   "bin": {
-    "cirron": "./bin/cirron"
+    "cirron": "bin/cirron"
   },
   "keywords": [
     "cirron",
@@ -76,7 +76,6 @@
   "files": [
     "dist/**/*",
     "bin/**/*",
-    "templates/**/*",
     "README.md",
     "LICENSE"
   ],
