@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
 
-# Prevent a publish loop: skip when the head commit was made by auto / a release bump.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -15,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     # Gated behind the "release" GitHub Environment so an approval/protection rule can be added.
     environment: release
+    # Prevent a publish loop: `auto`'s release commits include "[skip ci]" in the
+    # message, so we filter them out here to avoid re-triggering this workflow.
     if: "!contains(github.event.head_commit.message, 'ci skip') && !contains(github.event.head_commit.message, 'skip ci')"
     permissions:
       contents: write       # push the version bump commit + tag, create the GitHub release
