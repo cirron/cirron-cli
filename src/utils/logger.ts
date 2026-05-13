@@ -1,11 +1,11 @@
 // src/utils/logger.ts
-import chalk from 'chalk';
+import chalk from "chalk";
 
 export class Logger {
   private verbose: boolean;
 
   constructor() {
-    this.verbose = process.env['CIRRON_VERBOSE'] === 'true';
+    this.verbose = process.env["CIRRON_VERBOSE"] === "true";
   }
 
   info(message: string, ...args: any[]): void {
@@ -13,20 +13,20 @@ export class Logger {
   }
 
   error(message: string, ...args: any[]): void {
-    console.error(chalk.red('Error:'), message, ...args);
+    console.error(chalk.red("Error:"), message, ...args);
   }
 
   warn(message: string, ...args: any[]): void {
-    console.warn(chalk.yellow('Warning:'), message, ...args);
+    console.warn(chalk.yellow("Warning:"), message, ...args);
   }
 
   success(message: string, ...args: any[]): void {
-    console.log(chalk.green('Success:'), message, ...args);
+    console.log(chalk.green("Success:"), message, ...args);
   }
 
   debug(message: string, ...args: any[]): void {
     if (this.verbose) {
-      console.log(chalk.gray('Debug:'), message, ...args);
+      console.log(chalk.gray("Debug:"), message, ...args);
     }
   }
 

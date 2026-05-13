@@ -1,0 +1,78 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": ["ultracite/biome/core", "ultracite/biome/vitest"],
+  "linter": {
+    "rules": {
+      "complexity": {
+        // CLI command handlers are inherently branchy (option parsing, validation,
+        // error paths). Hitting this score doesn't indicate a real defect.
+        "noExcessiveCognitiveComplexity": "off",
+        // Autofix rewrites obj["foo"] -> obj.foo, but tsconfig sets
+        // noPropertyAccessFromIndexSignature: true, which requires bracket
+        // access on index-signature types. The fix breaks the build.
+        "useLiteralKeys": "off",
+        // Autofix rewrites `arr[0]!.foo` to `arr[0]?.foo`, which is
+        // semantically wrong — the non-null assertion encoded an invariant
+        // that optional chaining loses, and the result becomes undefined-tainted.
+        "useOptionalChain": "off",
+        // Static-only classes are used as namespaces in this codebase
+        // (PlanStorage, HardwareDetector, etc.). Refactoring them all to
+        // bare functions is a much larger change than the rule warrants.
+        "noStaticOnlyClass": "off",
+        // `void promise` is used intentionally to mark fire-and-forget calls.
+        "noVoid": "off"
+      },
+      "correctness": {
+        // tsconfig targets module:commonjs, so __dirname/__filename are required;
+        // import.meta.dirname (the suggested replacement) is ESM-only.
+        "noGlobalDirnameFilename": "off"
+      },
+      "performance": {
+        // CLI regexes are typically cold (run once per invocation). Hoisting them
+        // to module scope is noise without measurable perf impact.
+        "useTopLevelRegex": "off",
+        // Autofix rewrites `delete x.foo` to `x.foo = undefined`, which is
+        // illegal under tsconfig's exactOptionalPropertyTypes: true.
+        "noDelete": "off",
+        // Single-file aggregator modules are intentional in this codebase.
+        "noBarrelFile": "off"
+      },
+      "style": {
+        // Autofix rewrites arr[arr.length - 1] -> arr.at(-1), but Array.at
+        // requires ES2022 while tsconfig targets ES2020 (lib: ["ES2020"]).
+        "useAtIndex": "off",
+        // The unsafe autofix rewrites `arr[0]!.foo` to `arr[0]?.foo`, which
+        // silently changes semantics — `!` asserts an invariant the dev
+        // verified, while `?.` defers to runtime undefined. Replacing real
+        // validation with optional chaining downstream type-taints everything.
+        // Manual review is required, so disable the rule rather than letting
+        // its unsafe fix corrupt code.
+        "noNonNullAssertion": "off",
+        // CLIErrorCode enum is part of the public API surface.
+        "noEnum": "off",
+        // TS parameter properties are an idiomatic constructor shorthand.
+        "noParameterProperties": "off",
+        // Nested ternaries are usually status-color or single-line status
+        // mappings here. Refactoring them to if/else doesn't improve clarity
+        // and trades expression-style code for statement-style boilerplate.
+        "noNestedTernary": "off"
+      },
+      "suspicious": {
+        // Bitwise ops are intentional in flag/permission/hash code paths.
+        "noBitwiseOperators": "off",
+        // Command handlers are intentionally async to match the Commander.js
+        // contract even when their current body has no await — Commander
+        // expects async handlers, and callers may chain Promise methods.
+        "useAwait": "off",
+        // This CLI wraps a JSON API and reads user-supplied JSON/YAML config.
+        // Most `any` sites are genuinely dynamic data: API response payloads,
+        // settings values, inquirer answers, generic ApiResponse<T> defaults.
+        // Replacing with `unknown` cascades type guards into every consumer
+        // without improving safety, since the runtime data really is unknown
+        // shape until validated. Type the values where a domain type exists,
+        // but don't force `unknown` blanket-replacement.
+        "noExplicitAny": "off"
+      }
+    }
+  }
+}

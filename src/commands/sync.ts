@@ -1,33 +1,39 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
-import inquirer from 'inquirer';
-import { logger } from '../utils/logger';
-import { CirronApi } from '../utils/api';
-import { ConfigManager } from '../utils/config';
-import { CirronIgnore } from '../utils/ignore';
-import { uploadSingleFile, formatSize, computeFileChecksum } from './push';
-import { downloadArtifact } from './pull';
-import { loadProjectConfig as loadProjectConfigUtil } from '../utils/project-config';
+import path from "node:path";
+import chalk from "chalk";
+import fs from "fs-extra";
+import inquirer from "inquirer";
+import ora from "ora";
 import type {
-  SyncOptions,
-  SyncFileManifestEntry,
-  SyncDiffResult,
-  SyncRemoteFileEntry,
-  SyncChangedFileEntry,
-  SyncConflictEntry,
-  SyncConflictStrategy,
-  SyncConflictResolution,
-  SyncSummary,
   ProjectConfig,
   PullArtifactInfo,
   PushFileInfo,
-} from '../types';
+  SyncChangedFileEntry,
+  SyncConflictEntry,
+  SyncConflictResolution,
+  SyncConflictStrategy,
+  SyncDiffResult,
+  SyncFileManifestEntry,
+  SyncOptions,
+  SyncRemoteFileEntry,
+  SyncSummary,
+} from "../types";
+import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
+import { ConfigManager } from "../utils/config";
+import { CirronIgnore } from "../utils/ignore";
+import { logger } from "../utils/logger";
+import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { downloadArtifact } from "./pull";
+import { computeFileChecksum, formatSize, uploadSingleFile } from "./push";
 
 // --- Constants ---
 
-const VALID_CONFLICT_STRATEGIES: SyncConflictStrategy[] = ['keep-both', 'local-wins', 'remote-wins', 'prompt'];
+const VALID_CONFLICT_STRATEGIES: SyncConflictStrategy[] = [
+  "keep-both",
+  "local-wins",
+  "remote-wins",
+  "prompt",
+];
 
 // --- Helpers ---
 
@@ -35,9 +41,9 @@ function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
   const currentConfig = configManager.load();
 
-  if (!currentConfig.token && !currentConfig.auth?.accessToken) {
-    logger.error('Not authenticated');
-    logger.info(`Run ${chalk.cyan('cirron auth login')} to authenticate`);
+  if (!(currentConfig.token || currentConfig.auth?.accessToken)) {
+    logger.error("Not authenticated");
+    logger.info(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
     return null;
   }
 
@@ -93,7 +99,7 @@ async function collectProjectFiles(
     }
   }
 
-  const commonDirs = ['models', 'artifacts', 'build'];
+  const commonDirs = ["models", "artifacts", "build"];
   for (const dir of commonDirs) {
     const dirPath = path.join(cwd, dir);
     if (await fs.pathExists(dirPath)) {
@@ -115,7 +121,7 @@ async function collectProjectFiles(
   // Apply .cirronignore + --exclude patterns
   const ignore = new CirronIgnore();
   if (excludePatterns) {
-    const patterns = excludePatterns.split(',').map((p) => p.trim());
+    const patterns = excludePatterns.split(",").map((p) => p.trim());
     for (const pattern of patterns) {
       ignore.addPattern(pattern);
     }
@@ -127,8 +133,10 @@ async function collectProjectFiles(
 
 // --- Type Adapters ---
 
-function toArtifactInfo(entry: SyncRemoteFileEntry | SyncChangedFileEntry): PullArtifactInfo {
-  if ('remoteChecksum' in entry) {
+function toArtifactInfo(
+  entry: SyncRemoteFileEntry | SyncChangedFileEntry
+): PullArtifactInfo {
+  if ("remoteChecksum" in entry) {
     return {
       id: entry.artifactId,
       name: entry.artifactName,
@@ -152,8 +160,10 @@ function toArtifactInfo(entry: SyncRemoteFileEntry | SyncChangedFileEntry): Pull
   };
 }
 
-function toFileInfo(entry: SyncFileManifestEntry | SyncChangedFileEntry): PushFileInfo {
-  if ('localChecksum' in entry) {
+function toFileInfo(
+  entry: SyncFileManifestEntry | SyncChangedFileEntry
+): PushFileInfo {
+  if ("localChecksum" in entry) {
     return {
       filePath: path.resolve(process.cwd(), entry.path),
       relativePath: entry.path,
@@ -169,7 +179,10 @@ function toFileInfo(entry: SyncFileManifestEntry | SyncChangedFileEntry): PushFi
   };
 }
 
-function buildKeepBothPaths(filePath: string): { localPath: string; remotePath: string } {
+function buildKeepBothPaths(filePath: string): {
+  localPath: string;
+  remotePath: string;
+} {
   const ext = path.extname(filePath);
   const base = ext ? filePath.slice(0, -ext.length) : filePath;
   return {
@@ -182,20 +195,25 @@ function buildKeepBothPaths(filePath: string): { localPath: string; remotePath: 
 
 function validateSyncOptions(options: SyncOptions): SyncConflictStrategy {
   if (options.pushOnly && options.pullOnly) {
-    logger.error('Cannot use --push-only and --pull-only together');
+    logger.error("Cannot use --push-only and --pull-only together");
     process.exit(1);
   }
 
   if (options.force && !options.pushOnly && !options.pullOnly) {
-    logger.error('--force requires --push-only or --pull-only to determine sync direction');
-    logger.info('Use --push-only --force to push all local changes, or --pull-only --force to pull all remote changes');
+    logger.error(
+      "--force requires --push-only or --pull-only to determine sync direction"
+    );
+    logger.info(
+      "Use --push-only --force to push all local changes, or --pull-only --force to pull all remote changes"
+    );
     process.exit(1);
   }
 
-  const conflictStrategy = (options.conflicts || 'prompt') as SyncConflictStrategy;
+  const conflictStrategy = (options.conflicts ||
+    "prompt") as SyncConflictStrategy;
   if (!VALID_CONFLICT_STRATEGIES.includes(conflictStrategy)) {
     logger.error(`Invalid conflict strategy: "${options.conflicts}"`);
-    logger.info(`Valid strategies: ${VALID_CONFLICT_STRATEGIES.join(', ')}`);
+    logger.info(`Valid strategies: ${VALID_CONFLICT_STRATEGIES.join(", ")}`);
     process.exit(1);
   }
 
@@ -213,7 +231,7 @@ async function buildLocalManifest(
 
   if (syncPath) {
     const resolved = path.resolve(syncPath);
-    if (!await fs.pathExists(resolved)) {
+    if (!(await fs.pathExists(resolved))) {
       logger.error(`Path not found: ${syncPath}`);
       process.exit(1);
     }
@@ -242,7 +260,10 @@ async function buildLocalManifest(
 
 // --- Filtering ---
 
-function applySyncFilters(diff: SyncDiffResult, options: SyncOptions): SyncDiffResult {
+function applySyncFilters(
+  diff: SyncDiffResult,
+  options: SyncOptions
+): SyncDiffResult {
   let result: SyncDiffResult = {
     localOnly: [...diff.localOnly],
     remoteOnly: [...diff.remoteOnly],
@@ -257,17 +278,19 @@ function applySyncFilters(diff: SyncDiffResult, options: SyncOptions): SyncDiffR
     result.changedRemotely = [];
     if (options.force) {
       // Conflicts become local-wins pushes
-      const movedToLocal: SyncChangedFileEntry[] = result.conflicts.map((c) => ({
-        path: c.path,
-        localChecksum: c.localChecksum,
-        remoteChecksum: c.remoteChecksum,
-        localSize: c.localSize,
-        remoteSize: c.remoteSize,
-        artifactId: c.artifactId,
-        artifactName: c.artifactName,
-        type: c.type,
-        tag: c.tag,
-      }));
+      const movedToLocal: SyncChangedFileEntry[] = result.conflicts.map(
+        (c) => ({
+          path: c.path,
+          localChecksum: c.localChecksum,
+          remoteChecksum: c.remoteChecksum,
+          localSize: c.localSize,
+          remoteSize: c.remoteSize,
+          artifactId: c.artifactId,
+          artifactName: c.artifactName,
+          type: c.type,
+          tag: c.tag,
+        })
+      );
       result.changedLocally = [...result.changedLocally, ...movedToLocal];
       result.conflicts = [];
     }
@@ -278,17 +301,19 @@ function applySyncFilters(diff: SyncDiffResult, options: SyncOptions): SyncDiffR
     result.changedLocally = [];
     if (options.force) {
       // Conflicts become remote-wins pulls
-      const movedToRemote: SyncChangedFileEntry[] = result.conflicts.map((c) => ({
-        path: c.path,
-        localChecksum: c.localChecksum,
-        remoteChecksum: c.remoteChecksum,
-        localSize: c.localSize,
-        remoteSize: c.remoteSize,
-        artifactId: c.artifactId,
-        artifactName: c.artifactName,
-        type: c.type,
-        tag: c.tag,
-      }));
+      const movedToRemote: SyncChangedFileEntry[] = result.conflicts.map(
+        (c) => ({
+          path: c.path,
+          localChecksum: c.localChecksum,
+          remoteChecksum: c.remoteChecksum,
+          localSize: c.localSize,
+          remoteSize: c.remoteSize,
+          artifactId: c.artifactId,
+          artifactName: c.artifactName,
+          type: c.type,
+          tag: c.tag,
+        })
+      );
       result.changedRemotely = [...result.changedRemotely, ...movedToRemote];
       result.conflicts = [];
     }
@@ -297,17 +322,20 @@ function applySyncFilters(diff: SyncDiffResult, options: SyncOptions): SyncDiffR
   // Re-apply exclude patterns to all categories as defense in depth
   if (options.exclude) {
     const ignore = new CirronIgnore();
-    const patterns = options.exclude.split(',').map((p) => p.trim());
+    const patterns = options.exclude.split(",").map((p) => p.trim());
     for (const pattern of patterns) {
       ignore.addPattern(pattern);
     }
-    const isExcluded = (filePath: string): boolean => ignore.isIgnored(filePath);
+    const isExcluded = (filePath: string): boolean =>
+      ignore.isIgnored(filePath);
 
     result = {
       localOnly: result.localOnly.filter((f) => !isExcluded(f.path)),
       remoteOnly: result.remoteOnly.filter((f) => !isExcluded(f.path)),
       changedLocally: result.changedLocally.filter((f) => !isExcluded(f.path)),
-      changedRemotely: result.changedRemotely.filter((f) => !isExcluded(f.path)),
+      changedRemotely: result.changedRemotely.filter(
+        (f) => !isExcluded(f.path)
+      ),
       conflicts: result.conflicts.filter((f) => !isExcluded(f.path)),
       unchanged: result.unchanged.filter((f) => !isExcluded(f.path)),
     };
@@ -328,13 +356,13 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
         path: f.path,
         checksum: f.checksum,
         size: f.size,
-        action: 'push',
+        action: "push",
       })),
       remoteOnly: diff.remoteOnly.map((f) => ({
         path: f.path,
         checksum: f.checksum,
         size: f.size,
-        action: 'pull',
+        action: "pull",
       })),
       changedLocally: diff.changedLocally.map((f) => ({
         path: f.path,
@@ -342,7 +370,7 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
         remoteChecksum: f.remoteChecksum,
         localSize: f.localSize,
         remoteSize: f.remoteSize,
-        action: 'push',
+        action: "push",
       })),
       changedRemotely: diff.changedRemotely.map((f) => ({
         path: f.path,
@@ -350,7 +378,7 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
         remoteChecksum: f.remoteChecksum,
         localSize: f.localSize,
         remoteSize: f.remoteSize,
-        action: 'pull',
+        action: "pull",
       })),
       conflicts: diff.conflicts.map((f) => ({
         path: f.path,
@@ -358,7 +386,7 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
         remoteChecksum: f.remoteChecksum,
         localSize: f.localSize,
         remoteSize: f.remoteSize,
-        action: 'conflict',
+        action: "conflict",
       })),
       unchanged: diff.unchanged.length,
       summary: {
@@ -372,16 +400,22 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
     return;
   }
 
-  logger.info(chalk.bold('Sync dry run - the following changes would be applied:'));
+  logger.info(
+    chalk.bold("Sync dry run - the following changes would be applied:")
+  );
   console.log();
 
   // Push (local only)
   if (diff.localOnly.length > 0) {
-    logger.info(`  ${chalk.green('Push (local only):')} ${diff.localOnly.length} file(s)`);
+    logger.info(
+      `  ${chalk.green("Push (local only):")} ${diff.localOnly.length} file(s)`
+    );
     diff.localOnly.forEach((f, i) => {
-      logger.info(`    ${i + 1}. ${chalk.cyan(f.path)} (${formatSize(f.size)})`);
+      logger.info(
+        `    ${i + 1}. ${chalk.cyan(f.path)} (${formatSize(f.size)})`
+      );
       if (options.verbose) {
-        logger.info(`       Checksum: ${f.checksum.substring(0, 12)}...`);
+        logger.info(`       Checksum: ${f.checksum.slice(0, 12)}...`);
       }
     });
     console.log();
@@ -389,11 +423,15 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
 
   // Pull (remote only)
   if (diff.remoteOnly.length > 0) {
-    logger.info(`  ${chalk.blue('Pull (remote only):')} ${diff.remoteOnly.length} file(s)`);
+    logger.info(
+      `  ${chalk.blue("Pull (remote only):")} ${diff.remoteOnly.length} file(s)`
+    );
     diff.remoteOnly.forEach((f, i) => {
-      logger.info(`    ${i + 1}. ${chalk.cyan(f.path)} (${formatSize(f.size)})`);
+      logger.info(
+        `    ${i + 1}. ${chalk.cyan(f.path)} (${formatSize(f.size)})`
+      );
       if (options.verbose) {
-        logger.info(`       Checksum: ${f.checksum.substring(0, 12)}...`);
+        logger.info(`       Checksum: ${f.checksum.slice(0, 12)}...`);
       }
     });
     console.log();
@@ -401,42 +439,62 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
 
   // Push (changed locally)
   if (diff.changedLocally.length > 0) {
-    logger.info(`  ${chalk.green('Push (changed locally):')} ${diff.changedLocally.length} file(s)`);
+    logger.info(
+      `  ${chalk.green("Push (changed locally):")} ${diff.changedLocally.length} file(s)`
+    );
     diff.changedLocally.forEach((f, i) => {
       logger.info(`    ${i + 1}. ${chalk.cyan(f.path)}`);
-      logger.info(`       Local:  ${f.localChecksum.substring(0, 12)}... (${formatSize(f.localSize)})`);
-      logger.info(`       Remote: ${f.remoteChecksum.substring(0, 12)}... (${formatSize(f.remoteSize)})`);
+      logger.info(
+        `       Local:  ${f.localChecksum.slice(0, 12)}... (${formatSize(f.localSize)})`
+      );
+      logger.info(
+        `       Remote: ${f.remoteChecksum.slice(0, 12)}... (${formatSize(f.remoteSize)})`
+      );
     });
     console.log();
   }
 
   // Pull (changed remotely)
   if (diff.changedRemotely.length > 0) {
-    logger.info(`  ${chalk.blue('Pull (changed remotely):')} ${diff.changedRemotely.length} file(s)`);
+    logger.info(
+      `  ${chalk.blue("Pull (changed remotely):")} ${diff.changedRemotely.length} file(s)`
+    );
     diff.changedRemotely.forEach((f, i) => {
       logger.info(`    ${i + 1}. ${chalk.cyan(f.path)}`);
-      logger.info(`       Local:  ${f.localChecksum.substring(0, 12)}... (${formatSize(f.localSize)})`);
-      logger.info(`       Remote: ${f.remoteChecksum.substring(0, 12)}... (${formatSize(f.remoteSize)})`);
+      logger.info(
+        `       Local:  ${f.localChecksum.slice(0, 12)}... (${formatSize(f.localSize)})`
+      );
+      logger.info(
+        `       Remote: ${f.remoteChecksum.slice(0, 12)}... (${formatSize(f.remoteSize)})`
+      );
     });
     console.log();
   }
 
   // Conflicts
   if (diff.conflicts.length > 0) {
-    logger.info(`  ${chalk.yellow('Conflicts:')} ${diff.conflicts.length} file(s)`);
+    logger.info(
+      `  ${chalk.yellow("Conflicts:")} ${diff.conflicts.length} file(s)`
+    );
     diff.conflicts.forEach((f, i) => {
       logger.info(`    ${i + 1}. ${chalk.cyan(f.path)}`);
-      logger.info(`       Local:  ${f.localChecksum.substring(0, 12)}... (${formatSize(f.localSize)})`);
-      logger.info(`       Remote: ${f.remoteChecksum.substring(0, 12)}... (${formatSize(f.remoteSize)})`);
+      logger.info(
+        `       Local:  ${f.localChecksum.slice(0, 12)}... (${formatSize(f.localSize)})`
+      );
+      logger.info(
+        `       Remote: ${f.remoteChecksum.slice(0, 12)}... (${formatSize(f.remoteSize)})`
+      );
     });
     console.log();
   }
 
   // Unchanged
-  logger.info(`  ${chalk.gray('Unchanged:')} ${diff.unchanged.length} file(s)`);
+  logger.info(`  ${chalk.gray("Unchanged:")} ${diff.unchanged.length} file(s)`);
   if (options.verbose && diff.unchanged.length > 0) {
     diff.unchanged.forEach((f, i) => {
-      logger.info(`    ${i + 1}. ${chalk.gray(f.path)} (${formatSize(f.size)})`);
+      logger.info(
+        `    ${i + 1}. ${chalk.gray(f.path)} (${formatSize(f.size)})`
+      );
     });
   }
   console.log();
@@ -446,9 +504,11 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
   const toPull = diff.remoteOnly.length + diff.changedRemotely.length;
   logger.info(
     `  Summary: ${chalk.green(`${toPush} to push`)}, ${chalk.blue(`${toPull} to pull`)}, ` +
-    `${chalk.yellow(`${diff.conflicts.length} conflict(s)`)}, ${chalk.gray(`${diff.unchanged.length} unchanged`)}`
+      `${chalk.yellow(`${diff.conflicts.length} conflict(s)`)}, ${chalk.gray(`${diff.unchanged.length} unchanged`)}`
   );
-  logger.info(chalk.gray('  No changes were applied. Remove --dry-run to sync.'));
+  logger.info(
+    chalk.gray("  No changes were applied. Remove --dry-run to sync.")
+  );
 }
 
 // --- Conflict Resolution ---
@@ -458,37 +518,48 @@ async function promptConflictResolution(
   index: number,
   total: number,
   lastChoice: SyncConflictResolution | null
-): Promise<SyncConflictResolution | 'apply-all'> {
+): Promise<SyncConflictResolution | "apply-all"> {
   console.log();
   logger.info(chalk.bold(`Conflict (${index + 1}/${total}): ${conflict.path}`));
-  logger.info(`  Local:  ${conflict.localChecksum.substring(0, 12)}... (${formatSize(conflict.localSize)})`);
-  logger.info(`  Remote: ${conflict.remoteChecksum.substring(0, 12)}... (${formatSize(conflict.remoteSize)})`);
+  logger.info(
+    `  Local:  ${conflict.localChecksum.slice(0, 12)}... (${formatSize(conflict.localSize)})`
+  );
+  logger.info(
+    `  Remote: ${conflict.remoteChecksum.slice(0, 12)}... (${formatSize(conflict.remoteSize)})`
+  );
 
   const choices: Array<{ name: string; value: string }> = [
-    { name: 'Skip (leave unchanged)', value: 'skip' },
-    { name: 'Use local version (push to remote)', value: 'overwrite-remote' },
-    { name: 'Use remote version (pull to local)', value: 'overwrite-local' },
-    { name: 'Keep both (create .local and .remote copies)', value: 'keep-both' },
+    { name: "Skip (leave unchanged)", value: "skip" },
+    { name: "Use local version (push to remote)", value: "overwrite-remote" },
+    { name: "Use remote version (pull to local)", value: "overwrite-local" },
+    {
+      name: "Keep both (create .local and .remote copies)",
+      value: "keep-both",
+    },
   ];
 
   // After first conflict, offer "apply same to remaining"
   if (lastChoice !== null && index < total - 1) {
     const remaining = total - index;
-    const choiceLabel = lastChoice === 'skip' ? 'Skip'
-      : lastChoice === 'overwrite-remote' ? 'Use local version'
-      : lastChoice === 'overwrite-local' ? 'Use remote version'
-      : 'Keep both';
+    const choiceLabel =
+      lastChoice === "skip"
+        ? "Skip"
+        : lastChoice === "overwrite-remote"
+          ? "Use local version"
+          : lastChoice === "overwrite-local"
+            ? "Use remote version"
+            : "Keep both";
     choices.push({
       name: `Apply "${choiceLabel}" to remaining ${remaining} conflict(s)`,
-      value: 'apply-all',
+      value: "apply-all",
     });
   }
 
   const { resolution } = await inquirer.prompt([
     {
-      type: 'select',
-      name: 'resolution',
-      message: 'How would you like to resolve this conflict?',
+      type: "select",
+      name: "resolution",
+      message: "How would you like to resolve this conflict?",
       choices,
       loop: false,
     },
@@ -503,22 +574,33 @@ async function pushSyncFiles(
   api: CirronApi,
   files: Array<SyncFileManifestEntry | SyncChangedFileEntry>,
   label: string
-): Promise<{ succeeded: number; failed: number; pushed: Array<{ path: string; checksum: string; artifactId: string }> }> {
+): Promise<{
+  succeeded: number;
+  failed: number;
+  pushed: Array<{ path: string; checksum: string; artifactId: string }>;
+}> {
   let succeeded = 0;
   let failed = 0;
-  const pushed: Array<{ path: string; checksum: string; artifactId: string }> = [];
+  const pushed: Array<{ path: string; checksum: string; artifactId: string }> =
+    [];
 
   for (const file of files) {
     const fileInfo = toFileInfo(file);
-    const itemSpinner = ora(`${label}: ${fileInfo.relativePath} (${formatSize(fileInfo.size)})...`).start();
+    const itemSpinner = ora(
+      `${label}: ${fileInfo.relativePath} (${formatSize(fileInfo.size)})...`
+    ).start();
 
     try {
       const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
 
       if (result.skipped) {
-        itemSpinner.info(`Skipped ${chalk.cyan(fileInfo.relativePath)} (${result.skipReason})`);
+        itemSpinner.info(
+          `Skipped ${chalk.cyan(fileInfo.relativePath)} (${result.skipReason})`
+        );
       } else {
-        itemSpinner.succeed(`Pushed ${chalk.cyan(fileInfo.relativePath)} (${formatSize(fileInfo.size)})`);
+        itemSpinner.succeed(
+          `Pushed ${chalk.cyan(fileInfo.relativePath)} (${formatSize(fileInfo.size)})`
+        );
       }
 
       succeeded++;
@@ -532,7 +614,7 @@ async function pushSyncFiles(
         });
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
+      const msg = error instanceof Error ? error.message : "Unknown error";
       itemSpinner.fail(`Failed to push ${fileInfo.relativePath}: ${msg}`);
       failed++;
     }
@@ -545,10 +627,15 @@ async function pullSyncFiles(
   api: CirronApi,
   files: Array<SyncRemoteFileEntry | SyncChangedFileEntry>,
   label: string
-): Promise<{ succeeded: number; failed: number; pulled: Array<{ path: string; checksum: string; artifactId: string }> }> {
+): Promise<{
+  succeeded: number;
+  failed: number;
+  pulled: Array<{ path: string; checksum: string; artifactId: string }>;
+}> {
   let succeeded = 0;
   let failed = 0;
-  const pulled: Array<{ path: string; checksum: string; artifactId: string }> = [];
+  const pulled: Array<{ path: string; checksum: string; artifactId: string }> =
+    [];
 
   const cwd = process.cwd();
 
@@ -559,7 +646,7 @@ async function pullSyncFiles(
 
     // Validate the resolved path stays within the project directory
     const relPath = path.relative(cwd, destPath);
-    if (relPath.startsWith('..') || path.isAbsolute(relPath)) {
+    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
       itemSpinner.fail(`Rejected ${file.path}: path traversal detected`);
       failed++;
       continue;
@@ -569,7 +656,9 @@ async function pullSyncFiles(
       await fs.ensureDir(path.dirname(destPath));
       await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
 
-      itemSpinner.succeed(`Pulled ${chalk.cyan(file.path)} (${formatSize(artifactInfo.size)})`);
+      itemSpinner.succeed(
+        `Pulled ${chalk.cyan(file.path)} (${formatSize(artifactInfo.size)})`
+      );
       succeeded++;
       pulled.push({
         path: file.path,
@@ -577,7 +666,7 @@ async function pullSyncFiles(
         artifactId: artifactInfo.id,
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
+      const msg = error instanceof Error ? error.message : "Unknown error";
       itemSpinner.fail(`Failed to pull ${file.path}: ${msg}`);
       failed++;
     }
@@ -600,21 +689,27 @@ async function resolveConflicts(
   let resolved = 0;
   let skipped = 0;
   let failed = 0;
-  const pushed: Array<{ path: string; checksum: string; artifactId: string }> = [];
-  const pulled: Array<{ path: string; checksum: string; artifactId: string }> = [];
+  const pushed: Array<{ path: string; checksum: string; artifactId: string }> =
+    [];
+  const pulled: Array<{ path: string; checksum: string; artifactId: string }> =
+    [];
 
   if (conflicts.length === 0) {
     return { resolved, skipped, failed, pushed, pulled };
   }
 
   // Non-interactive strategies
-  if (strategy === 'local-wins') {
+  if (strategy === "local-wins") {
     for (const conflict of conflicts) {
-      const itemSpinner = ora(`Resolving conflict (local-wins): ${conflict.path}...`).start();
+      const itemSpinner = ora(
+        `Resolving conflict (local-wins): ${conflict.path}...`
+      ).start();
       try {
         const fileInfo = toFileInfo(conflict);
         const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
-        itemSpinner.succeed(`Resolved ${chalk.cyan(conflict.path)} -> pushed local version`);
+        itemSpinner.succeed(
+          `Resolved ${chalk.cyan(conflict.path)} -> pushed local version`
+        );
         resolved++;
         pushed.push({
           path: conflict.path,
@@ -622,7 +717,7 @@ async function resolveConflicts(
           artifactId: result.artifact.id,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
         failed++;
       }
@@ -630,15 +725,19 @@ async function resolveConflicts(
     return { resolved, skipped, failed, pushed, pulled };
   }
 
-  if (strategy === 'remote-wins') {
+  if (strategy === "remote-wins") {
     for (const conflict of conflicts) {
-      const itemSpinner = ora(`Resolving conflict (remote-wins): ${conflict.path}...`).start();
+      const itemSpinner = ora(
+        `Resolving conflict (remote-wins): ${conflict.path}...`
+      ).start();
       try {
         const artifactInfo = toArtifactInfo(conflict);
         const destPath = path.resolve(process.cwd(), conflict.path);
         await fs.ensureDir(path.dirname(destPath));
         await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
-        itemSpinner.succeed(`Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`);
+        itemSpinner.succeed(
+          `Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`
+        );
         resolved++;
         pulled.push({
           path: conflict.path,
@@ -646,7 +745,7 @@ async function resolveConflicts(
           artifactId: artifactInfo.id,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
         failed++;
       }
@@ -654,9 +753,11 @@ async function resolveConflicts(
     return { resolved, skipped, failed, pushed, pulled };
   }
 
-  if (strategy === 'keep-both') {
+  if (strategy === "keep-both") {
     for (const conflict of conflicts) {
-      const itemSpinner = ora(`Resolving conflict (keep-both): ${conflict.path}...`).start();
+      const itemSpinner = ora(
+        `Resolving conflict (keep-both): ${conflict.path}...`
+      ).start();
       try {
         const originalPath = path.resolve(process.cwd(), conflict.path);
         const { localPath, remotePath } = buildKeepBothPaths(originalPath);
@@ -670,7 +771,9 @@ async function resolveConflicts(
 
         const relLocal = path.relative(process.cwd(), localPath);
         const relRemote = path.relative(process.cwd(), remotePath);
-        itemSpinner.succeed(`Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`);
+        itemSpinner.succeed(
+          `Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`
+        );
         resolved++;
         pulled.push({
           path: conflict.path,
@@ -678,7 +781,7 @@ async function resolveConflicts(
           artifactId: artifactInfo.id,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
         failed++;
       }
@@ -697,8 +800,13 @@ async function resolveConflicts(
     if (applyAllChoice) {
       resolution = applyAllChoice;
     } else {
-      const answer = await promptConflictResolution(conflict, i, conflicts.length, lastChoice);
-      if (answer === 'apply-all') {
+      const answer = await promptConflictResolution(
+        conflict,
+        i,
+        conflicts.length,
+        lastChoice
+      );
+      if (answer === "apply-all") {
         applyAllChoice = lastChoice;
         resolution = lastChoice!;
       } else {
@@ -707,18 +815,20 @@ async function resolveConflicts(
       }
     }
 
-    if (resolution === 'skip') {
+    if (resolution === "skip") {
       logger.info(`  Skipped ${chalk.gray(conflict.path)}`);
       skipped++;
       continue;
     }
 
-    if (resolution === 'overwrite-remote') {
+    if (resolution === "overwrite-remote") {
       const itemSpinner = ora(`Pushing ${conflict.path}...`).start();
       try {
         const fileInfo = toFileInfo(conflict);
         const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
-        itemSpinner.succeed(`Resolved ${chalk.cyan(conflict.path)} -> pushed local version`);
+        itemSpinner.succeed(
+          `Resolved ${chalk.cyan(conflict.path)} -> pushed local version`
+        );
         resolved++;
         pushed.push({
           path: conflict.path,
@@ -726,21 +836,23 @@ async function resolveConflicts(
           artifactId: result.artifact.id,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
         failed++;
       }
       continue;
     }
 
-    if (resolution === 'overwrite-local') {
+    if (resolution === "overwrite-local") {
       const itemSpinner = ora(`Pulling ${conflict.path}...`).start();
       try {
         const artifactInfo = toArtifactInfo(conflict);
         const destPath = path.resolve(process.cwd(), conflict.path);
         await fs.ensureDir(path.dirname(destPath));
         await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
-        itemSpinner.succeed(`Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`);
+        itemSpinner.succeed(
+          `Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`
+        );
         resolved++;
         pulled.push({
           path: conflict.path,
@@ -748,15 +860,17 @@ async function resolveConflicts(
           artifactId: artifactInfo.id,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
         failed++;
       }
       continue;
     }
 
-    if (resolution === 'keep-both') {
-      const itemSpinner = ora(`Keeping both versions of ${conflict.path}...`).start();
+    if (resolution === "keep-both") {
+      const itemSpinner = ora(
+        `Keeping both versions of ${conflict.path}...`
+      ).start();
       try {
         const originalPath = path.resolve(process.cwd(), conflict.path);
         const { localPath, remotePath } = buildKeepBothPaths(originalPath);
@@ -768,7 +882,9 @@ async function resolveConflicts(
 
         const relLocal = path.relative(process.cwd(), localPath);
         const relRemote = path.relative(process.cwd(), remotePath);
-        itemSpinner.succeed(`Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`);
+        itemSpinner.succeed(
+          `Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`
+        );
         resolved++;
         pulled.push({
           path: conflict.path,
@@ -776,7 +892,7 @@ async function resolveConflicts(
           artifactId: artifactInfo.id,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
         failed++;
       }
@@ -787,9 +903,9 @@ async function resolveConflicts(
 }
 
 interface SyncPlanResult {
-  summary: SyncSummary;
-  pushed: Array<{ path: string; checksum: string; artifactId: string }>;
   pulled: Array<{ path: string; checksum: string; artifactId: string }>;
+  pushed: Array<{ path: string; checksum: string; artifactId: string }>;
+  summary: SyncSummary;
 }
 
 async function executeSyncPlan(
@@ -812,13 +928,23 @@ async function executeSyncPlan(
     totalConflicts: diff.conflicts.length,
   };
 
-  const allPushed: Array<{ path: string; checksum: string; artifactId: string }> = [];
-  const allPulled: Array<{ path: string; checksum: string; artifactId: string }> = [];
+  const allPushed: Array<{
+    path: string;
+    checksum: string;
+    artifactId: string;
+  }> = [];
+  const allPulled: Array<{
+    path: string;
+    checksum: string;
+    artifactId: string;
+  }> = [];
 
   // 1. Pull remote-only files
   if (diff.remoteOnly.length > 0) {
-    logger.info(chalk.bold(`\nPulling ${diff.remoteOnly.length} new remote file(s)...`));
-    const pullResult = await pullSyncFiles(api, diff.remoteOnly, 'Pull (new)');
+    logger.info(
+      chalk.bold(`\nPulling ${diff.remoteOnly.length} new remote file(s)...`)
+    );
+    const pullResult = await pullSyncFiles(api, diff.remoteOnly, "Pull (new)");
     summary.pulled += pullResult.succeeded;
     summary.failed += pullResult.failed;
     allPulled.push(...pullResult.pulled);
@@ -826,8 +952,16 @@ async function executeSyncPlan(
 
   // 2. Pull changed-remotely files
   if (diff.changedRemotely.length > 0) {
-    logger.info(chalk.bold(`\nPulling ${diff.changedRemotely.length} updated remote file(s)...`));
-    const pullResult = await pullSyncFiles(api, diff.changedRemotely, 'Pull (updated)');
+    logger.info(
+      chalk.bold(
+        `\nPulling ${diff.changedRemotely.length} updated remote file(s)...`
+      )
+    );
+    const pullResult = await pullSyncFiles(
+      api,
+      diff.changedRemotely,
+      "Pull (updated)"
+    );
     summary.pulled += pullResult.succeeded;
     summary.failed += pullResult.failed;
     allPulled.push(...pullResult.pulled);
@@ -835,8 +969,10 @@ async function executeSyncPlan(
 
   // 3. Push local-only files
   if (diff.localOnly.length > 0) {
-    logger.info(chalk.bold(`\nPushing ${diff.localOnly.length} new local file(s)...`));
-    const pushResult = await pushSyncFiles(api, diff.localOnly, 'Push (new)');
+    logger.info(
+      chalk.bold(`\nPushing ${diff.localOnly.length} new local file(s)...`)
+    );
+    const pushResult = await pushSyncFiles(api, diff.localOnly, "Push (new)");
     summary.pushed += pushResult.succeeded;
     summary.failed += pushResult.failed;
     allPushed.push(...pushResult.pushed);
@@ -844,8 +980,16 @@ async function executeSyncPlan(
 
   // 4. Push changed-locally files
   if (diff.changedLocally.length > 0) {
-    logger.info(chalk.bold(`\nPushing ${diff.changedLocally.length} updated local file(s)...`));
-    const pushResult = await pushSyncFiles(api, diff.changedLocally, 'Push (updated)');
+    logger.info(
+      chalk.bold(
+        `\nPushing ${diff.changedLocally.length} updated local file(s)...`
+      )
+    );
+    const pushResult = await pushSyncFiles(
+      api,
+      diff.changedLocally,
+      "Push (updated)"
+    );
     summary.pushed += pushResult.succeeded;
     summary.failed += pushResult.failed;
     allPushed.push(...pushResult.pushed);
@@ -853,8 +997,14 @@ async function executeSyncPlan(
 
   // 5. Resolve conflicts
   if (diff.conflicts.length > 0) {
-    logger.info(chalk.bold(`\nResolving ${diff.conflicts.length} conflict(s)...`));
-    const conflictResult = await resolveConflicts(api, diff.conflicts, strategy);
+    logger.info(
+      chalk.bold(`\nResolving ${diff.conflicts.length} conflict(s)...`)
+    );
+    const conflictResult = await resolveConflicts(
+      api,
+      diff.conflicts,
+      strategy
+    );
     summary.conflictsResolved += conflictResult.resolved;
     summary.conflictsSkipped += conflictResult.skipped;
     summary.failed += conflictResult.failed;
@@ -873,25 +1023,39 @@ function printSyncSummary(summary: SyncSummary, options: SyncOptions): void {
     return;
   }
 
-  const totalActions = summary.pushed + summary.pulled + summary.conflictsResolved + summary.conflictsSkipped;
+  const totalActions =
+    summary.pushed +
+    summary.pulled +
+    summary.conflictsResolved +
+    summary.conflictsSkipped;
 
   if (totalActions === 0 && summary.failed === 0) {
-    logger.info(chalk.bold('\nAlready in sync.'));
+    logger.info(chalk.bold("\nAlready in sync."));
     logger.info(`  ${chalk.gray(`${summary.unchanged} file(s) unchanged`)}`);
     return;
   }
 
   console.log();
-  logger.info(chalk.bold('Sync summary:'));
-  if (summary.pushed > 0) logger.info(`  Pushed:    ${chalk.green(String(summary.pushed))}`);
-  if (summary.pulled > 0) logger.info(`  Pulled:    ${chalk.blue(String(summary.pulled))}`);
+  logger.info(chalk.bold("Sync summary:"));
+  if (summary.pushed > 0) {
+    logger.info(`  Pushed:    ${chalk.green(String(summary.pushed))}`);
+  }
+  if (summary.pulled > 0) {
+    logger.info(`  Pulled:    ${chalk.blue(String(summary.pulled))}`);
+  }
   if (summary.totalConflicts > 0) {
     const conflictParts: string[] = [];
-    if (summary.conflictsResolved > 0) conflictParts.push(`${summary.conflictsResolved} resolved`);
-    if (summary.conflictsSkipped > 0) conflictParts.push(`${summary.conflictsSkipped} skipped`);
-    logger.info(`  Conflicts: ${chalk.yellow(conflictParts.join(', '))}`);
+    if (summary.conflictsResolved > 0) {
+      conflictParts.push(`${summary.conflictsResolved} resolved`);
+    }
+    if (summary.conflictsSkipped > 0) {
+      conflictParts.push(`${summary.conflictsSkipped} skipped`);
+    }
+    logger.info(`  Conflicts: ${chalk.yellow(conflictParts.join(", "))}`);
   }
-  if (summary.failed > 0) logger.info(`  Failed:    ${chalk.red(String(summary.failed))}`);
+  if (summary.failed > 0) {
+    logger.info(`  Failed:    ${chalk.red(String(summary.failed))}`);
+  }
   logger.info(`  Unchanged: ${chalk.gray(String(summary.unchanged))}`);
 }
 
@@ -906,41 +1070,47 @@ export async function syncCommand(
 
   // Auth check
   const auth = checkAuth();
-  if (!auth) return;
+  if (!auth) {
+    return;
+  }
   const { api } = auth;
 
   // Load project config
   const projectConfig = loadProjectConfig();
   if (!projectConfig) {
-    logger.error('No cirron config found (cirron.yaml or cirron.json) in current directory');
-    logger.info(`Run ${chalk.cyan('cirron init')} to initialize a project`);
+    logger.error(
+      "No cirron config found (cirron.yaml or cirron.json) in current directory"
+    );
+    logger.info(`Run ${chalk.cyan("cirron init")} to initialize a project`);
     return;
   }
 
   // Build local manifest
-  const manifestSpinner = ora('Scanning local files...').start();
+  const manifestSpinner = ora("Scanning local files...").start();
 
   let manifest: SyncFileManifestEntry[];
   try {
     manifest = await buildLocalManifest(syncPath, options, projectConfig);
     if (manifest.length === 0 && !options.pullOnly) {
-      manifestSpinner.info('No local artifact files found');
-      logger.info('Ensure your project config has artifacts configured, or specify a path.');
+      manifestSpinner.info("No local artifact files found");
+      logger.info(
+        "Ensure your project config has artifacts configured, or specify a path."
+      );
       return;
     }
     manifestSpinner.succeed(`Scanned ${manifest.length} local file(s)`);
   } catch (error) {
-    manifestSpinner.fail('Failed to scan local files');
+    manifestSpinner.fail("Failed to scan local files");
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
 
   // Get diff from server
-  const diffSpinner = ora('Computing sync diff with remote...').start();
+  const diffSpinner = ora("Computing sync diff with remote...").start();
 
   let diff: SyncDiffResult;
   try {
@@ -952,13 +1122,14 @@ export async function syncCommand(
         size: m.size,
       })),
     });
-    diffSpinner.succeed('Sync diff computed');
+    diffSpinner.succeed("Sync diff computed");
   } catch (error) {
-    diffSpinner.fail('Failed to compute sync diff');
+    diffSpinner.fail("Failed to compute sync diff");
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
@@ -975,8 +1146,10 @@ export async function syncCommand(
     diff.conflicts.length;
 
   if (totalChanges === 0) {
-    logger.info(chalk.bold('\nAlready in sync.'));
-    logger.info(`  ${chalk.gray(`${diff.unchanged.length} file(s) unchanged`)}`);
+    logger.info(chalk.bold("\nAlready in sync."));
+    logger.info(
+      `  ${chalk.gray(`${diff.unchanged.length} file(s) unchanged`)}`
+    );
     return;
   }
 
@@ -987,7 +1160,12 @@ export async function syncCommand(
   }
 
   // Execute sync
-  const { summary, pushed, pulled } = await executeSyncPlan(api, diff, conflictStrategy, options);
+  const { summary, pushed, pulled } = await executeSyncPlan(
+    api,
+    diff,
+    conflictStrategy,
+    options
+  );
 
   // Best-effort sync metadata update
   try {
@@ -997,7 +1175,9 @@ export async function syncCommand(
       pulled,
     });
   } catch {
-    logger.warn('Failed to update sync metadata on server. Sync completed successfully.');
+    logger.warn(
+      "Failed to update sync metadata on server. Sync completed successfully."
+    );
   }
 
   // Print summary

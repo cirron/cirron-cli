@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: CLI documentation
+    url: https://docs.cirron.com/cli
+    about: Command reference, configuration, and guides. Check here before opening an issue.
+  - name: Cirron platform
+    url: https://app.cirron.com
+    about: Sign in, account, and platform features (registry, deployments, remote runs).
+  - name: Report a security vulnerability
+    url: https://github.com/cirron/cirron-cli/security/advisories/new
+    about: Do not file security issues publicly. Open a private advisory or email security@cirron.com. See SECURITY.md.
+  - name: Questions and design discussions
+    url: https://github.com/cirron/cirron-cli/discussions
+    about: For "is this the right approach" and anything that doesn't fit a bug report or feature request. Or email dx@cirron.com.

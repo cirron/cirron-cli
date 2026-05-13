@@ -1,10 +1,11 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import open from 'open';
-import { ConfigManager } from '../utils/config';
-import { CirronApi } from '../utils/api';
-import { logger } from '../utils/logger';
-import type { DeviceTokenResponse } from '../types';
+import chalk from "chalk";
+import open from "open";
+import ora from "ora";
+import type { CirronConfig, DeviceTokenResponse } from "../types";
+import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
+import { ConfigManager } from "../utils/config";
+import { logger } from "../utils/logger";
 
 interface LoginOptions {
   token?: string;
@@ -28,21 +29,25 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
 
     // Default to device flow
     return deviceFlowLogin(currentConfig, config);
-
   } catch (error) {
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
-    
+
     process.exit(1);
   }
 }
 
-async function legacyTokenLogin(options: LoginOptions, currentConfig: any, config: ConfigManager): Promise<void> {
-  const spinner = ora('Verifying token...').start();
-  
+async function legacyTokenLogin(
+  options: LoginOptions,
+  currentConfig: CirronConfig,
+  config: ConfigManager
+): Promise<void> {
+  const spinner = ora("Verifying token...").start();
+
   try {
     // Verify token with API
     const api = new CirronApi({
@@ -50,21 +55,21 @@ async function legacyTokenLogin(options: LoginOptions, currentConfig: any, confi
       token: options.token!,
       defaultEnv: currentConfig.defaultEnv,
       timeout: currentConfig.timeout,
-      retries: currentConfig.retries
+      retries: currentConfig.retries,
     });
 
     const authInfo = await api.verifyAuth();
-    
+
     if (!authInfo.valid) {
-      throw new Error('Invalid token');
+      throw new Error("Invalid token");
     }
 
     // Save configuration with legacy token
     currentConfig.token = options.token!;
     config.save(currentConfig);
 
-    spinner.succeed(chalk.green('Successfully authenticated!'));
-    
+    spinner.succeed(chalk.green("Successfully authenticated!"));
+
     if (authInfo.user) {
       logger.info(`Logged in as: ${chalk.cyan(authInfo.user.email)}`);
       if (authInfo.user.name) {
@@ -73,59 +78,70 @@ async function legacyTokenLogin(options: LoginOptions, currentConfig: any, confi
     }
 
     logger.info(`API URL: ${chalk.cyan(currentConfig.apiUrl)}`);
-
   } catch (error) {
-    spinner.fail(chalk.red('Authentication failed'));
+    spinner.fail(chalk.red("Authentication failed"));
     throw error;
   }
 }
 
-async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promise<void> {
-  const spinner = ora('Starting device authorization...').start();
-  
+async function deviceFlowLogin(
+  currentConfig: CirronConfig,
+  config: ConfigManager
+): Promise<void> {
+  const spinner = ora("Starting device authorization...").start();
+
   try {
     const api = new CirronApi(currentConfig);
-    
+
     // 1. Request device code
     const deviceAuth = await api.requestDeviceCode();
-    
-    spinner.succeed('Device code received');
-    
+
+    spinner.succeed("Device code received");
+
     // 2. Display user code and instructions
     console.log();
-    console.log(chalk.bold('First copy your one-time code: ') + chalk.cyan(deviceAuth.userCode));
+    console.log(
+      chalk.bold("First copy your one-time code: ") +
+        chalk.cyan(deviceAuth.userCode)
+    );
     console.log();
-    console.log(`Press ${chalk.bold('Enter')} to open ${deviceAuth.verificationUrl} in your browser...`);
-    
+    console.log(
+      `Press ${chalk.bold("Enter")} to open ${deviceAuth.verificationUrl} in your browser...`
+    );
+
     // Wait for user to press Enter
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       process.stdin.setRawMode(true);
       process.stdin.resume();
-      process.stdin.once('data', () => {
+      process.stdin.once("data", () => {
         process.stdin.setRawMode(false);
         process.stdin.pause();
         resolve(undefined);
       });
     });
-    
+
     // 3. Open browser (fix URL if server returns null)
-    const baseUrl = currentConfig.apiUrl.replace('/api', '').replace(/\/$/, ''); // Remove trailing slash
-    const verificationUrl = deviceAuth.verificationUrl.startsWith('null/') 
-      ? deviceAuth.verificationUrl.replace('null/', `${baseUrl}/`)
+    const baseUrl = currentConfig.apiUrl.replace("/api", "").replace(/\/$/, ""); // Remove trailing slash
+    const verificationUrl = deviceAuth.verificationUrl.startsWith("null/")
+      ? deviceAuth.verificationUrl.replace("null/", `${baseUrl}/`)
       : deviceAuth.verificationUrl;
-    
+
     console.log(`\nOpening ${verificationUrl} in your browser...`);
     await open(verificationUrl);
-    
+
     // 4. Poll for authorization
-    spinner.start('Waiting for authorization...');
-    const result = await pollForAuthorization(api, deviceAuth.deviceCode, deviceAuth.interval);
-    
+    spinner.start("Waiting for authorization...");
+    const result = await pollForAuthorization(
+      api,
+      deviceAuth.deviceCode,
+      deviceAuth.interval
+    );
+
     // 5. Store tokens and verify
     await saveTokens(result, currentConfig, config);
-    
-    spinner.succeed(chalk.green('Authentication complete!'));
-    
+
+    spinner.succeed(chalk.green("Authentication complete!"));
+
     // Show user info
     const authInfo = await api.verifyAuth();
     if (authInfo.user) {
@@ -134,75 +150,81 @@ async function deviceFlowLogin(currentConfig: any, config: ConfigManager): Promi
         logger.info(`Name: ${chalk.cyan(authInfo.user.name)}`);
       }
     }
-    
   } catch (error) {
-    spinner.fail(chalk.red('Authentication failed'));
+    spinner.fail(chalk.red("Authentication failed"));
     throw error;
   }
 }
 
 async function pollForAuthorization(
-  api: CirronApi, 
-  deviceCode: string, 
+  api: CirronApi,
+  deviceCode: string,
   interval: number
 ): Promise<DeviceTokenResponse> {
   const maxAttempts = 120; // 10 minutes max
   let attempts = 0;
-  
+
   while (attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, interval * 1000));
-    
+    await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+
     try {
       const response = await api.pollDeviceAuthorization(deviceCode);
-      
+
       // Check if we got tokens (success case)
       if (response.accessToken && response.refreshToken) {
         return {
           access_token: response.accessToken,
           refresh_token: response.refreshToken,
-          expires_in: response.expiresIn || 604800,
-          token_type: 'bearer'
+          expires_in: response.expiresIn || 604_800,
+          token_type: "bearer",
         };
       }
-      
+
       // Check for explicit status responses
-      if (response.status === 'expired' || response.status === 'denied') {
+      if (response.status === "expired" || response.status === "denied") {
         throw new Error(`Authorization ${response.status}`);
       }
-      
+
       // Continue polling for 'pending' status or no tokens yet
       attempts++;
-      
     } catch (error) {
-      if (attempts > 5) throw error;
+      if (attempts > 5) {
+        throw error;
+      }
       attempts++;
     }
   }
-  
-  throw new Error('Authorization timeout');
+
+  throw new Error("Authorization timeout");
 }
 
-async function saveTokens(tokens: DeviceTokenResponse, currentConfig: any, config: ConfigManager): Promise<void> {
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-  
+async function saveTokens(
+  tokens: DeviceTokenResponse,
+  currentConfig: CirronConfig,
+  config: ConfigManager
+): Promise<void> {
+  const expiresAt = new Date(
+    Date.now() + tokens.expires_in * 1000
+  ).toISOString();
+
   currentConfig.auth = {
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
-    expiresAt
+    expiresAt,
   };
-  
+
   config.save(currentConfig);
 }
 
 export async function logoutCommand(): Promise<void> {
-  const spinner = ora('Logging out...').start();
-  
+  const spinner = ora("Logging out...").start();
+
   try {
     const config = new ConfigManager();
     const currentConfig = config.load();
 
-    if (!currentConfig.token && !currentConfig.auth?.accessToken) {
-      spinner.info(chalk.yellow('Not currently logged in'));
+    if (!(currentConfig.token || currentConfig.auth?.accessToken)) {
+      spinner.info(chalk.yellow("Not currently logged in"));
       return;
     }
 
@@ -211,11 +233,11 @@ export async function logoutCommand(): Promise<void> {
     delete currentConfig.auth;
     config.save(currentConfig);
 
-    spinner.succeed(chalk.green('Successfully logged out'));
-
+    spinner.succeed(chalk.green("Successfully logged out"));
   } catch (error) {
-    spinner.fail(chalk.red('Logout failed'));
-    logger.error('Error during logout:', error);
+    spinner.fail(chalk.red("Logout failed"));
+    handlePlatformError(error);
+    logger.error("Error during logout:", error);
     process.exit(1);
   }
 }
@@ -225,103 +247,114 @@ export async function authCommand(): Promise<void> {
     const config = new ConfigManager();
     const currentConfig = config.load();
 
-
-    if (!currentConfig.token && !currentConfig.auth?.accessToken) {
-      logger.info(chalk.yellow('Not authenticated'));
-      logger.info('Run ' + chalk.cyan('cirron auth login') + ' to authenticate');
+    if (!(currentConfig.token || currentConfig.auth?.accessToken)) {
+      logger.info(chalk.yellow("Not authenticated"));
+      logger.info(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
       return;
     }
 
-    const spinner = ora('Checking authentication status...').start();
+    const spinner = ora("Checking authentication status...").start();
 
     try {
       const api = new CirronApi(currentConfig);
       const authInfo = await api.verifyAuth();
 
       if (authInfo.valid && authInfo.user) {
-        spinner.succeed(chalk.green('Authenticated'));
+        spinner.succeed(chalk.green("Authenticated"));
         logger.info(`User: ${chalk.cyan(authInfo.user.email)}`);
         if (authInfo.user.name) {
           logger.info(`Name: ${chalk.cyan(authInfo.user.name)}`);
         }
-        
+
         // Show organization info if available
         if (authInfo.organization) {
-          logger.info(`Organization: ${chalk.cyan(authInfo.organization.name)}`);
+          logger.info(
+            `Organization: ${chalk.cyan(authInfo.organization.name)}`
+          );
         }
-        
+
         logger.info(`API URL: ${chalk.cyan(currentConfig.apiUrl)}`);
-        
+
         // Show token expiration from token object
         if (authInfo.token?.expiresAt) {
           const expiryDate = new Date(authInfo.token.expiresAt);
           const now = new Date();
-          const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
+          const daysUntilExpiry = Math.ceil(
+            (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
           if (daysUntilExpiry <= 7) {
             logger.warn(`Token expires in ${daysUntilExpiry} days`);
           } else {
-            logger.info(`Token expires: ${chalk.cyan(expiryDate.toLocaleDateString())}`);
+            logger.info(
+              `Token expires: ${chalk.cyan(expiryDate.toLocaleDateString())}`
+            );
           }
         }
-        
+
         // Show token scopes if available
         if (authInfo.token?.scopes) {
-          logger.info(`Scopes: ${chalk.cyan(authInfo.token.scopes.join(', '))}`);
+          logger.info(
+            `Scopes: ${chalk.cyan(authInfo.token.scopes.join(", "))}`
+          );
         }
       } else {
-        spinner.fail(chalk.red('Token is invalid or expired'));
-        logger.info('Run ' + chalk.cyan('cirron auth login') + ' to re-authenticate');
+        spinner.fail(chalk.red("Token is invalid or expired"));
+        logger.info(
+          `Run ${chalk.cyan("cirron auth login")} to re-authenticate`
+        );
       }
-
     } catch (error) {
-      spinner.fail(chalk.red('Failed to verify authentication'));
-      logger.error('Error verifying token:', error);
-      logger.info('Run ' + chalk.cyan('cirron auth login') + ' to re-authenticate');
+      spinner.fail(chalk.red("Failed to verify authentication"));
+      handlePlatformError(error);
+      logger.error("Error verifying token:", error);
+      logger.info(`Run ${chalk.cyan("cirron auth login")} to re-authenticate`);
     }
-
   } catch (error) {
-    logger.error('Error checking authentication status:', error);
+    handlePlatformError(error);
+    logger.error("Error checking authentication status:", error);
     process.exit(1);
   }
 }
 
 export async function refreshCommand(): Promise<void> {
-  const spinner = ora('Refreshing authentication...').start();
-  
+  const spinner = ora("Refreshing authentication...").start();
+
   try {
     const config = new ConfigManager();
     const currentConfig = config.load();
-    
+
     if (!currentConfig.auth?.refreshToken) {
-      spinner.fail(chalk.red('No refresh token available'));
-      logger.error('Please log in again with: ' + chalk.cyan('cirron auth login'));
+      spinner.fail(chalk.red("No refresh token available"));
+      logger.error(
+        `Please log in again with: ${chalk.cyan("cirron auth login")}`
+      );
       process.exit(1);
     }
-    
+
     const api = new CirronApi(currentConfig);
     const newTokens = await api.refreshToken(currentConfig.auth.refreshToken);
-    
+
     await saveTokens(newTokens, currentConfig, config);
-    
-    spinner.succeed(chalk.green('Authentication refreshed!'));
-    
+
+    spinner.succeed(chalk.green("Authentication refreshed!"));
+
     // Show updated auth info
     const authInfo = await api.verifyAuth();
     if (authInfo.user) {
       logger.info(`Logged in as: ${chalk.cyan(authInfo.user.email)}`);
     }
-
   } catch (error) {
-    spinner.fail(chalk.red('Failed to refresh token'));
-    
+    spinner.fail(chalk.red("Failed to refresh token"));
+    handlePlatformError(error);
+
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
-    
-    logger.info('Please log in again with: ' + chalk.cyan('cirron auth login'));
+
+    logger.info(`Please log in again with: ${chalk.cyan("cirron auth login")}`);
     process.exit(1);
   }
 }
