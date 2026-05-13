@@ -27,7 +27,6 @@
     "@types/semver": "^7.7.1",
     "@vitest/coverage-v8": "^4.1.6",
     "auto": "^11.3.0",
-    "pkg": "^5.8.1",
     "semver": "^7.8.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
@@ -38,8 +37,6 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "build:binaries": "npm run build && pkg dist/index.js --out-path binaries",
-    "build:all": "npm run build && pkg dist/index.js --targets node18-linux-x64,node18-macos-x64,node18-macos-arm64,node18-win-x64 --out-path binaries",
     "bump-deps": "npx npm-check-updates --deep -u && npm install",
     "dev": "ts-node src/index.ts",
     "test": "vitest run",
@@ -86,19 +83,5 @@
   "preferGlobal": true,
   "publishConfig": {
     "access": "public"
-  },
-  "pkg": {
-    "scripts": [
-      "dist/**/*.js"
-    ],
-    "assets": [
-      "templates/**/*"
-    ],
-    "targets": [
-      "node18-linux-x64",
-      "node18-macos-x64",
-      "node18-macos-arm64",
-      "node18-win-x64"
-    ]
   }
 }
