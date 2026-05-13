@@ -2,5 +2,37 @@
   "plugins": ["npm", "released"],
   "name": "Cirron DX",
   "email": "dx@cirron.com",
-  "baseBranch": "main"
+  "baseBranch": "main",
+  "labels": [
+    {
+      "name": "cmd",
+      "changelogTitle": "🛠️ Command Changes",
+      "releaseType": "none",
+      "description": "New or updated CLI command"
+    },
+    {
+      "name": "api",
+      "changelogTitle": "📡 API Changes",
+      "releaseType": "none",
+      "description": "API changes: new/updated routes, config, request/response handling"
+    },
+    {
+      "name": "platform",
+      "changelogTitle": "☁️ Platform Integration",
+      "releaseType": "none",
+      "description": "Direct integration with the Cirron platform"
+    },
+    {
+      "name": "ci",
+      "changelogTitle": "🤖 CI/CD",
+      "releaseType": "none",
+      "description": "Adds or updates CI/CD configuration"
+    },
+    {
+      "name": "dependencies",
+      "changelogTitle": "🔩 Dependency Updates",
+      "releaseType": "patch",
+      "description": "Pull requests that update a dependency file"
+    }
+  ]
 }
