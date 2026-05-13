@@ -8,6 +8,24 @@ import { loadProjectConfig } from "../../src/utils/project-config";
 import { writeProjectConfig } from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
+vi.mock("../../src/utils/execution", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/utils/execution")>();
+  return {
+    ...actual,
+    executeScript: vi.fn((command: string) =>
+      Promise.resolve({
+        command,
+        success: true,
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        duration: 0,
+      })
+    ),
+  };
+});
+
 /**
  * These tests exercise the real initCommand against a tmp directory.
  * inquirer is never prompted because we provide projectName + a valid
