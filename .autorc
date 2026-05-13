@@ -1,5 +1,5 @@
 {
-  "plugins": ["npm", "released", "first-time-contributor"],
+  "plugins": ["npm", "released"],
   "name": "Cirron DX",
   "email": "dx@cirron.com",
   "baseBranch": "main"
