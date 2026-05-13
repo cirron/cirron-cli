@@ -37,9 +37,9 @@ A maintainer will triage within a week. Review velocity beyond triage depends on
 
 ## Releases
 
-Releases are cut by maintainers with `npm run release` (`scripts/release.js`): it bumps the version in `package.json`, creates the `vX.Y.Z` git tag, and updates `CHANGELOG.md`. Pushing the tag triggers the release workflow (`.github/workflows/release.yml`), which builds the standalone binaries and publishes the package to npm.
+Releases are automated with [`auto`](https://intuit.github.io/auto/). Merging to `main` triggers the release workflow (`.github/workflows/release.yml`), which runs `npx auto shipit`: it picks the semver bump from the merged PRs' labels (`major` / `minor` / `patch`, or `skip-release` to skip), updates `CHANGELOG.md`, bumps the version in `package.json`, creates the `vX.Y.Z` git tag and GitHub release, and publishes to npm.
 
-**Do not hand-edit the version in `package.json`** — the release script owns it. Note in your PR whether the change is a breaking change, a feature, or a fix so the maintainer cuts the right bump.
+**Do not hand-edit the version in `package.json`.** `auto` owns it. Contributors should not apply release labels either. Just state in the PR body whether the change is a breaking change, a feature, or a fix (the PR template has a line for this). A maintainer applies the `major` / `minor` / `patch` / `skip-release` label during review so the right bump is cut.
 
 ## Getting set up
 
