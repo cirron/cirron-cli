@@ -14,9 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     # Gated behind the "release" GitHub Environment so an approval/protection rule can be added.
     environment: release
-    # Prevent a publish loop: `auto`'s release commits include "[skip ci]" in the
-    # message, so we filter them out here to avoid re-triggering this workflow.
-    if: "!contains(github.event.head_commit.message, 'ci skip') && !contains(github.event.head_commit.message, 'skip ci')"
+    # Prevent a publish loop: `auto`'s release commits are authored by
+    # actions@github.com, so we filter those out here. This is more robust than
+    # matching on commit message (which would false-positive on PRs that describe
+    # skip-release behavior).
+    if: github.event.head_commit.author.email != 'actions@github.com'
     permissions:
       contents: write       # push the version bump commit + tag, create the GitHub release
       issues: write         # auto comments on issues fixed by the release
@@ -27,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -50,5 +53,5 @@ jobs:
       # publishing-access setting. Provenance is attached automatically.
       - name: Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: npx auto shipit
