@@ -77,7 +77,7 @@ Not acceptable (these create confusion about the source):
 
 ### "Powered by Cirron"
 
-You may say a product or service is **"powered by Cirron"** only if you are an active customer of the Cirron platform and the product genuinely depends on it (not just on the open-source CLI). Saying "powered by Cirron" because you ran `npm install -g cirron` once is misleading and not permitted.
+You may say a product or service is **"powered by Cirron"** only if you are an active customer of the Cirron platform and the product genuinely depends on it (not just on the open-source CLI). Saying "powered by Cirron" because you ran `npm install -g @cirron/cli` once is misleading and not permitted.
 
 If you are using only the CLI without a platform subscription, the right phrasing is "**built with cirron-cli**", "**built with the Cirron CLI**", or "**uses cirron-cli**".
 

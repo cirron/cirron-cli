@@ -30,7 +30,7 @@ node -v
 
 - OS (e.g. macOS 14.5, Ubuntu 22.04, Windows 11):
 - Cirron CLI version:
-- How you installed it (`npm install -g cirron`, standalone binary, or a local `npm link` checkout):
+- How you installed it (`npm install -g @cirron/cli`, standalone binary, or a local `npm link` checkout):
 - Hardware (CPU only / NVIDIA GPU + CUDA version / Apple Silicon / TPU), if relevant:
 
 **Additional context**

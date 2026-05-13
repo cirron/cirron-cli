@@ -225,7 +225,8 @@ export async function validateCommand(
   const detected = detectMode(options.dir);
 
   if (detected.mode === "none") {
-    const msg = "No cirron config found (cirron.yaml, cirron.yml, or cirron.json)";
+    const msg =
+      "No cirron config found (cirron.yaml, cirron.yml, or cirron.json)";
     if (options.json) {
       logger.json({ ok: false, errors: [msg], warnings: [] });
     } else {

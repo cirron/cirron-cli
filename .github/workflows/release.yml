@@ -1,144 +1,59 @@
-# name: Release
+name: Release
 
-# on:
-#   push:
-#     tags:
-#       - 'v*'
+on:
+  push:
+    branches: [main]
 
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
-    
-#     steps:
-#     - uses: actions/checkout@v4
-    
-#     - name: Use Node.js 18
-#       uses: actions/setup-node@v4
-#       with:
-#         node-version: 18
-#         cache: 'npm'
-    
-#     - name: Install dependencies
-#       run: npm ci
-    
-#     - name: Run tests
-#       run: npm test
-    
-#     - name: Build
-#       run: npm run build
+concurrency:
+  group: release
+  cancel-in-progress: false
 
-#   build-binaries:
-#     needs: test
-#     runs-on: ${{ matrix.os }}
-    
-#     strategy:
-#       matrix:
-#         include:
-#           - os: ubuntu-latest
-#             target: linux
-#           - os: macos-latest
-#             target: macos
-#           - os: windows-latest
-#             target: win
-    
-#     steps:
-#     - uses: actions/checkout@v4
-    
-#     - name: Use Node.js 18
-#       uses: actions/setup-node@v4
-#       with:
-#         node-version: 18
-#         cache: 'npm'
-    
-#     - name: Install dependencies
-#       run: npm ci
-    
-#     - name: Build TypeScript
-#       run: npm run build
-    
-#     - name: Build binaries
-#       run: npm run build:all
-    
-#     - name: Upload binaries
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: binaries-${{ matrix.target }}
-#         path: binaries/
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    # Gated behind the "release" GitHub Environment so an approval/protection rule can be added.
+    environment: release
+    # Prevent a publish loop: `auto`'s release commits include "[skip ci]" in the
+    # message, so we filter them out here to avoid re-triggering this workflow.
+    if: "!contains(github.event.head_commit.message, 'ci skip') && !contains(github.event.head_commit.message, 'skip ci')"
+    permissions:
+      contents: write       # push the version bump commit + tag, create the GitHub release
+      issues: write         # auto comments on issues fixed by the release
+      pull-requests: write  # auto comments on released PRs
+      id-token: write       # OIDC for npm trusted publishing + build provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-#   publish-npm:
-#     needs: test
-#     runs-on: ubuntu-latest
-    
-#     steps:
-#     - uses: actions/checkout@v4
-    
-#     - name: Use Node.js 18
-#       uses: actions/setup-node@v4
-#       with:
-#         node-version: 18
-#         cache: 'npm'
-#         registry-url: 'https://registry.npmjs.org'
-    
-#     - name: Install dependencies
-#       run: npm ci
-    
-#     - name: Build
-#       run: npm run build
-    
-#     - name: Publish to NPM
-#       run: npm publish
-#       env:
-#         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: https://registry.npmjs.org
+          cache: npm
 
-#   create-release:
-#     needs: [test, build-binaries, publish-npm]
-#     runs-on: ubuntu-latest
-    
-#     steps:
-#     - uses: actions/checkout@v4
-    
-#     - name: Download all binaries
-#       uses: actions/download-artifact@v4
-#       with:
-#         path: ./binaries
-    
-#     - name: Organize binaries
-#       run: |
-#         mkdir -p release-binaries
-#         find binaries -name "cirron-*" -type f -exec cp {} release-binaries/ \;
-#         ls -la release-binaries/
-    
-#     - name: Create Release
-#       uses: softprops/action-gh-release@v1
-#       with:
-#         files: release-binaries/*
-#         body: |
-#           ## Installation
-          
-#           ### NPM (Recommended)
-#           ```bash
-#           npm install -g cirron-cli
-#           ```
-          
-#           ### Binary Download
-#           Download the appropriate binary for your system from the assets below.
-          
-#           #### Linux/macOS
-#           ```bash
-#           curl -L https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cirron-linux -o cirron
-#           chmod +x cirron
-#           sudo mv cirron /usr/local/bin/
-#           ```
-          
-#           #### Quick Install Script
-#           ```bash
-#           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | bash
-#           ```
-          
-#           ## Changelog
-          
-#           See [CHANGELOG.md](CHANGELOG.md) for details.
-#         draft: false
-#         prerelease: false
-#       env:
-#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # npm trusted publishing (OIDC, no token) requires npm >= 11.5.1.
+      # Pinned (not @latest) so releases stay reproducible across npm majors.
+      - name: Update npm
+        run: npm install -g npm@^11.5.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      # Publishes via npm trusted publishing (OIDC) — no NPM_TOKEN. The package on
+      # npmjs.com must have a trusted publisher configured for this repo + workflow,
+      # and "Require two-factor authentication and disallow tokens" is the matching
+      # publishing-access setting. Provenance is attached automatically.
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx auto shipit
