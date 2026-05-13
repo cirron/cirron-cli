@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Some tests shell out (npm/pip/git best-effort steps); 5s is too tight on CI runners.
+    testTimeout: 30_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "text-summary", "html"],
