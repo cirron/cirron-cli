@@ -83,27 +83,27 @@ exit_code=$?
 
 case $exit_code in
   0)
-    echo "✅ Compilation successful"
+    echo "Compilation successful"
     ;;
   2)
-    echo "❌ Python syntax error - check your model.py"
+    echo "Python syntax error - check your model.py"
     exit 1
     ;;
   3)
-    echo "📦 Missing Python dependencies - run pip install"
+    echo "Missing Python dependencies - run pip install"
     pip install -r requirements.txt
     cirron compile --strict  # Retry
     ;;
   11)
-    echo "🚫 CUDA not available - falling back to CPU"
+    echo "CUDA not available - falling back to CPU"
     cirron compile --strict --arch cpu
     ;;
   21)
-    echo "🔧 Model creation failed - check model architecture"
+    echo "Model creation failed - check model architecture"
     exit 1
     ;;
   *)
-    echo "❓ Unknown error (code: $exit_code)"
+    echo "Unknown error (code: $exit_code)"
     exit $exit_code
     ;;
 esac
