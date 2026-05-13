@@ -9,37 +9,37 @@
  */
 
 export type Section =
-  | 'core'
-  | 'core_optional'
-  | 'frameworks'
-  | 'data'
-  | 'snapshots'
-  | 'other';
+  | "core"
+  | "core_optional"
+  | "frameworks"
+  | "data"
+  | "snapshots"
+  | "other";
 
 interface ExtraDisplay {
-  section: Section;
   /** Short note rendered in the right-hand column when installed. */
   installedNote?: string;
+  section: Section;
 }
 
 /** Per-extras-group display metadata. Keys match pyproject extras names. */
 const EXTRA_DISPLAY: Record<string, ExtraDisplay> = {
-  dotenv: { section: 'core_optional', installedNote: '.env file support' },
+  dotenv: { section: "core_optional", installedNote: ".env file support" },
 
-  torch: { section: 'frameworks', installedNote: 'hooks available' },
-  tensorflow: { section: 'frameworks', installedNote: 'hooks available' },
-  transformers: { section: 'frameworks', installedNote: 'hooks available' },
-  sklearn: { section: 'frameworks', installedNote: 'ci.wrap() available' },
+  torch: { section: "frameworks", installedNote: "hooks available" },
+  tensorflow: { section: "frameworks", installedNote: "hooks available" },
+  transformers: { section: "frameworks", installedNote: "hooks available" },
+  sklearn: { section: "frameworks", installedNote: "ci.wrap() available" },
 
-  pandas: { section: 'data', installedNote: 'default ci.load() backend' },
-  polars: { section: 'data' },
-  arrow: { section: 'data' },
-  hf: { section: 'data', installedNote: 'datasets integration' },
-  image: { section: 'data' },
+  pandas: { section: "data", installedNote: "default ci.load() backend" },
+  polars: { section: "data" },
+  arrow: { section: "data" },
+  hf: { section: "data", installedNote: "datasets integration" },
+  image: { section: "data" },
 
   safetensors: {
-    section: 'snapshots',
-    installedNote: 'sampled/full snapshot capture',
+    section: "snapshots",
+    installedNote: "sampled/full snapshot capture",
   },
 };
 
@@ -49,59 +49,71 @@ const EXTRA_DISPLAY: Record<string, ExtraDisplay> = {
  * want a friendly note on a specific one (e.g. "datasets" inside [hf]).
  */
 const DIST_DISPLAY: Record<string, { installedNote?: string }> = {
-  pandas: { installedNote: 'default ci.load() backend' },
-  datasets: { installedNote: 'HuggingFace datasets' },
-  safetensors: { installedNote: 'sampled/full snapshot capture' },
-  torch: { installedNote: 'hooks available' },
-  tensorflow: { installedNote: 'hooks available' },
-  transformers: { installedNote: 'hooks available' },
-  'scikit-learn': { installedNote: 'ci.wrap() available' },
-  'python-dotenv': { installedNote: '.env file support' },
+  pandas: { installedNote: "default ci.load() backend" },
+  datasets: { installedNote: "HuggingFace datasets" },
+  safetensors: { installedNote: "sampled/full snapshot capture" },
+  torch: { installedNote: "hooks available" },
+  tensorflow: { installedNote: "hooks available" },
+  transformers: { installedNote: "hooks available" },
+  "scikit-learn": { installedNote: "ci.wrap() available" },
+  "python-dotenv": { installedNote: ".env file support" },
   pydantic: {},
   pyyaml: {},
   requests: {},
 };
 
 /** Hard-required deps that we surface under "Core" when missing. */
-export const CORE_DIST_NAMES = ['cirron-sdk', 'pydantic', 'pyyaml', 'requests'] as const;
+export const CORE_DIST_NAMES = [
+  "cirron-sdk",
+  "pydantic",
+  "pyyaml",
+  "requests",
+] as const;
 
 /** Headings used by the renderer. Sections without entries are skipped. */
 export const SECTION_TITLES: Record<Section, string> = {
-  core: 'Core',
-  core_optional: 'Core (optional)',
-  frameworks: 'Frameworks',
-  data: 'Data',
-  snapshots: 'Snapshots',
-  other: 'Other extras',
+  core: "Core",
+  core_optional: "Core (optional)",
+  frameworks: "Frameworks",
+  data: "Data",
+  snapshots: "Snapshots",
+  other: "Other extras",
 };
 
 /** Ordered sections for deterministic output. */
 export const SECTION_ORDER: Section[] = [
-  'core',
-  'core_optional',
-  'frameworks',
-  'data',
-  'snapshots',
-  'other',
+  "core",
+  "core_optional",
+  "frameworks",
+  "data",
+  "snapshots",
+  "other",
 ];
 
 export function sectionForExtra(extra: string | null): Section {
-  if (extra === null) return 'core';
-  return EXTRA_DISPLAY[extra]?.section ?? 'other';
+  if (extra === null) {
+    return "core";
+  }
+  return EXTRA_DISPLAY[extra]?.section ?? "other";
 }
 
 export function installHintFor(extra: string | null): string {
-  if (extra === null) return "pip install 'cirron-sdk'";
+  if (extra === null) {
+    return "pip install 'cirron-sdk'";
+  }
   return `pip install 'cirron-sdk[${extra}]'`;
 }
 
 export function noteForPackage(
   distNameNormalized: string,
-  extra: string | null,
+  extra: string | null
 ): string | undefined {
   const perDist = DIST_DISPLAY[distNameNormalized]?.installedNote;
-  if (perDist) return perDist;
-  if (extra !== null) return EXTRA_DISPLAY[extra]?.installedNote;
-  return undefined;
+  if (perDist) {
+    return perDist;
+  }
+  if (extra !== null) {
+    return EXTRA_DISPLAY[extra]?.installedNote;
+  }
+  return;
 }
-

@@ -10,7 +10,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO="dlynch42/cirron-cli"
+REPO="cirron/cirron-cli"
 BINARY_NAME="cirron"
 INSTALL_DIR="/usr/local/bin"
 

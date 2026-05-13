@@ -15,7 +15,15 @@
       "properties": {
         "defaultTemplate": {
           "type": "string",
-          "enum": ["pytorch", "pytorch-train", "tensorflow", "tensorflow-train", "sklearn", "sklearn-pipeline", "custom"],
+          "enum": [
+            "pytorch",
+            "pytorch-train",
+            "tensorflow",
+            "tensorflow-train",
+            "sklearn",
+            "sklearn-pipeline",
+            "custom"
+          ],
           "default": "pytorch",
           "description": "Default project template for new projects"
         },
@@ -35,7 +43,12 @@
           "description": "Enable verbose logging by default"
         }
       },
-      "required": ["defaultTemplate", "autoUpdate", "telemetry", "verboseLogging"],
+      "required": [
+        "defaultTemplate",
+        "autoUpdate",
+        "telemetry",
+        "verboseLogging"
+      ],
       "additionalProperties": false
     },
     "ui": {
@@ -62,7 +75,12 @@
           "description": "Enable interactive mode by default"
         }
       },
-      "required": ["colorOutput", "progressBars", "confirmPrompts", "interactiveMode"],
+      "required": [
+        "colorOutput",
+        "progressBars",
+        "confirmPrompts",
+        "interactiveMode"
+      ],
       "additionalProperties": false
     },
     "development": {
@@ -91,7 +109,12 @@
           "description": "Automatically format code on save"
         }
       },
-      "required": ["defaultPythonVersion", "preferredIDE", "autoLint", "autoFormat"],
+      "required": [
+        "defaultPythonVersion",
+        "preferredIDE",
+        "autoLint",
+        "autoFormat"
+      ],
       "additionalProperties": false
     },
     "cloud": {

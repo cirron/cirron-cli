@@ -1,25 +1,31 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
-import crypto from 'crypto';
-import inquirer from 'inquirer';
-import { logger } from '../utils/logger';
-import { CirronApi } from '../utils/api';
-import { ConfigManager } from '../utils/config';
-import { CirronIgnore } from '../utils/ignore';
-import { loadProjectConfig as loadProjectConfigUtil } from '../utils/project-config';
+import crypto from "node:crypto";
+import path from "node:path";
+import chalk from "chalk";
+import fs from "fs-extra";
+import inquirer from "inquirer";
+import ora from "ora";
 import type {
-  PullOptions,
+  ProjectConfig,
   PullArtifactInfo,
+  PullOptions,
   PullResourceType,
   PullResult,
-  ProjectConfig,
-} from '../types';
+} from "../types";
+import { CirronApi } from "../utils/api";
+import { handlePlatformError } from "../utils/api-errors";
+import { ConfigManager } from "../utils/config";
+import { CirronIgnore } from "../utils/ignore";
+import { logger } from "../utils/logger";
+import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
 
 // --- Constants ---
 
-const KNOWN_RESOURCE_TYPES: PullResourceType[] = ['model', 'image', 'build', 'runtime'];
+const KNOWN_RESOURCE_TYPES: PullResourceType[] = [
+  "model",
+  "image",
+  "build",
+  "runtime",
+];
 
 // --- Helpers ---
 
@@ -27,9 +33,9 @@ function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
   const currentConfig = configManager.load();
 
-  if (!currentConfig.token && !currentConfig.auth?.accessToken) {
-    logger.error('Not authenticated');
-    logger.info(`Run ${chalk.cyan('cirron auth login')} to authenticate`);
+  if (!(currentConfig.token || currentConfig.auth?.accessToken)) {
+    logger.error("Not authenticated");
+    logger.info(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
     return null;
   }
 
@@ -41,11 +47,11 @@ function isResourceTyped(resource: string): boolean {
 }
 
 function parseNameTag(nameArg: string): { name: string; tag?: string } {
-  const colonIndex = nameArg.lastIndexOf(':');
+  const colonIndex = nameArg.lastIndexOf(":");
   if (colonIndex > 0) {
     return {
-      name: nameArg.substring(0, colonIndex),
-      tag: nameArg.substring(colonIndex + 1),
+      name: nameArg.slice(0, colonIndex),
+      tag: nameArg.slice(colonIndex + 1),
     };
   }
   return { name: nameArg };
@@ -60,19 +66,25 @@ function loadProjectConfig(): ProjectConfig | null {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 async function computeFileChecksum(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
+    const hash = crypto.createHash("sha256");
     const stream = fs.createReadStream(filePath);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
   });
 }
 
@@ -100,8 +112,8 @@ async function checkConflict(
 
   const { overwrite } = await inquirer.prompt([
     {
-      type: 'confirm',
-      name: 'overwrite',
+      type: "confirm",
+      name: "overwrite",
       message: `File already exists: ${path.basename(destPath)}. Overwrite?`,
       default: false,
       loop: false,
@@ -119,15 +131,19 @@ export async function downloadArtifact(
 ): Promise<void> {
   const downloadInfo = await api.getPullDownloadUrl(artifact.id);
 
-  const tempPath = destPath + '.tmp';
+  const tempPath = `${destPath}.tmp`;
 
   try {
     spinner.text = `Downloading ${artifact.name} (${formatSize(artifact.size)})...`;
 
-    await api.downloadFile(downloadInfo.downloadUrl, tempPath, (downloaded, total) => {
-      const pct = Math.round((downloaded / total) * 100);
-      spinner.text = `Downloading ${artifact.name}: ${pct}% (${formatSize(downloaded)}/${formatSize(total)})`;
-    });
+    await api.downloadFile(
+      downloadInfo.downloadUrl,
+      tempPath,
+      (downloaded, total) => {
+        const pct = Math.round((downloaded / total) * 100);
+        spinner.text = `Downloading ${artifact.name}: ${pct}% (${formatSize(downloaded)}/${formatSize(total)})`;
+      }
+    );
 
     spinner.text = `Verifying checksum for ${artifact.name}...`;
     const actualChecksum = await computeFileChecksum(tempPath);
@@ -150,7 +166,11 @@ export async function downloadArtifact(
 
 // --- Dry Run ---
 
-function printDryRun(artifacts: PullArtifactInfo[], outputDir: string, jsonOutput: boolean): void {
+function printDryRun(
+  artifacts: PullArtifactInfo[],
+  outputDir: string,
+  jsonOutput: boolean
+): void {
   if (jsonOutput) {
     const result = artifacts.map((a) => ({
       id: a.id,
@@ -165,7 +185,7 @@ function printDryRun(artifacts: PullArtifactInfo[], outputDir: string, jsonOutpu
     return;
   }
 
-  logger.info(chalk.bold('Dry run - the following artifacts would be pulled:'));
+  logger.info(chalk.bold("Dry run - the following artifacts would be pulled:"));
   console.log();
 
   const totalSize = artifacts.reduce((sum, a) => sum + a.size, 0);
@@ -180,8 +200,12 @@ function printDryRun(artifacts: PullArtifactInfo[], outputDir: string, jsonOutpu
     console.log();
   });
 
-  logger.info(`Total: ${artifacts.length} artifact(s), ${formatSize(totalSize)}`);
-  logger.info(chalk.gray('No files were downloaded. Remove --dry-run to pull.'));
+  logger.info(
+    `Total: ${artifacts.length} artifact(s), ${formatSize(totalSize)}`
+  );
+  logger.info(
+    chalk.gray("No files were downloaded. Remove --dry-run to pull.")
+  );
 }
 
 // --- Main Command ---
@@ -193,22 +217,30 @@ export async function pullCommand(
 ): Promise<void> {
   // Handle --interactive: enhanced stub for beta
   if (options.interactive) {
-    logger.info(`${chalk.yellow('pull --interactive')} is not yet fully implemented.`);
-    logger.info('Guided pull flow will be available in a future release.');
-    if (resource) logger.info(`Resource: ${resource}`);
-    if (name) logger.info(`Name: ${name}`);
+    logger.info(
+      `${chalk.yellow("pull --interactive")} is not yet fully implemented.`
+    );
+    logger.info("Guided pull flow will be available in a future release.");
+    if (resource) {
+      logger.info(`Resource: ${resource}`);
+    }
+    if (name) {
+      logger.info(`Name: ${name}`);
+    }
     const optKeys = Object.entries(options)
-      .filter(([key, val]) => key !== 'interactive' && val !== undefined)
+      .filter(([key, val]) => key !== "interactive" && val !== undefined)
       .map(([key, val]) => `${key}=${val}`);
     if (optKeys.length > 0) {
-      logger.info(`Options: ${optKeys.join(', ')}`);
+      logger.info(`Options: ${optKeys.join(", ")}`);
     }
     return;
   }
 
   // Auth check
   const auth = checkAuth();
-  if (!auth) return;
+  if (!auth) {
+    return;
+  }
   const { api } = auth;
 
   // Handle --all mode
@@ -219,10 +251,12 @@ export async function pullCommand(
 
   // Validate resource is provided when not using --all
   if (!resource) {
-    logger.error('Resource type or path is required');
-    logger.info(`Usage: ${chalk.cyan('cirron pull <resource> [name] [options]')}`);
-    logger.info(`       ${chalk.cyan('cirron pull --all')}`);
-    logger.info(`Resource types: ${KNOWN_RESOURCE_TYPES.join(', ')}`);
+    logger.error("Resource type or path is required");
+    logger.info(
+      `Usage: ${chalk.cyan("cirron pull <resource> [name] [options]")}`
+    );
+    logger.info(`       ${chalk.cyan("cirron pull --all")}`);
+    logger.info(`Resource types: ${KNOWN_RESOURCE_TYPES.join(", ")}`);
     return;
   }
 
@@ -243,16 +277,22 @@ async function pullResourceTyped(
   options: PullOptions
 ): Promise<void> {
   if (!name) {
-    logger.error(`Resource name is required for ${chalk.cyan(`cirron pull ${resource}`)}`);
-    logger.info(`Usage: ${chalk.cyan(`cirron pull ${resource} <name> [--tag <tag>]`)}`);
+    logger.error(
+      `Resource name is required for ${chalk.cyan(`cirron pull ${resource}`)}`
+    );
+    logger.info(
+      `Usage: ${chalk.cyan(`cirron pull ${resource} <name> [--tag <tag>]`)}`
+    );
     return;
   }
 
   const parsed = parseNameTag(name);
   const resolvedName = parsed.name;
-  const resolvedTag = options.tag || parsed.tag || 'latest';
+  const resolvedTag = options.tag || parsed.tag || "latest";
 
-  const spinner = ora(`Fetching artifact info for ${resource} ${resolvedName}:${resolvedTag}...`).start();
+  const spinner = ora(
+    `Fetching artifact info for ${resource} ${resolvedName}:${resolvedTag}...`
+  ).start();
 
   try {
     const fetchOptions: {
@@ -267,7 +307,9 @@ async function pullResourceTyped(
     const artifacts = await api.getPullArtifacts(fetchOptions);
 
     if (!artifacts || artifacts.length === 0) {
-      spinner.fail(`No artifact found: ${resource} ${resolvedName}:${resolvedTag}`);
+      spinner.fail(
+        `No artifact found: ${resource} ${resolvedName}:${resolvedTag}`
+      );
       return;
     }
 
@@ -276,13 +318,13 @@ async function pullResourceTyped(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun([artifact], outputDir, options.json || false);
+      printDryRun([artifact], outputDir, options.json ?? false);
       return;
     }
 
     const destPath = await resolveOutputPath(artifact, options.output);
 
-    const shouldProceed = await checkConflict(destPath, options.force || false);
+    const shouldProceed = await checkConflict(destPath, options.force ?? false);
     if (!shouldProceed) {
       spinner.info(`Skipped ${artifact.name} (file exists)`);
       return;
@@ -290,7 +332,9 @@ async function pullResourceTyped(
 
     await downloadArtifact(api, artifact, destPath, spinner);
 
-    spinner.succeed(`Pulled ${chalk.cyan(artifact.name)}:${resolvedTag} -> ${destPath}`);
+    spinner.succeed(
+      `Pulled ${chalk.cyan(artifact.name)}:${resolvedTag} -> ${destPath}`
+    );
 
     if (options.json) {
       const result: PullResult = {
@@ -306,7 +350,7 @@ async function pullResourceTyped(
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
@@ -319,12 +363,16 @@ async function pullPathBased(
   resourcePath: string,
   options: PullOptions
 ): Promise<void> {
-  const spinner = ora(`Fetching artifact info for path: ${resourcePath}...`).start();
+  const spinner = ora(
+    `Fetching artifact info for path: ${resourcePath}...`
+  ).start();
 
   try {
     const fetchOptions: { path?: string; tag?: string } = {};
     fetchOptions.path = resourcePath;
-    if (options.tag) fetchOptions.tag = options.tag;
+    if (options.tag) {
+      fetchOptions.tag = options.tag;
+    }
 
     const artifacts = await api.getPullArtifacts(fetchOptions);
 
@@ -338,13 +386,13 @@ async function pullPathBased(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun([artifact], outputDir, options.json || false);
+      printDryRun([artifact], outputDir, options.json ?? false);
       return;
     }
 
     const destPath = await resolveOutputPath(artifact, options.output);
 
-    const shouldProceed = await checkConflict(destPath, options.force || false);
+    const shouldProceed = await checkConflict(destPath, options.force ?? false);
     if (!shouldProceed) {
       spinner.info(`Skipped ${artifact.name} (file exists)`);
       return;
@@ -368,7 +416,7 @@ async function pullPathBased(
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }
@@ -376,43 +424,48 @@ async function pullPathBased(
 
 // --- Pull all ---
 
-async function pullAll(
-  api: CirronApi,
-  options: PullOptions
-): Promise<void> {
+async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
   const projectConfig = loadProjectConfig();
   if (!projectConfig) {
-    logger.error('No cirron config found (cirron.yaml or cirron.json) in current directory');
+    logger.error(
+      "No cirron config found (cirron.yaml or cirron.json) in current directory"
+    );
     logger.info(
-      `Run ${chalk.cyan('cirron init')} to initialize a project, or use ${chalk.cyan('cirron pull <resource> <name>')} to pull a specific artifact`
+      `Run ${chalk.cyan("cirron init")} to initialize a project, or use ${chalk.cyan("cirron pull <resource> <name>")} to pull a specific artifact`
     );
     return;
   }
 
-  const spinner = ora(`Fetching all artifacts for project: ${projectConfig.name}...`).start();
+  const spinner = ora(
+    `Fetching all artifacts for project: ${projectConfig.name}...`
+  ).start();
 
   try {
     const fetchOptions: { projectName?: string; type?: string } = {};
     fetchOptions.projectName = projectConfig.name;
-    if (options.type) fetchOptions.type = options.type;
+    if (options.type) {
+      fetchOptions.type = options.type;
+    }
 
     const artifacts = await api.getPullArtifacts(fetchOptions);
 
     if (!artifacts || artifacts.length === 0) {
-      spinner.info('No artifacts found for this project');
+      spinner.info("No artifacts found for this project");
       return;
     }
 
     // Apply --ignore patterns
     let filteredArtifacts = artifacts;
     if (options.ignore) {
-      const patterns = options.ignore.split(',').map((p) => p.trim());
+      const patterns = options.ignore.split(",").map((p) => p.trim());
       const ignore = new CirronIgnore({ defaultPatterns: patterns });
-      filteredArtifacts = artifacts.filter((a) => !ignore.isIgnored(a.filename));
+      filteredArtifacts = artifacts.filter(
+        (a) => !ignore.isIgnored(a.filename)
+      );
     }
 
     if (filteredArtifacts.length === 0) {
-      spinner.info('All artifacts were excluded by --ignore patterns');
+      spinner.info("All artifacts were excluded by --ignore patterns");
       return;
     }
 
@@ -420,7 +473,7 @@ async function pullAll(
 
     if (options.dryRun) {
       spinner.stop();
-      printDryRun(filteredArtifacts, outputDir, options.json || false);
+      printDryRun(filteredArtifacts, outputDir, options.json ?? false);
       return;
     }
 
@@ -439,7 +492,10 @@ async function pullAll(
       try {
         const destPath = await resolveOutputPath(artifact, options.output);
 
-        const shouldProceed = await checkConflict(destPath, options.force || false);
+        const shouldProceed = await checkConflict(
+          destPath,
+          options.force ?? false
+        );
         if (!shouldProceed) {
           itemSpinner.info(`Skipped ${artifact.name} (file exists)`);
           skipCount++;
@@ -454,7 +510,9 @@ async function pullAll(
 
         await downloadArtifact(api, artifact, destPath, itemSpinner);
 
-        itemSpinner.succeed(`Pulled ${chalk.cyan(artifact.name)} -> ${destPath}`);
+        itemSpinner.succeed(
+          `Pulled ${chalk.cyan(artifact.name)} -> ${destPath}`
+        );
         successCount++;
         results.push({
           artifact,
@@ -463,7 +521,7 @@ async function pullAll(
           skipped: false,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : 'Unknown error';
+        const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to pull ${artifact.name}: ${msg}`);
         failCount++;
         results.push({
@@ -477,10 +535,14 @@ async function pullAll(
 
     // Summary
     console.log();
-    logger.info(chalk.bold('Pull summary:'));
+    logger.info(chalk.bold("Pull summary:"));
     logger.info(`  Succeeded: ${chalk.green(String(successCount))}`);
-    if (skipCount > 0) logger.info(`  Skipped:   ${chalk.yellow(String(skipCount))}`);
-    if (failCount > 0) logger.info(`  Failed:    ${chalk.red(String(failCount))}`);
+    if (skipCount > 0) {
+      logger.info(`  Skipped:   ${chalk.yellow(String(skipCount))}`);
+    }
+    if (failCount > 0) {
+      logger.info(`  Failed:    ${chalk.red(String(failCount))}`);
+    }
 
     if (options.json) {
       console.log(JSON.stringify(results, null, 2));
@@ -490,11 +552,12 @@ async function pullAll(
       process.exit(1);
     }
   } catch (error) {
-    spinner.fail('Failed to fetch project artifacts');
+    spinner.fail("Failed to fetch project artifacts");
+    handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
     } else {
-      logger.error('Unknown error occurred');
+      logger.error("Unknown error occurred");
     }
     process.exit(1);
   }

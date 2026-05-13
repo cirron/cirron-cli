@@ -2,20 +2,21 @@
  * Unified project configuration loader.
  * Resolves cirron.yaml, cirron.yml, or cirron.json (YAML preferred).
  */
-import fs from 'fs-extra';
-import path from 'path';
-import yaml from 'js-yaml';
-import type { ProjectConfig } from '../types';
 
-const CONFIG_FILES = ['cirron.yaml', 'cirron.yml', 'cirron.json'] as const;
+import path from "node:path";
+import fs from "fs-extra";
+import yaml from "js-yaml";
+import type { ProjectConfig } from "../types";
+
+const CONFIG_FILES = ["cirron.yaml", "cirron.yml", "cirron.json"] as const;
 
 export interface ProjectConfigResult {
+  /** Parsed config object */
+  config: ProjectConfig;
   /** Absolute path to the config file found */
   configPath: string;
   /** Filename (e.g., "cirron.yaml") */
   filename: string;
-  /** Parsed config object */
-  config: ProjectConfig;
 }
 
 /**
@@ -29,10 +30,12 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
   for (const filename of CONFIG_FILES) {
     const configPath = path.join(projectDir, filename);
     if (fs.existsSync(configPath)) {
-      const raw = fs.readFileSync(configPath, 'utf8');
-      const isYaml = filename.endsWith('.yaml') || filename.endsWith('.yml');
+      const raw = fs.readFileSync(configPath, "utf8");
+      const isYaml = filename.endsWith(".yaml") || filename.endsWith(".yml");
       try {
-        const config = isYaml ? (yaml.load(raw) as ProjectConfig) : JSON.parse(raw);
+        const config = isYaml
+          ? (yaml.load(raw) as ProjectConfig)
+          : JSON.parse(raw);
         return { configPath, filename, config };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -65,10 +68,17 @@ export function findProjectConfigPath(dir?: string): string | null {
  * Saves a config object back to disk.
  * If the original was YAML, saves as YAML. Otherwise JSON.
  */
-export function saveProjectConfig(configPath: string, config: ProjectConfig): void {
-  const isYaml = configPath.endsWith('.yaml') || configPath.endsWith('.yml');
+export function saveProjectConfig(
+  configPath: string,
+  config: ProjectConfig
+): void {
+  const isYaml = configPath.endsWith(".yaml") || configPath.endsWith(".yml");
   if (isYaml) {
-    fs.writeFileSync(configPath, yaml.dump(config, { indent: 2, lineWidth: 120, noRefs: true }), 'utf8');
+    fs.writeFileSync(
+      configPath,
+      yaml.dump(config, { indent: 2, lineWidth: 120, noRefs: true }),
+      "utf8"
+    );
   } else {
     fs.writeJSONSync(configPath, config, { spaces: 2 });
   }

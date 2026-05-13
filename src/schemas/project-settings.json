@@ -37,7 +37,16 @@
       "properties": {
         "defaultArch": {
           "type": "string",
-          "enum": ["cpu", "cuda", "gpu", "transformer", "xgboost", "resnet", "lstm", "autoencoder"],
+          "enum": [
+            "cpu",
+            "cuda",
+            "gpu",
+            "transformer",
+            "xgboost",
+            "resnet",
+            "lstm",
+            "autoencoder"
+          ],
           "default": "cpu",
           "description": "Default target architecture for builds"
         },
@@ -57,7 +66,12 @@
           "description": "Run validation checks before building"
         }
       },
-      "required": ["defaultArch", "enableCache", "pushOnBuild", "validateBeforeBuild"],
+      "required": [
+        "defaultArch",
+        "enableCache",
+        "pushOnBuild",
+        "validateBeforeBuild"
+      ],
       "additionalProperties": false
     },
     "test": {
@@ -86,7 +100,12 @@
           "description": "Include performance benchmarks in test runs"
         }
       },
-      "required": ["runParallel", "failFast", "coverageThreshold", "includeBenchmarks"],
+      "required": [
+        "runParallel",
+        "failFast",
+        "coverageThreshold",
+        "includeBenchmarks"
+      ],
       "additionalProperties": false
     },
     "deployment": {

@@ -1,82 +1,88 @@
-import chalk from 'chalk';
-import ora from 'ora';
-import fs from 'fs-extra';
-import path from 'path';
-import { execSync } from 'child_process';
-import { logger } from '../utils/logger';
-import { CirronIgnore } from '../utils/ignore';
-import { executeScript } from '../utils/execution';
-import { ModelConfigManager } from '../utils/model-config';
-import { loadProjectConfig, findProjectConfigPath } from '../utils/project-config';
-import type { ProjectConfig } from '../types';
+import { execSync } from "node:child_process";
+import path from "node:path";
+import chalk from "chalk";
+import fs from "fs-extra";
+import ora from "ora";
+import type { ProjectConfig } from "../types";
+import { executeScript } from "../utils/execution";
+import { CirronIgnore } from "../utils/ignore";
+import { logger } from "../utils/logger";
+import { loadProjectConfig } from "../utils/project-config";
 
 interface LintOptions {
-  config?: boolean;
-  structure?: boolean;
-  dependencies?: boolean;
-  code?: boolean;
   all?: boolean;
+  code?: boolean;
+  config?: boolean;
+  dependencies?: boolean;
   fix?: boolean;
-  verbose?: boolean;
   json?: boolean;
   strict?: boolean;
+  structure?: boolean;
+  verbose?: boolean;
 }
 
 interface LintResult {
   category: string;
-  severity: 'error' | 'warning' | 'info';
-  message: string;
   file?: string;
-  line?: number;
   fixable?: boolean;
+  line?: number;
+  message: string;
+  severity: "error" | "warning" | "info";
   suggestion?: string;
 }
 
 interface LintSummary {
   errors: number;
-  warnings: number;
   infos: number;
   results: LintResult[];
+  warnings: number;
 }
 
 export async function lintCommand(options: LintOptions): Promise<void> {
-  const spinner = ora('Starting project linting...').start();
-  
+  const spinner = ora("Starting project linting...").start();
+
   try {
     const summary: LintSummary = {
       errors: 0,
       warnings: 0,
       infos: 0,
-      results: []
+      results: [],
     };
 
     // Determine what to lint
-    const shouldLintAll = options.all || (!options.config && !options.structure && !options.dependencies && !options.code);
-    
+    const shouldLintAll =
+      options.all ||
+      !(
+        options.config ||
+        options.structure ||
+        options.dependencies ||
+        options.code
+      );
+
     if (shouldLintAll || options.config) {
-      spinner.text = 'Linting project configuration...';
+      spinner.text = "Linting project configuration...";
       await lintProjectConfig(summary, options);
     }
 
     if (shouldLintAll || options.structure) {
-      spinner.text = 'Checking project structure...';
+      spinner.text = "Checking project structure...";
       await lintProjectStructure(summary, options);
     }
 
     if (shouldLintAll || options.dependencies) {
-      spinner.text = 'Validating dependencies...';
+      spinner.text = "Validating dependencies...";
       await lintDependencies(summary, options);
     }
 
     if (shouldLintAll || options.code) {
-      spinner.text = 'Running code quality checks...';
+      spinner.text = "Running code quality checks...";
       await lintCode(summary, options);
     }
 
     spinner.stop();
 
     // Apply fixes if requested
-    if (options.fix && summary.results.some(r => r.fixable)) {
+    if (options.fix && summary.results.some((r) => r.fixable)) {
       await applyFixes(summary, options);
     }
 
@@ -91,25 +97,27 @@ export async function lintCommand(options: LintOptions): Promise<void> {
     if (summary.errors > 0) {
       process.exit(1);
     }
-
   } catch (error) {
-    spinner.fail('Linting failed');
-    logger.error('Lint error:', error);
+    spinner.fail("Linting failed");
+    logger.error("Lint error:", error);
     process.exit(1);
   }
 }
 
-async function lintProjectConfig(summary: LintSummary, _options: LintOptions): Promise<void> {
+async function lintProjectConfig(
+  summary: LintSummary,
+  _options: LintOptions
+): Promise<void> {
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {
     addResult(summary, {
-      category: 'config',
-      severity: 'error',
-      message: 'Missing project configuration file',
-      file: 'project configuration',
+      category: "config",
+      severity: "error",
+      message: "Missing project configuration file",
+      file: "project configuration",
       fixable: false,
-      suggestion: 'Run "cirron init" to create a project configuration'
+      suggestion: 'Run "cirron init" to create a project configuration',
     });
     return;
   }
@@ -120,15 +128,15 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
     const config: ProjectConfig = projectConfigResult.config;
 
     // Validate required fields
-    const requiredFields = ['name', 'version', 'template'];
+    const requiredFields = ["name", "version", "framework"];
     for (const field of requiredFields) {
       if (!config[field as keyof ProjectConfig]) {
         addResult(summary, {
-          category: 'config',
-          severity: 'error',
+          category: "config",
+          severity: "error",
           message: `Missing required field: ${field}`,
           file: configFilename,
-          fixable: false
+          fixable: false,
         });
       }
     }
@@ -138,367 +146,296 @@ async function lintProjectConfig(summary: LintSummary, _options: LintOptions): P
       validateFrameworkConfig(config, summary);
     }
 
-    // Validate environments
-    if (!config.environments || Object.keys(config.environments).length === 0) {
+    // Validate version format
+    if (config.version && !/^\d+\.\d+\.\d+/.test(config.version)) {
       addResult(summary, {
-        category: 'config',
-        severity: 'warning',
-        message: 'No environments configured',
+        category: "config",
+        severity: "warning",
+        message: "Version should follow semantic versioning (e.g., 1.0.0)",
         file: configFilename,
         fixable: false,
-        suggestion: 'Add at least one environment configuration'
-      });
-    }
-
-    // Validate version format
-    if (config.projectVersion && !/^\d+\.\d+\.\d+/.test(config.projectVersion)) {
-      addResult(summary, {
-        category: 'config',
-        severity: 'warning',
-        message: 'Version should follow semantic versioning (e.g., 1.0.0)',
-        file: configFilename,
-        fixable: false
       });
     }
 
     addResult(summary, {
-      category: 'config',
-      severity: 'info',
-      message: 'Project configuration is valid',
-      file: configFilename
+      category: "config",
+      severity: "info",
+      message: "Project configuration is valid",
+      file: configFilename,
     });
-
-  } catch (error) {
+  } catch {
     addResult(summary, {
-      category: 'config',
-      severity: 'error',
+      category: "config",
+      severity: "error",
       message: `Invalid content in ${configFilename}`,
       file: configFilename,
       fixable: false,
-      suggestion: 'Check syntax and formatting'
+      suggestion: "Check syntax and formatting",
     });
   }
 }
 
-async function lintProjectStructure(summary: LintSummary, _options: LintOptions): Promise<void> {
+async function lintProjectStructure(
+  summary: LintSummary,
+  _options: LintOptions
+): Promise<void> {
+  // Structure mirrors the cirron-sample-models reference: cirron.yaml,
+  // requirements.txt, train.py, and an artifacts/ directory at the
+  // project root. serve.py is recommended for local serving.
   const requiredFiles = [
-    { path: 'src/model.py', required: true },
-    { path: 'requirements.txt', required: true },
-    { path: 'Dockerfile', required: true },
-    { path: 'src/inference.py', required: false },
-    { path: 'src/data_loader.py', required: false },
-    { path: 'tests/', required: false, isDir: true }
+    { path: "requirements.txt", required: true },
+    { path: "train.py", required: true },
+    { path: "serve.py", required: false },
+    { path: "artifacts/", required: false, isDir: true },
   ];
 
   for (const file of requiredFiles) {
     const fullPath = path.join(process.cwd(), file.path);
     const exists = fs.existsSync(fullPath);
-    
+
     if (file.required && !exists) {
       addResult(summary, {
-        category: 'structure',
-        severity: 'error',
-        message: `Missing required ${file.isDir ? 'directory' : 'file'}: ${file.path}`,
+        category: "structure",
+        severity: "error",
+        message: `Missing required ${file.isDir ? "directory" : "file"}: ${file.path}`,
         file: file.path,
         fixable: false,
-        suggestion: `Create ${file.path} with appropriate content`
+        suggestion: `Create ${file.path} with appropriate content`,
       });
-    } else if (!file.required && !exists) {
+    } else if (!(file.required || exists)) {
       addResult(summary, {
-        category: 'structure',
-        severity: 'info',
-        message: `Optional ${file.isDir ? 'directory' : 'file'} not found: ${file.path}`,
-        file: file.path
+        category: "structure",
+        severity: "info",
+        message: `Optional ${file.isDir ? "directory" : "file"} not found: ${file.path}`,
+        file: file.path,
       });
     }
-  }
-
-  // Check for model configuration files
-  const modelConfigManager = new ModelConfigManager();
-  const modelConfigFile = await modelConfigManager.findModelConfigFile();
-  
-  if (modelConfigFile) {
-    try {
-      const modelConfig = await modelConfigManager.loadModelConfig();
-      if (modelConfig) {
-        addResult(summary, {
-          category: 'structure',
-          severity: 'info',
-          message: `Found model configuration: ${path.basename(modelConfigFile)}`,
-          file: path.basename(modelConfigFile)
-        });
-      }
-    } catch (error) {
-      addResult(summary, {
-        category: 'structure',
-        severity: 'warning',
-        message: `Invalid model configuration: ${path.basename(modelConfigFile)}`,
-        file: path.basename(modelConfigFile),
-        suggestion: 'Check YAML/JSON syntax and schema compliance'
-      });
-    }
-  } else {
-    addResult(summary, {
-      category: 'structure',
-      severity: 'info',
-      message: 'No model configuration file found (model.yaml, model.yml, or model.json)',
-      suggestion: 'Consider creating a model.yaml file for better configuration management'
-    });
-  }
-
-  // Check for ML-specific directories
-  const mlDirs = ['models/', 'data/', 'checkpoints/', 'logs/'];
-  for (const dir of mlDirs) {
-    const fullPath = path.join(process.cwd(), dir);
-    if (!fs.existsSync(fullPath)) {
-      addResult(summary, {
-        category: 'structure',
-        severity: 'warning',
-        message: `ML directory not found: ${dir}`,
-        file: dir,
-        fixable: true,
-        suggestion: `Create ${dir} directory for ML artifacts`
-      });
-    }
-  }
-
-  // Check .cirronignore
-  const ignorePath = path.join(process.cwd(), '.cirronignore');
-  if (!fs.existsSync(ignorePath)) {
-    addResult(summary, {
-      category: 'structure',
-      severity: 'warning',
-      message: 'No .cirronignore file found',
-      file: '.cirronignore',
-      fixable: true,
-      suggestion: 'Create .cirronignore to exclude unnecessary files from builds'
-    });
   }
 }
 
-async function lintDependencies(summary: LintSummary, _options: LintOptions): Promise<void> {
-  const requirementsPath = path.join(process.cwd(), 'requirements.txt');
-  
+async function lintDependencies(
+  summary: LintSummary,
+  _options: LintOptions
+): Promise<void> {
+  const requirementsPath = path.join(process.cwd(), "requirements.txt");
+
   if (!fs.existsSync(requirementsPath)) {
     addResult(summary, {
-      category: 'dependencies',
-      severity: 'error',
-      message: 'Missing requirements.txt file',
-      file: 'requirements.txt',
-      fixable: false
+      category: "dependencies",
+      severity: "error",
+      message: "Missing requirements.txt file",
+      file: "requirements.txt",
+      fixable: false,
     });
     return;
   }
 
   try {
-    const content = await fs.readFile(requirementsPath, 'utf-8');
-    const lines = content.split('\n').filter(line => line.trim());
-    
+    const content = await fs.readFile(requirementsPath, "utf-8");
+    const lines = content.split("\n").filter((line) => line.trim());
+
     // Check for common ML dependencies
-    const commonDeps = ['numpy', 'pandas', 'scikit-learn'];
-    const hasDeps = commonDeps.some(dep => 
-      lines.some(line => line.toLowerCase().includes(dep))
+    const commonDeps = ["numpy", "pandas", "scikit-learn"];
+    const hasDeps = commonDeps.some((dep) =>
+      lines.some((line) => line.toLowerCase().includes(dep))
     );
-    
+
     if (!hasDeps) {
       addResult(summary, {
-        category: 'dependencies',
-        severity: 'info',
-        message: 'No common ML dependencies found',
-        file: 'requirements.txt'
+        category: "dependencies",
+        severity: "info",
+        message: "No common ML dependencies found",
+        file: "requirements.txt",
       });
     }
 
     // Check for version pins
-    const unpinnedDeps = lines.filter(line => 
-      line.includes('==') === false && 
-      line.includes('>=') === false && 
-      line.includes('~=') === false &&
-      line.trim() && 
-      !line.startsWith('#')
+    const unpinnedDeps = lines.filter(
+      (line) =>
+        line.includes("==") === false &&
+        line.includes(">=") === false &&
+        line.includes("~=") === false &&
+        line.trim() &&
+        !line.startsWith("#")
     );
 
     if (unpinnedDeps.length > 0) {
       addResult(summary, {
-        category: 'dependencies',
-        severity: 'warning',
+        category: "dependencies",
+        severity: "warning",
         message: `${unpinnedDeps.length} dependencies without version constraints`,
-        file: 'requirements.txt',
-        suggestion: 'Pin dependency versions for reproducible builds'
+        file: "requirements.txt",
+        suggestion: "Pin dependency versions for reproducible builds",
       });
     }
 
     addResult(summary, {
-      category: 'dependencies',
-      severity: 'info',
+      category: "dependencies",
+      severity: "info",
       message: `Found ${lines.length} dependencies`,
-      file: 'requirements.txt'
+      file: "requirements.txt",
     });
-
-  } catch (error) {
+  } catch {
     addResult(summary, {
-      category: 'dependencies',
-      severity: 'error',
-      message: 'Could not read requirements.txt',
-      file: 'requirements.txt',
-      fixable: false
+      category: "dependencies",
+      severity: "error",
+      message: "Could not read requirements.txt",
+      file: "requirements.txt",
+      fixable: false,
     });
   }
 }
 
-async function lintCode(summary: LintSummary, _options: LintOptions): Promise<void> {
+async function lintCode(
+  summary: LintSummary,
+  _options: LintOptions
+): Promise<void> {
   // Lint TypeScript files with ESLint
   try {
-    execSync('npm run lint', { 
-      stdio: 'pipe', 
-      encoding: 'utf-8',
-      cwd: process.cwd()
+    execSync("npm run lint", {
+      stdio: "pipe",
+      encoding: "utf-8",
+      cwd: process.cwd(),
     });
-    
+
     addResult(summary, {
-      category: 'code',
-      severity: 'info',
-      message: 'TypeScript code passes ESLint checks'
+      category: "code",
+      severity: "info",
+      message: "TypeScript code passes ESLint checks",
     });
   } catch (error: any) {
-    const output = error.stdout || error.stderr || '';
+    const output = error.stdout || error.stderr || "";
     const eslintErrors = parseESLintOutput(output);
-    
-    eslintErrors.forEach(eslintError => {
+
+    for (const eslintError of eslintErrors) {
       addResult(summary, {
-        category: 'code',
+        category: "code",
         severity: eslintError.severity,
         message: eslintError.message,
         ...(eslintError.file && { file: eslintError.file }),
         ...(eslintError.line && { line: eslintError.line }),
-        ...(eslintError.fixable && { fixable: eslintError.fixable })
+        ...(eslintError.fixable && { fixable: eslintError.fixable }),
       });
-    });
+    }
   }
 
   // Basic Python syntax check
   const pythonFiles = await findPythonFiles();
   for (const file of pythonFiles) {
     try {
-      const result = await executeScript('python', ['-m', 'py_compile', file]);
+      const result = await executeScript("python", ["-m", "py_compile", file]);
       if (result.success) {
         addResult(summary, {
-          category: 'code',
-          severity: 'info',
-          message: 'Python syntax is valid',
-          file: path.relative(process.cwd(), file)
+          category: "code",
+          severity: "info",
+          message: "Python syntax is valid",
+          file: path.relative(process.cwd(), file),
         });
       } else {
-        const errorDetails = result.parsedErrors && result.parsedErrors.length > 0 && result.parsedErrors[0] ? 
-          result.parsedErrors[0].message : result.stderr;
+        const errorDetails =
+          result.parsedErrors &&
+          result.parsedErrors.length > 0 &&
+          result.parsedErrors[0]
+            ? result.parsedErrors[0].message
+            : result.stderr;
         addResult(summary, {
-          category: 'code',
-          severity: 'error',
+          category: "code",
+          severity: "error",
           message: `Python syntax error: ${errorDetails}`,
           file: path.relative(process.cwd(), file),
-          fixable: false
+          fixable: false,
         });
       }
-    } catch (error) {
+    } catch {
       addResult(summary, {
-        category: 'code',
-        severity: 'error',
-        message: 'Python syntax error',
+        category: "code",
+        severity: "error",
+        message: "Python syntax error",
         file: path.relative(process.cwd(), file),
-        fixable: false
+        fixable: false,
       });
     }
   }
 }
 
-function validateFrameworkConfig(config: ProjectConfig, summary: LintSummary): void {
+function validateFrameworkConfig(
+  config: ProjectConfig,
+  summary: LintSummary
+): void {
   const framework = config.framework;
-  
-  const configPath = findProjectConfigPath();
-  const cfgFilename = configPath ? path.basename(configPath) : 'project config';
 
-  if (framework === 'pytorch' && !config.pythonVersion) {
-    addResult(summary, {
-      category: 'config',
-      severity: 'warning',
-      message: 'PyTorch projects should specify Python version',
-      file: cfgFilename,
-      suggestion: 'Add "pythonVersion": "3.8" or appropriate version'
-    });
-  }
-
-  if (framework === 'tensorflow' && config.gpuRequired === undefined) {
-    addResult(summary, {
-      category: 'config',
-      severity: 'info',
-      message: 'Consider specifying GPU requirements for TensorFlow',
-      file: cfgFilename
-    });
-  }
+  // Framework-specific config validation has no current rules; the
+  // canonical cirron.yaml shape doesn't carry pythonVersion/gpuRequired.
+  void config;
+  void framework;
+  void summary;
 }
 
 async function findPythonFiles(): Promise<string[]> {
   const ignore = new CirronIgnore();
-  
+
   const pythonFiles: string[] = [];
-  const srcDir = path.join(process.cwd(), 'src');
-  
+  const srcDir = path.join(process.cwd(), "src");
+
   if (fs.existsSync(srcDir)) {
     const files = await fs.readdir(srcDir, { recursive: true });
     for (const file of files) {
       const fullPath = path.join(srcDir, file as string);
-      if (file.toString().endsWith('.py') && !ignore.isIgnored(fullPath)) {
+      if (file.toString().endsWith(".py") && !ignore.isIgnored(fullPath)) {
         pythonFiles.push(fullPath);
       }
     }
   }
-  
+
   return pythonFiles;
 }
 
 function parseESLintOutput(output: string): LintResult[] {
   const results: LintResult[] = [];
-  const lines = output.split('\n');
-  
+  const lines = output.split("\n");
+
   for (const line of lines) {
     const match = line.match(/^(.+?):(\d+):\d+: (error|warning) (.+)$/);
     if (match && match[1] && match[2] && match[4]) {
       results.push({
-        category: 'code',
-        severity: match[3] as 'error' | 'warning',
+        category: "code",
+        severity: match[3] as "error" | "warning",
         message: match[4],
         file: match[1],
-        line: parseInt(match[2]),
-        fixable: line.includes('(fixable)')
+        line: Number.parseInt(match[2], 10),
+        fixable: line.includes("(fixable)"),
       });
     }
   }
-  
+
   return results;
 }
 
-async function applyFixes(summary: LintSummary, _options: LintOptions): Promise<void> {
-  const spinner = ora('Applying automatic fixes...').start();
-  
+async function applyFixes(
+  summary: LintSummary,
+  _options: LintOptions
+): Promise<void> {
+  const spinner = ora("Applying automatic fixes...").start();
+
   try {
     // Create missing directories
-    const fixableStructure = summary.results.filter(r => 
-      r.category === 'structure' && r.fixable && r.file
+    const fixableStructure = summary.results.filter(
+      (r) => r.category === "structure" && r.fixable && r.file
     );
-    
+
     for (const result of fixableStructure) {
       const fullPath = path.join(process.cwd(), result.file!);
-      if (result.file!.endsWith('/')) {
+      if (result.file?.endsWith("/")) {
         await fs.ensureDir(fullPath);
         spinner.text = `Created directory: ${result.file}`;
       }
     }
 
     // Create .cirronignore if missing
-    const needsIgnoreFile = summary.results.find(r => 
-      r.file === '.cirronignore' && r.fixable
+    const needsIgnoreFile = summary.results.find(
+      (r) => r.file === ".cirronignore" && r.fixable
     );
-    
+
     if (needsIgnoreFile) {
       const ignoreContent = `# Cirron ignore file
 # Version control
@@ -529,88 +466,117 @@ build/
 dist/
 node_modules/
 `;
-      await fs.writeFile(path.join(process.cwd(), '.cirronignore'), ignoreContent);
-      spinner.text = 'Created .cirronignore file';
+      await fs.writeFile(
+        path.join(process.cwd(), ".cirronignore"),
+        ignoreContent
+      );
+      spinner.text = "Created .cirronignore file";
     }
 
-    spinner.succeed('Fixes applied successfully');
+    spinner.succeed("Fixes applied successfully");
   } catch (error) {
-    spinner.fail('Failed to apply fixes');
-    logger.error('Fix error:', error);
+    spinner.fail("Failed to apply fixes");
+    logger.error("Fix error:", error);
   }
 }
 
 function addResult(summary: LintSummary, result: LintResult): void {
   summary.results.push(result);
-  
+
   switch (result.severity) {
-    case 'error':
+    case "error":
       summary.errors++;
       break;
-    case 'warning':
+    case "warning":
       summary.warnings++;
       break;
-    case 'info':
+    case "info":
       summary.infos++;
+      break;
+    default:
       break;
   }
 }
 
 function displayResults(summary: LintSummary, options: LintOptions): void {
-  console.log('\n' + chalk.bold('Cirron Lint Results'));
-  console.log('='.repeat(50));
-  
+  console.log(`\n${chalk.bold("Cirron Lint Results")}`);
+  console.log("=".repeat(50));
+
   if (summary.results.length === 0) {
-    console.log(chalk.green('✓ No issues found'));
+    console.log(chalk.green("✓ No issues found"));
     return;
   }
 
   // Group by category
-  const categories = Array.from(new Set(summary.results.map(r => r.category)));
-  
+  const categories = Array.from(
+    new Set(summary.results.map((r) => r.category))
+  );
+
   for (const category of categories) {
-    const categoryResults = summary.results.filter(r => r.category === category);
+    const categoryResults = summary.results.filter(
+      (r) => r.category === category
+    );
     console.log(`\n${chalk.bold.cyan(category.toUpperCase())}:`);
-    
+
     for (const result of categoryResults) {
-      const icon = result.severity === 'error' ? '✗' : result.severity === 'warning' ? '⚠' : 'ℹ';
-      const color = result.severity === 'error' ? chalk.red : result.severity === 'warning' ? chalk.yellow : chalk.blue;
-      
+      const icon =
+        result.severity === "error"
+          ? "✗"
+          : result.severity === "warning"
+            ? "⚠"
+            : "ℹ";
+      const color =
+        result.severity === "error"
+          ? chalk.red
+          : result.severity === "warning"
+            ? chalk.yellow
+            : chalk.blue;
+
       let message = `  ${color(icon)} ${result.message}`;
-      
+
       if (result.file) {
         message += chalk.gray(` (${result.file}`);
         if (result.line) {
           message += chalk.gray(`:${result.line}`);
         }
-        message += chalk.gray(')');
+        message += chalk.gray(")");
       }
-      
+
       console.log(message);
-      
+
       if (result.suggestion && options.verbose) {
-        console.log(`    ${chalk.gray('→')} ${chalk.italic(result.suggestion)}`);
+        console.log(
+          `    ${chalk.gray("→")} ${chalk.italic(result.suggestion)}`
+        );
       }
     }
   }
 
   // Summary
-  console.log('\n' + '='.repeat(50));
-  const errorText = summary.errors > 0 ? chalk.red(`${summary.errors} errors`) : '0 errors';
-  const warningText = summary.warnings > 0 ? chalk.yellow(`${summary.warnings} warnings`) : '0 warnings';
+  console.log(`\n${"=".repeat(50)}`);
+  const errorText =
+    summary.errors > 0 ? chalk.red(`${summary.errors} errors`) : "0 errors";
+  const warningText =
+    summary.warnings > 0
+      ? chalk.yellow(`${summary.warnings} warnings`)
+      : "0 warnings";
   const infoText = `${summary.infos} infos`;
-  
+
   console.log(`${errorText}, ${warningText}, ${infoText}`);
-  
+
   if (summary.errors > 0) {
-    console.log(chalk.red('\n✗ Linting failed'));
+    console.log(chalk.red("\n✗ Linting failed"));
   } else {
-    console.log(chalk.green('\n✓ Linting passed'));
+    console.log(chalk.green("\n✓ Linting passed"));
   }
 
   // Show fix hint
-  const fixableCount = summary.results.filter(r => r.fixable).length;
+  const fixableCount = summary.results.filter((r) => r.fixable).length;
   if (fixableCount > 0) {
-    console.log(chalk.gray(`\nℹ ${fixableCount} issues can be automatically fixed with --fix`));
+    console.log(
+      chalk.gray(
+        `\nℹ ${fixableCount} issues can be automatically fixed with --fix`
+      )
+    );
   }
 }

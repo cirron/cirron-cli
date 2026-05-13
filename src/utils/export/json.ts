@@ -5,12 +5,14 @@
 // single-batch spool shape (§spool-format.md) so downstream tools can
 // read it with their existing spool parsers.
 
-import fs from 'fs-extra';
-import path from 'path';
-import type { Session, SpoolMark, SpoolSnapshot, SpoolSpan } from '../session';
+import path from "node:path";
+import fs from "fs-extra";
+import type { Session, SpoolMark, SpoolSnapshot, SpoolSpan } from "../session";
 
 function replacer(_key: string, value: unknown): unknown {
-  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
   return value;
 }
 
@@ -64,7 +66,7 @@ function snapshotToWire(snap: SpoolSnapshot): Record<string, unknown> {
 
 export async function exportJson(
   sessions: Session[],
-  outputPath: string,
+  outputPath: string
 ): Promise<void> {
   const spans: Record<string, unknown>[] = [];
   const marks: Record<string, unknown>[] = [];
@@ -73,24 +75,34 @@ export async function exportJson(
   const seenMarks = new Set<string>();
   const seenSnapshots = new Set<string>();
 
-  let sdkVersion = '';
+  let sdkVersion = "";
   let schemaVersion = 1;
 
   for (const session of sessions) {
-    if (session.sdkVersion) sdkVersion = session.sdkVersion;
-    if (session.schemaVersion) schemaVersion = session.schemaVersion;
+    if (session.sdkVersion) {
+      sdkVersion = session.sdkVersion;
+    }
+    if (session.schemaVersion) {
+      schemaVersion = session.schemaVersion;
+    }
     for (const span of session.spans.values()) {
-      if (seenSpans.has(span.id)) continue;
+      if (seenSpans.has(span.id)) {
+        continue;
+      }
       seenSpans.add(span.id);
       spans.push(spanToWire(span));
     }
     for (const mark of session.marks) {
-      if (seenMarks.has(mark.id)) continue;
+      if (seenMarks.has(mark.id)) {
+        continue;
+      }
       seenMarks.add(mark.id);
       marks.push(markToWire(mark));
     }
     for (const snap of session.snapshots) {
-      if (seenSnapshots.has(snap.id)) continue;
+      if (seenSnapshots.has(snap.id)) {
+        continue;
+      }
       seenSnapshots.add(snap.id);
       snapshots.push(snapshotToWire(snap));
     }
@@ -105,5 +117,5 @@ export async function exportJson(
   };
 
   await fs.ensureDir(path.dirname(path.resolve(outputPath)));
-  await fs.writeFile(outputPath, JSON.stringify(body, replacer, 2), 'utf-8');
+  await fs.writeFile(outputPath, JSON.stringify(body, replacer, 2), "utf-8");
 }

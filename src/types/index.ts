@@ -1,19 +1,36 @@
 export interface CirronConfig {
-  version?: number;
   apiUrl: string;
-  token?: string;           // Keep for backward compatibility with sk-* tokens
-  auth?: {                  // New JWT auth structure
+  auth?: {
+    // New JWT auth structure
     accessToken: string;
     refreshToken: string;
     expiresAt?: string;
   };
   defaultEnv: string;
-  timeout: number;
   retries: number;
+  timeout: number;
+  token?: string; // Keep for backward compatibility with sk-* tokens
+  version?: number;
 }
 
 export interface GlobalSettings {
-  version: number;
+  api: {
+    url: string;
+    timeout: number;
+    retries: number;
+    token?: string;
+  };
+  cloud: {
+    syncSettings: boolean;
+    defaultRegion?: string;
+    preferredProvider?: "aws" | "azure" | "gcp";
+  };
+  development: {
+    defaultPythonVersion: string;
+    preferredIDE: "vscode" | "pycharm" | "jupyter" | "none";
+    autoLint: boolean;
+    autoFormat: boolean;
+  };
   general: {
     defaultTemplate: string;
     autoUpdate: boolean;
@@ -26,37 +43,25 @@ export interface GlobalSettings {
     confirmPrompts: boolean;
     interactiveMode: boolean;
   };
-  development: {
-    defaultPythonVersion: string;
-    preferredIDE: 'vscode' | 'pycharm' | 'jupyter' | 'none';
-    autoLint: boolean;
-    autoFormat: boolean;
-  };
-  cloud: {
-    syncSettings: boolean;
-    defaultRegion?: string;
-    preferredProvider?: 'aws' | 'azure' | 'gcp';
-  };
-  api: {
-    url: string;
-    timeout: number;
-    retries: number;
-    token?: string;
-  };
+  version: number;
 }
 
 export interface ProjectSettings {
-  version: number;
-  general: {
-    autoSave: boolean;
-    buildOnChange: boolean;
-    testOnBuild: boolean;
-  };
   build: {
     defaultArch: string;
     enableCache: boolean;
     pushOnBuild: boolean;
     validateBeforeBuild: boolean;
+  };
+  deployment: {
+    defaultEnvironment: string;
+    autoRollback: boolean;
+    healthCheckTimeout: number;
+  };
+  general: {
+    autoSave: boolean;
+    buildOnChange: boolean;
+    testOnBuild: boolean;
   };
   test: {
     runParallel: boolean;
@@ -64,46 +69,75 @@ export interface ProjectSettings {
     coverageThreshold: number;
     includeBenchmarks: boolean;
   };
-  deployment: {
-    defaultEnvironment: string;
-    autoRollback: boolean;
-    healthCheckTimeout: number;
-  };
+  version: number;
 }
 
 export interface ApiResponse<T = any> {
-  success: boolean;
   data?: T;
   error?: string;
   message?: string;
+  success: boolean;
 }
 
 export interface ProjectConfig {
-  version?: number;
-  name: string;
-  description?: string;
-  projectVersion: string;
-  template: string;
-  framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
-  modelType?: string;
-  type?: string;
-  servingConfig?: Record<string, any>;
-  pythonVersion?: string;
-  gpuRequired?: boolean;
-  hardware?: HardwareConfig;
-  environments: Record<string, EnvironmentConfig>;
+  artifacts?: ArtifactsConfig;
   build?: BuildConfig;
   deploy?: DeployConfig;
-  artifacts?: ArtifactsConfig;
-  test?: TestConfig;
+  description?: string;
+  env?: Record<string, string>;
+  environments?: Record<string, EnvironmentConfig>;
+  framework: "pytorch" | "tensorflow" | "sklearn" | "onnx" | "custom";
+  gpuRequired?: boolean;
+  hardware?: HardwareConfig;
   metadata?: ModelMetadata;
+  // Required core fields, matching the cirron-sample-models reference shape.
+  name: string;
+  profiling?: Record<string, unknown>;
+
+  // Legacy fields kept optional because their consumer commands (compile,
+  // build, test, plan, info, hardware, push, sync, deploy, status) still
+  // read them. New scaffolds do not write any of these. They will be
+  // removed as the consuming commands are migrated.
+  pythonVersion?: string;
+  servingConfig?: ServingConfig;
   settings?: ProjectSettings;
+  test?: TestConfig;
+  type: string;
+  version: string;
+}
+
+// --- Monorepo / workspace configuration ---
+
+export interface WorkspaceModelEntry {
+  path: string;
+}
+
+export interface WorkspaceDefaults {
+  env?: Record<string, string>;
+  profiling?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface WorkspaceConfig {
+  workspace: {
+    defaults?: WorkspaceDefaults;
+    models: WorkspaceModelEntry[];
+    name: string;
+  };
+}
+
+export interface ServingConfig {
+  class_labels?: string[];
+  feature_order?: string[];
+  input_schema?: Record<string, unknown>;
+  output_schema?: Record<string, unknown>;
+  runtime: string;
 }
 
 export interface ArtifactsConfig {
-  modelPath: string;
   checkpointPath: string;
   logsPath: string;
+  modelPath: string;
 }
 
 export interface TestConfig {
@@ -117,70 +151,74 @@ export interface TestConfig {
 }
 
 export interface EnvironmentConfig {
+  deploymentSettings?: DeploymentSettings;
   name: string;
   url?: string;
   variables?: Record<string, string>;
-  deploymentSettings?: DeploymentSettings;
 }
 
 export interface BuildConfig {
-  outputDir: string;
-  command: string;
-  beforeBuild?: string[];
   afterBuild?: string[];
-  include?: string[];
+  beforeBuild?: string[];
+  command: string;
   exclude?: string[];
+  include?: string[];
+  outputDir: string;
 }
 
 export interface DeployConfig {
-  provider: 'aws' | 'vercel' | 'netlify' | 'custom';
-  settings: Record<string, any>;
-  beforeDeploy?: string[];
   afterDeploy?: string[];
+  beforeDeploy?: string[];
+  provider: "aws" | "vercel" | "netlify" | "custom";
+  settings: Record<string, any>;
 }
 
 export interface DeploymentSettings {
   autoScale?: boolean;
-  minInstances?: number;
-  maxInstances?: number;
   healthCheck?: string;
+  maxInstances?: number;
+  minInstances?: number;
   timeout?: number;
 }
 
 export interface BuildOptions {
-  env: string;
-  watch?: boolean;
-  output?: string;
-  clean?: boolean;
   analyze?: boolean;
-  tag?: string;
   arch?: string;
+  clean?: boolean;
+  env: string;
+  force?: boolean;
   index?: string;
-  validate?: boolean;
+  interactive?: boolean;
+  output?: string;
   push?: boolean;
   strict?: boolean;
+  tag?: string;
+  validate?: boolean;
   verbose?: boolean;
-  force?: boolean;
-  interactive?: boolean;
+  watch?: boolean;
 }
 
 export interface DeployOptions {
   env: string;
   force?: boolean;
+  message?: string;
   noBuild?: boolean;
   rollback?: boolean;
-  message?: string;
 }
 
 export interface InitOptions {
-  template: string;
   force?: boolean;
-  install?: boolean;
   git?: boolean;
+  install?: boolean;
+  template: string;
 }
 
 export interface AuthInfo {
-  valid: boolean;
+  organization?: {
+    id: string;
+    name: string;
+    type?: string;
+  };
   token?: {
     id: string;
     name: string;
@@ -192,105 +230,97 @@ export interface AuthInfo {
     email: string;
     name?: string;
   };
-  organization?: {
-    id: string;
-    name: string;
-    type?: string;
-  };
+  valid: boolean;
 }
 
 export interface DeviceCodeResponse {
   deviceCode: string;
-  userCode: string;
-  verificationUrl: string;
   expiresIn: number;
   interval: number;
+  userCode: string;
+  verificationUrl: string;
 }
 
 export interface DeviceTokenResponse {
   access_token: string;
-  refresh_token: string;
   expires_in: number;
+  refresh_token: string;
   token_type: string;
 }
 
 export interface DeviceAuthStatus {
-  status: 'pending' | 'authorized' | 'expired' | 'denied';
   accessToken?: string;
-  refreshToken?: string;
   expiresIn?: number;
+  refreshToken?: string;
+  status: "pending" | "authorized" | "expired" | "denied";
 }
 
 export interface DeploymentInfo {
-  id: string;
-  environment: string;
-  status: 'pending' | 'building' | 'deploying' | 'success' | 'failed';
-  createdAt: string;
   completedAt?: string;
-  message?: string;
-  url?: string;
+  createdAt: string;
+  environment: string;
+  id: string;
   logs?: string[];
+  message?: string;
+  status: "pending" | "building" | "deploying" | "success" | "failed";
+  url?: string;
 }
 
 export interface ProjectStatus {
-  name: string;
-  lastDeployment?: DeploymentInfo;
-  environments: string[];
-  buildStatus?: 'success' | 'failed' | 'pending';
-  isGitClean?: boolean;
+  buildStatus?: "success" | "failed" | "pending";
   currentBranch?: string;
+  environments: string[];
+  isGitClean?: boolean;
+  lastDeployment?: DeploymentInfo;
+  name: string;
 }
 
 export interface LogEntry {
-  timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
+  level: "info" | "warn" | "error" | "debug";
   message: string;
   source?: string;
+  timestamp: string;
 }
 
 export interface Template {
-  name: string;
   description: string;
-  repository?: string;
   files: TemplateFile[];
+  name: string;
   postInstall?: string[];
+  repository?: string;
 }
 
 export interface TemplateFile {
-  path: string;
   content: string;
   executable?: boolean;
+  path: string;
 }
 
 export interface ModelMetadata {
-  modelClassName?: string;
-  inputShape?: string | Record<string, string>;
   architecture?: string;
-  gitCommitHash?: string;
-  trainingDataShape?: string;
-  testDataShape?: string;
-  lastUpdated?: string;
   detectedPatterns?: string[];
+  gitCommitHash?: string;
+  inputShape?: string | Record<string, string>;
+  lastUpdated?: string;
+  modelClassName?: string;
+  testDataShape?: string;
+  trainingDataShape?: string;
 }
 
 // List command types
 export interface BuildInfo {
-  id: string;
-  projectName?: string;
-  status: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS' | 'PENDING';
-  createdAt: string;
   completedAt?: string;
+  createdAt: string;
   duration?: number;
   error?: string;
+  id: string;
+  projectName?: string;
+  status: "SUCCESS" | "FAILED" | "IN_PROGRESS" | "PENDING";
 }
 
 export interface ModelInstance {
-  id: string;
-  name: string;
-  version: string;
-  type?: string;
-  status?: 'ACTIVE' | 'DEPLOYING' | 'FAILED' | 'INACTIVE';
   endpoint?: string;
+  id: string;
   modelInstance?: {
     name: string;
     version: string;
@@ -298,52 +328,57 @@ export interface ModelInstance {
       type: string;
     };
   };
+  name: string;
+  status?: "ACTIVE" | "DEPLOYING" | "FAILED" | "INACTIVE";
+  type?: string;
+  version: string;
 }
 
 export interface ModelImage {
+  createdAt: string;
   id: string;
   name?: string;
   repository?: string;
-  tag?: string;
   size?: number;
-  createdAt: string;
+  tag?: string;
   updatedAt?: string;
 }
 
 export interface RegistryArtifact {
+  createdAt: string;
   id: string;
   name: string;
-  type: string;
-  version?: string;
   pipeline?: {
     id: string;
     name: string;
   };
-  createdAt: string;
+  type: string;
+  version?: string;
 }
 
 // Plan command interfaces
 export interface PlanOptions {
-  verbose?: boolean;
-  json?: boolean;
-  save?: string;
   arch?: string;
   index?: string;
-  validate?: boolean;
   interactive?: boolean;
+  json?: boolean;
+  save?: string;
+  validate?: boolean;
+  verbose?: boolean;
 }
 
 export interface PlanDiff {
-  type: 'added' | 'removed' | 'changed';
-  category: 'dependencies' | 'artifacts' | 'model' | 'resources' | 'config';
-  field: string;
-  oldValue?: any;
-  newValue?: any;
-  impact: 'low' | 'medium' | 'high';
+  category: "dependencies" | "artifacts" | "model" | "resources" | "config";
   description: string;
+  field: string;
+  impact: "low" | "medium" | "high";
+  newValue?: any;
+  oldValue?: any;
+  type: "added" | "removed" | "changed";
 }
 
 export interface PlanComparison {
+  differences: PlanDiff[];
   planA: {
     timestamp: string;
     command: string;
@@ -354,7 +389,6 @@ export interface PlanComparison {
     command: string;
     framework: string;
   };
-  differences: PlanDiff[];
   summary: {
     totalChanges: number;
     highImpactChanges: number;
@@ -364,48 +398,48 @@ export interface PlanComparison {
 
 export interface SavedPlan {
   filePath: string;
-  plan: any; // PlanFile from plan.ts
   metadata: {
     savedAt: string;
     savedBy?: string;
     description?: string;
     tags?: string[];
   };
+  plan: any; // PlanFile from plan.ts
 }
 
 export interface ReplayOptions {
+  dryRun?: boolean;
+  force?: boolean;
   plan: string;
   validate?: boolean;
-  dryRun?: boolean;
   verbose?: boolean;
-  force?: boolean;
 }
 
 export interface PlanCompareOptions {
-  verbose?: boolean;
   json?: boolean;
   save?: string;
+  verbose?: boolean;
 }
 
 export interface PlanSaveOptions {
   all?: boolean;
-  name?: string;
-  description?: string;
-  tags?: string;
-  list?: boolean;
   cleanup?: number;
-  verbose?: boolean;
+  description?: string;
   json?: boolean;
+  list?: boolean;
+  name?: string;
+  tags?: string;
+  verbose?: boolean;
 }
 
 // Hardware configuration interfaces
 export interface HardwareConfig {
-  type: 'cpu' | 'gpu' | 'cuda' | 'custom';
   architecture: string;
-  specifications: HardwareSpecs;
   compatibility: FrameworkCompatibility;
   detectedAt?: string;
   isCurrentDevice?: boolean;
+  specifications: HardwareSpecs;
+  type: "cpu" | "gpu" | "cuda" | "custom";
 }
 
 export interface HardwareSpecs {
@@ -414,6 +448,12 @@ export interface HardwareSpecs {
     model: string;
     architecture: string;
   };
+  cuda?: {
+    version: string;
+    available: boolean;
+    devices: CudaDevice[];
+  };
+  custom?: Record<string, any>;
   gpu?: {
     model: string;
     memory: string;
@@ -424,161 +464,143 @@ export interface HardwareSpecs {
     total: string;
     available: string;
   };
-  cuda?: {
-    version: string;
-    available: boolean;
-    devices: CudaDevice[];
-  };
-  custom?: Record<string, any>;
 }
 
 export interface CudaDevice {
-  id: number;
-  name: string;
-  memory: string;
   computeCapability: string;
+  id: number;
+  memory: string;
+  name: string;
 }
 
 export interface FrameworkCompatibility {
   pytorch: boolean;
-  tensorflow: boolean;
-  sklearn: boolean;
   requirements?: string[];
+  sklearn: boolean;
+  tensorflow: boolean;
   warnings?: string[];
 }
 
 export interface HardwareOptions {
-  detect?: boolean;
   configure?: boolean;
+  current?: boolean;
+  detect?: boolean;
+  from?: string;
+  interactive?: boolean;
+  json?: boolean;
   list?: boolean;
   profile?: string;
   save?: string;
-  from?: string;
-  current?: boolean;
-  interactive?: boolean;
-  json?: boolean;
   verbose?: boolean;
 }
 
 export interface HardwareProfile {
-  name: string;
-  description: string;
   config: HardwareConfig;
+  description: string;
   frameworks: string[];
+  name: string;
   recommended: boolean;
 }
 
 // Settings management interfaces
 export interface SettingsOptions {
-  global?: boolean;
-  project?: boolean;
-  list?: boolean;
-  get?: string;
-  set?: string;
   delete?: string;
   edit?: boolean;
-  export?: string;
-  import?: string;
-  template?: string;
   explain?: string;
-  reset?: boolean;
-  verbose?: boolean;
+  export?: string;
+  get?: string;
+  global?: boolean;
+  import?: string;
   json?: boolean;
+  list?: boolean;
+  project?: boolean;
+  reset?: boolean;
+  set?: string;
+  template?: string;
+  verbose?: boolean;
 }
 
 // Config command options (merged config + settings with scope flags)
 export interface ConfigCommandOptions {
-  // Scope flag
-  scope?: 'cli' | 'global' | 'project';
-  // Operations (superset of config + settings)
-  list?: boolean;
-  get?: string;
-  set?: string;
   delete?: string;
-  reset?: boolean;
   edit?: boolean;
   explain?: string;
   export?: string;
+  get?: string;
   import?: string;
+  json?: boolean;
+  // Operations (superset of config + settings)
+  list?: boolean;
+  reset?: boolean;
+  // Scope flag
+  scope?: "cli" | "global" | "project";
+  set?: string;
   template?: string;
   verbose?: boolean;
-  json?: boolean;
 }
 
 export interface SettingsSource {
-  type: 'default' | 'global' | 'project' | 'cli';
   file?: string;
+  type: "default" | "global" | "project" | "cli";
   value: any;
 }
 
 export interface SettingsResolution {
   key: string;
-  value: any;
-  source: SettingsSource;
   overriddenBy?: SettingsSource[];
+  source: SettingsSource;
+  value: any;
 }
 
 export interface SettingsTemplate {
-  name: string;
+  category: "ml" | "web" | "api" | "general";
   description: string;
-  category: 'ml' | 'web' | 'api' | 'general';
   globalSettings?: Partial<GlobalSettings>;
+  name: string;
   projectSettings?: Partial<ProjectSettings>;
   tags?: string[];
 }
 
 export interface SettingsExport {
-  version: number;
-  timestamp: string;
-  type: 'global' | 'project' | 'combined';
   globalSettings?: GlobalSettings;
-  projectSettings?: ProjectSettings;
   metadata?: {
     exportedBy?: string;
     description?: string;
     tags?: string[];
   };
+  projectSettings?: ProjectSettings;
+  timestamp: string;
+  type: "global" | "project" | "combined";
+  version: number;
 }
 
 export interface SettingsValidationError {
-  path: string;
   message: string;
-  value: any;
+  path: string;
   schema?: any;
+  value: any;
 }
 
 export interface ModelConfig {
-  version?: number;
-  name?: string;
   architecture?: string;
-  framework?: 'pytorch' | 'tensorflow' | 'sklearn' | 'custom';
-  modelType?: string;
-  parameters?: {
-    total?: number;
-    trainable?: number;
-    nonTrainable?: number;
-  };
-  inputShape?: string | Record<string, string>;
-  outputShape?: string | Record<string, string>;
-  training?: {
-    epochs?: number;
-    batchSize?: number;
-    learningRate?: number;
-    optimizer?: string;
-    loss?: string;
-    metrics?: string[];
-  };
-  inference?: {
-    device?: 'cpu' | 'gpu' | 'cuda';
-    precision?: 'fp32' | 'fp16' | 'int8';
-    batchSize?: number;
-  };
   data?: {
     inputFormat?: string;
     outputFormat?: string;
     preprocessing?: string[];
     postprocessing?: string[];
   };
+  dependencies?: {
+    python?: string;
+    packages?: Record<string, string>;
+    requirements?: string[];
+  };
+  framework?: "pytorch" | "tensorflow" | "sklearn" | "custom";
+  inference?: {
+    device?: "cpu" | "gpu" | "cuda";
+    precision?: "fp32" | "fp16" | "int8";
+    batchSize?: number;
+  };
+  inputShape?: string | Record<string, string>;
   metadata?: {
     author?: string;
     description?: string;
@@ -587,55 +609,72 @@ export interface ModelConfig {
     updated?: string;
     tags?: string[];
   };
-  dependencies?: {
-    python?: string;
-    packages?: Record<string, string>;
-    requirements?: string[];
+  modelType?: string;
+  name?: string;
+  outputShape?: string | Record<string, string>;
+  parameters?: {
+    total?: number;
+    trainable?: number;
+    nonTrainable?: number;
   };
+  training?: {
+    epochs?: number;
+    batchSize?: number;
+    learningRate?: number;
+    optimizer?: string;
+    loss?: string;
+    metrics?: string[];
+  };
+  version?: number;
 }
 
 // Run command types
 
-export type RunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type RunStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
 
-export type RunPriority = 'low' | 'normal' | 'high' | 'critical';
+export type RunPriority = "low" | "normal" | "high" | "critical";
 
-export type SweepStrategy = 'grid' | 'random' | 'bayesian';
+export type SweepStrategy = "grid" | "random" | "bayesian";
 
 export interface RunInfo {
+  completedAt?: string;
+  createdAt: string;
+  duration?: number;
+  error?: string;
+  gpu?: string;
   id: string;
+  metadata?: Record<string, unknown>;
   name?: string;
-  type: 'pipeline' | 'job' | 'inference' | 'sweep';
-  status: RunStatus;
   pipeline?: {
     id: string;
     name: string;
   };
-  gpu?: string;
   priority?: RunPriority;
-  tags?: string[];
-  createdAt: string;
   startedAt?: string;
-  completedAt?: string;
-  duration?: number;
-  error?: string;
-  metadata?: Record<string, unknown>;
+  status: RunStatus;
+  tags?: string[];
+  type: "pipeline" | "job" | "inference" | "sweep";
 }
 
 export interface RunPipelineOptions {
   config?: string;
+  dryRun?: boolean;
   gpu?: string;
   priority?: string;
   tag?: string;
-  dryRun?: boolean;
   watch?: boolean;
 }
 
 export interface RunListOptions {
-  status?: string;
+  json?: boolean;
   last?: string;
   pipeline?: string;
-  json?: boolean;
+  status?: string;
 }
 
 export interface RunStatusOptions {
@@ -654,74 +693,74 @@ export interface RunLogsOptions {
 
 export interface RunJobOptions {
   config?: string;
+  dryRun?: boolean;
   gpu?: string;
   priority?: string;
-  dryRun?: boolean;
 }
 
 export interface RunInferenceOptions {
-  input?: string;
-  output?: string;
-  model?: string;
   batchSize?: string;
+  input?: string;
+  model?: string;
+  output?: string;
   watch?: boolean;
 }
 
 export interface RunSweepOptions {
   config?: string;
-  trials?: string;
   parallel?: string;
   strategy?: string;
+  trials?: string;
   watch?: boolean;
 }
 
 export interface PipelineConfig {
-  name?: string;
-  steps?: PipelineStep[];
   gpu?: string;
-  priority?: RunPriority;
-  tags?: string[];
+  name?: string;
   parameters?: Record<string, unknown>;
+  priority?: RunPriority;
+  steps?: PipelineStep[];
+  tags?: string[];
 }
 
 export interface PipelineStep {
-  name: string;
   command?: string;
+  dependsOn?: string[];
   image?: string;
+  name: string;
   resources?: {
     gpu?: string;
     memory?: string;
     cpu?: string;
   };
-  dependsOn?: string[];
 }
 
 // Pull command types
 
-export type PullResourceType = 'model' | 'image' | 'build' | 'runtime';
+export type PullResourceType = "model" | "image" | "build" | "runtime";
 
 export interface PullOptions {
-  tag?: string;
-  output?: string;
   all?: boolean;
-  type?: string;
-  ignore?: string;
-  registry?: string;
+  dryRun?: boolean;
   force?: boolean;
+  ignore?: string;
   interactive?: boolean;
   json?: boolean;
-  dryRun?: boolean;
+  output?: string;
+  registry?: string;
+  tag?: string;
+  type?: string;
 }
 
 export interface PullArtifactInfo {
-  id: string;
-  name: string;
-  type: string;
-  tag: string;
-  filename: string;
-  size: number;
   checksum: string;
   createdAt: string;
+  filename: string;
+  id: string;
+  name: string;
+  size: number;
+  tag: string;
+  type: string;
 }
 
 export interface PullDownloadInfo {
@@ -733,179 +772,187 @@ export interface PullDownloadInfo {
 export interface PullResult {
   artifact: PullArtifactInfo;
   outputPath: string;
-  verified: boolean;
   skipped: boolean;
+  verified: boolean;
 }
 
 // Push command types
 
-export type PushResourceType = 'model' | 'image' | 'build' | 'runtime';
+export type PushResourceType = "model" | "image" | "build" | "runtime";
 
 export interface PushOptions {
-  tag?: string;
-  message?: string;
   all?: boolean;
-  ignore?: string;
-  registry?: string;
-  force?: boolean;
-  json?: boolean;
   dryRun?: boolean;
+  force?: boolean;
+  ignore?: string;
+  json?: boolean;
+  message?: string;
+  registry?: string;
+  tag?: string;
 }
 
 export interface PushFileInfo {
+  checksum: string;
   filePath: string;
   relativePath: string;
   size: number;
-  checksum: string;
 }
 
 export interface PushArtifactInfo {
-  id: string;
-  name: string;
-  type: string;
-  tag: string;
-  filename: string;
-  size: number;
   checksum: string;
   createdAt: string;
+  filename: string;
+  id: string;
+  name: string;
+  size: number;
+  tag: string;
+  type: string;
 }
 
 export interface PushUploadUrl {
-  uploadUrl: string;
-  uploadId: string;
-  expiresAt: string;
   chunkSize: number;
+  expiresAt: string;
   maxChunks: number;
+  uploadId: string;
+  uploadUrl: string;
 }
 
 export interface PushDedupeResult {
-  exists: boolean;
   artifactId?: string;
   artifactName?: string;
+  exists: boolean;
   tag?: string;
 }
 
 export interface PushConfirmation {
   artifactId: string;
-  name: string;
-  type: string;
-  tag: string;
-  size: number;
   checksum: string;
-  versionId: string;
   createdAt: string;
+  name: string;
+  size: number;
+  tag: string;
+  type: string;
+  versionId: string;
 }
 
 export interface PushSessionInfo {
-  sessionId: string;
-  filePath: string;
   checksum: string;
-  totalSize: number;
-  chunkSize: number;
-  totalChunks: number;
-  completedChunks: number[];
   chunkChecksums: Record<number, string>;
-  uploadUrl: string;
+  chunkSize: number;
+  completedChunks: number[];
   createdAt: string;
+  filePath: string;
+  sessionId: string;
+  totalChunks: number;
+  totalSize: number;
   updatedAt: string;
+  uploadUrl: string;
 }
 
 export interface PushResult {
-  file: PushFileInfo;
   artifact: PushArtifactInfo;
-  verified: boolean;
+  file: PushFileInfo;
   skipped: boolean;
   skipReason?: string;
+  verified: boolean;
 }
 
 export interface PushSummary {
+  failed: number;
+  results: PushResult[];
+  skipped: number;
+  tag: string;
+  totalBytes: number;
   totalFiles: number;
   uploaded: number;
-  skipped: number;
-  failed: number;
-  totalBytes: number;
   uploadedBytes: number;
-  tag: string;
-  results: PushResult[];
 }
 
 // Sync command types
 
-export type SyncConflictStrategy = 'keep-both' | 'local-wins' | 'remote-wins' | 'prompt';
+export type SyncConflictStrategy =
+  | "keep-both"
+  | "local-wins"
+  | "remote-wins"
+  | "prompt";
 
 export interface SyncOptions {
-  dryRun?: boolean;
-  pushOnly?: boolean;
-  pullOnly?: boolean;
   conflicts?: string;
-  force?: boolean;
+  dryRun?: boolean;
   exclude?: string;
-  verbose?: boolean;
+  force?: boolean;
   json?: boolean;
+  pullOnly?: boolean;
+  pushOnly?: boolean;
+  verbose?: boolean;
 }
 
 export interface SyncFileManifestEntry {
-  path: string;
   checksum: string;
+  path: string;
   size: number;
 }
 
 export interface SyncRemoteFileEntry {
-  path: string;
-  checksum: string;
-  size: number;
   artifactId: string;
   artifactName: string;
-  type: string;
-  tag: string;
+  checksum: string;
   createdAt: string;
+  path: string;
+  size: number;
+  tag: string;
+  type: string;
 }
 
 export interface SyncChangedFileEntry {
-  path: string;
-  localChecksum: string;
-  remoteChecksum: string;
-  localSize: number;
-  remoteSize: number;
   artifactId: string;
   artifactName: string;
-  type: string;
+  localChecksum: string;
+  localSize: number;
+  path: string;
+  remoteChecksum: string;
+  remoteSize: number;
   tag: string;
+  type: string;
 }
 
 export interface SyncConflictEntry {
-  path: string;
-  localChecksum: string;
-  remoteChecksum: string;
-  localSize: number;
-  remoteSize: number;
   artifactId: string;
   artifactName: string;
-  type: string;
+  localChecksum: string;
+  localSize: number;
+  path: string;
+  remoteChecksum: string;
+  remoteSize: number;
   tag: string;
+  type: string;
 }
 
 export interface SyncDiffResult {
-  localOnly: SyncFileManifestEntry[];
-  remoteOnly: SyncRemoteFileEntry[];
   changedLocally: SyncChangedFileEntry[];
   changedRemotely: SyncChangedFileEntry[];
   conflicts: SyncConflictEntry[];
+  localOnly: SyncFileManifestEntry[];
+  remoteOnly: SyncRemoteFileEntry[];
   unchanged: SyncFileManifestEntry[];
 }
 
-export type SyncConflictResolution = 'skip' | 'overwrite-local' | 'overwrite-remote' | 'keep-both';
+export type SyncConflictResolution =
+  | "skip"
+  | "overwrite-local"
+  | "overwrite-remote"
+  | "keep-both";
 
 export interface SyncSummary {
-  pushed: number;
-  pulled: number;
   conflictsResolved: number;
   conflictsSkipped: number;
-  unchanged: number;
   failed: number;
-  totalLocalOnly: number;
-  totalRemoteOnly: number;
+  pulled: number;
+  pushed: number;
   totalChangedLocally: number;
   totalChangedRemotely: number;
   totalConflicts: number;
+  totalLocalOnly: number;
+  totalRemoteOnly: number;
+  unchanged: number;
 }
