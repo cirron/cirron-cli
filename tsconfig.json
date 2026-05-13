@@ -24,11 +24,12 @@
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
+    // TODO: migrate to "nodenext" before TS 7.0 drops "node"/"node10". Blocked on
+    // moving emit to ESM (or swapping the ESM-only deps chalk/ora/open/node-fetch),
+    // since "nodenext" enforces the CJS-importing-ESM mismatch. "ignoreDeprecations"
+    // silences the TS5107 error until then.
     "moduleResolution": "node",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "binaries", "tests"]
