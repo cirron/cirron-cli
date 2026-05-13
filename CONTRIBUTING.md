@@ -43,7 +43,7 @@ Releases are cut by maintainers with `npm run release` (`scripts/release.js`): i
 
 ## Getting set up
 
-The CLI is a TypeScript project and requires Node.js 18 or newer.
+The CLI is a TypeScript project and requires Node.js 20.19 or newer.
 
 ```bash
 git clone https://github.com/cirron/cirron-cli

@@ -57,9 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Covers the engines floor (18) up to current; the published CLI must run here
-        # even though the test toolchain (vitest 4) needs Node 20+.
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [20.x, 22.x]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
