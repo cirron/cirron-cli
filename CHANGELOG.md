@@ -1,3 +1,16 @@
+# v0.1.1 (Mon Aug 03 2026)
+
+#### 🐛 Bug Fix
+
+- Normalize API responses and tighten contract tests [#84](https://github.com/cirron/cirron-cli/pull/84) ([@dlynch42](https://github.com/dlynch42) [@dependabot[bot]](https://github.com/dependabot[bot]))
+
+#### Authors: 2
+
+- [@dependabot[bot]](https://github.com/dependabot[bot])
+- Devin Lynch ([@dlynch42](https://github.com/dlynch42))
+
+---
+
 # Changelog
 
 # v0.1.0 (Tue May 13 2026)
