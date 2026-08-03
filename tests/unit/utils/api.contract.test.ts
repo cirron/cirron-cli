@@ -5,6 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("node-fetch", () => ({ default: vi.fn() }));
 const fetchMock = vi.mocked(fetch);
 
+import type {
+  ApiResponse,
+  AuthInfo,
+  CreateModelResponse,
+  DeploymentListResponse,
+  DeploymentResponse,
+  DeviceTokenResponse,
+  RawDeploymentInfo,
+  RollbackDeploymentResponse,
+} from "../../../src/types";
 import { CirronApi } from "../../../src/utils/api";
 import { ConfigManager } from "../../../src/utils/config";
 import { createAuthenticatedSession } from "../../helpers/session";
@@ -26,6 +36,24 @@ describe("CirronApi wire contract", () => {
   interface SentBody {
     environment?: string;
     modelName?: string;
+  }
+
+  /**
+   * A complete wire deployment, so fixtures carry every required field.
+   *
+   * Tests override only what they assert on; the rest stays realistic so a
+   * required field disappearing from the wire type fails at compile time.
+   */
+  function rawDeployment(
+    overrides: Partial<RawDeploymentInfo> = {}
+  ): RawDeploymentInfo {
+    return {
+      createdAt: "2026-01-01T00:00:00.000Z",
+      environment: "production",
+      id: "d1",
+      status: "PENDING",
+      ...overrides,
+    };
   }
 
   /** Stub the next fetch with a successful JSON response body. */
@@ -61,7 +89,7 @@ describe("CirronApi wire contract", () => {
   });
 
   it("refreshToken reads the flat snake_case refresh body", async () => {
-    mockJson({
+    mockJson<DeviceTokenResponse>({
       access_token: "a",
       refresh_token: "r",
       expires_in: 3600,
@@ -76,7 +104,7 @@ describe("CirronApi wire contract", () => {
   });
 
   it("createDeployment sends modelName alongside projectName", async () => {
-    mockJson({ success: true, data: { id: "d1", status: "PENDING" } });
+    mockJson<DeploymentResponse>({ success: true, data: rawDeployment() });
 
     await api.createDeployment({
       projectName: "m",
@@ -93,7 +121,7 @@ describe("CirronApi wire contract", () => {
   });
 
   it("reportBuild sends modelName alongside projectName", async () => {
-    mockJson({ success: true });
+    mockJson<ApiResponse>({ success: true });
 
     await api.reportBuild({
       projectName: "m",
@@ -106,7 +134,10 @@ describe("CirronApi wire contract", () => {
   });
 
   it("createProject unwraps the { success, model } envelope", async () => {
-    mockJson({ success: true, model: { id: "abc", name: "m" } }, 201);
+    mockJson<CreateModelResponse>(
+      { success: true, model: { id: "abc", name: "m" } },
+      201
+    );
 
     const model = await api.createProject({
       name: "m",
@@ -118,10 +149,10 @@ describe("CirronApi wire contract", () => {
   });
 
   it("rollbackDeployment unwraps { deployment } and normalizes its status", async () => {
-    mockJson({
+    mockJson<RollbackDeploymentResponse>({
       success: true,
       message: "ok",
-      deployment: { id: "d2", status: "PENDING" },
+      deployment: rawDeployment({ id: "d2" }),
       rolledBackFrom: { id: "d1", name: "m" },
     });
 
@@ -132,7 +163,10 @@ describe("CirronApi wire contract", () => {
   });
 
   it("validateAuth reads the flat status body", async () => {
-    mockJson({ valid: true, user: { email: "x@y.z" } });
+    mockJson<AuthInfo>({
+      valid: true,
+      user: { id: "u1", email: "x@y.z" },
+    });
 
     const auth = await api.validateAuth();
 
@@ -141,7 +175,10 @@ describe("CirronApi wire contract", () => {
   });
 
   it("getDeployments maps raw uppercase statuses onto the lowercase union", async () => {
-    mockJson({ success: true, data: [{ id: "d", status: "ACTIVE" }] });
+    mockJson<DeploymentListResponse>({
+      success: true,
+      data: [rawDeployment({ id: "d", status: "ACTIVE" })],
+    });
 
     const deployments = await api.getDeployments("m");
 
@@ -149,7 +186,10 @@ describe("CirronApi wire contract", () => {
   });
 
   it("getDeployments lowercases statuses the map does not cover", async () => {
-    mockJson({ success: true, data: [{ id: "d", status: "STOPPED" }] });
+    mockJson<DeploymentListResponse>({
+      success: true,
+      data: [rawDeployment({ id: "d", status: "STOPPED" })],
+    });
 
     const deployments = await api.getDeployments("m");
 
