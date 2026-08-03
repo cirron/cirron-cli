@@ -10,7 +10,7 @@
     "cli-table3": "^0.6.5",
     "commander": "^15.0.0",
     "fs-extra": "^11.3.5",
-    "inquirer": "^13.4.3",
+    "inquirer": "^14.0.2",
     "js-yaml": "^4.2.0",
     "minimatch": "^10.2.5",
     "node-fetch": "^3.3.2",
