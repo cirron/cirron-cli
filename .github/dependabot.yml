@@ -4,6 +4,10 @@ updates:
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "release"
+    labels:
+      - "dependencies"
+      - "patch"
     open-pull-requests-limit: 10
     schedule:
       interval: "monthly"
@@ -11,6 +15,10 @@ updates:
   # Maintain dependencies for npm
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "release"
+    labels:
+      - "dependencies"
+      - "patch"
     open-pull-requests-limit: 10
     schedule:
       interval: "monthly"

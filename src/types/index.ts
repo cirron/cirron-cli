@@ -262,8 +262,65 @@ export interface DeploymentInfo {
   id: string;
   logs?: string[];
   message?: string;
-  status: "pending" | "building" | "deploying" | "success" | "failed";
+  /**
+   * Known states, plus anything else the platform sends — `normalizeDeployment`
+   * passes unmapped statuses through lowercased. `string & {}` keeps
+   * autocomplete for the literals.
+   */
+  status:
+    | "pending"
+    | "building"
+    | "deploying"
+    | "success"
+    | "failed"
+    | "rolled_back"
+    | (string & {});
   url?: string;
+}
+
+/** A deployment as it arrives on the wire, before status casing is normalized. */
+export interface RawDeploymentInfo extends Omit<DeploymentInfo, "status"> {
+  status: string;
+}
+
+/** `POST /api/cli/deployments` and `GET /api/cli/deployments/{id}` response. */
+export interface DeploymentResponse {
+  data: RawDeploymentInfo;
+  success: boolean;
+}
+
+/** `GET /api/cli/models/{name}/deployments` response. */
+export interface DeploymentListResponse {
+  data: RawDeploymentInfo[];
+  success: boolean;
+}
+
+/** `POST /api/cli/models/{name}/rollback` response. */
+export interface RollbackDeploymentResponse {
+  deployment: RawDeploymentInfo;
+  message: string;
+  rolledBackFrom: { id: string; name: string } | null;
+  success: boolean;
+}
+
+/** Model as returned by `POST /api/cli/models`. */
+export interface ModelSummary {
+  active?: boolean;
+  category?: string;
+  createdAt?: string;
+  description?: string;
+  framework?: string;
+  id: string;
+  name: string;
+  selectedDirectory?: string;
+  source?: string;
+  updatedAt?: string;
+}
+
+/** `POST /api/cli/models` response — `{ success, model }`, not a `{ data }` envelope. */
+export interface CreateModelResponse {
+  model: ModelSummary;
+  success: boolean;
 }
 
 export interface ProjectStatus {

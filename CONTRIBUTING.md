@@ -43,7 +43,7 @@ Releases are automated with [`auto`](https://intuit.github.io/auto/). Merging to
 
 ## Getting set up
 
-The CLI is a TypeScript project and requires Node.js 20.19 or newer.
+The CLI is a TypeScript project and requires Node.js 22.13 or newer.
 
 ```bash
 git clone https://github.com/cirron/cirron-cli

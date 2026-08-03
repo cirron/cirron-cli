@@ -113,8 +113,9 @@ export async function registerCommand(
       chalk.green(`Project "${projectName}" registered successfully`)
     );
 
-    // Show link to model in app
-    const modelId = result?.id || result?.modelId;
+    // Show link to model in app. Optional: registration already succeeded, so a
+    // missing id shouldn't turn that into a reported failure.
+    const modelId = result?.id;
     if (modelId) {
       const appUrl = deriveAppUrl(currentConfig.apiUrl, modelId);
       if (appUrl) {
