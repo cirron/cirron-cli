@@ -243,7 +243,7 @@ export class CirronApi {
       ...deployment,
       status:
         DEPLOYMENT_STATUS_MAP[deployment.status] ??
-        (deployment.status.toLowerCase() as DeploymentInfo["status"]),
+        deployment.status.toLowerCase(),
     };
   }
 

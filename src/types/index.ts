@@ -262,13 +262,19 @@ export interface DeploymentInfo {
   id: string;
   logs?: string[];
   message?: string;
+  /**
+   * Known states, plus anything else the platform sends — `normalizeDeployment`
+   * passes unmapped statuses through lowercased. `string & {}` keeps
+   * autocomplete for the literals.
+   */
   status:
     | "pending"
     | "building"
     | "deploying"
     | "success"
     | "failed"
-    | "rolled_back";
+    | "rolled_back"
+    | (string & {});
   url?: string;
 }
 
