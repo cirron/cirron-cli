@@ -114,7 +114,7 @@ export async function registerCommand(
     );
 
     // Show link to model in app
-    const modelId = result?.id || result?.modelId;
+    const modelId = result.id;
     if (modelId) {
       const appUrl = deriveAppUrl(currentConfig.apiUrl, modelId);
       if (appUrl) {

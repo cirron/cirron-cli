@@ -5,17 +5,23 @@ import type {
   ApiResponse,
   AuthInfo,
   CirronConfig,
+  CreateModelResponse,
   DeploymentInfo,
+  DeploymentListResponse,
+  DeploymentResponse,
   DeviceAuthStatus,
   DeviceCodeResponse,
   DeviceTokenResponse,
   LogEntry,
+  ModelSummary,
   PullArtifactInfo,
   PullDownloadInfo,
   PushConfirmation,
   PushDedupeResult,
   PushSessionInfo,
   PushUploadUrl,
+  RawDeploymentInfo,
+  RollbackDeploymentResponse,
   RunInfo,
   SyncDiffResult,
 } from "../types";
@@ -27,6 +33,26 @@ import {
   PlatformError,
 } from "./api-errors";
 import { USER_AGENT } from "./version";
+
+/**
+ * Platform deployment status -> the CLI's lowercase union.
+ *
+ * `GET /api/cli/deployments/{id}` returns an already-lowercased status, while
+ * the list and create endpoints return the raw stored value. This map
+ * normalizes both onto a single union.
+ */
+const DEPLOYMENT_STATUS_MAP: Record<string, DeploymentInfo["status"]> = {
+  ACTIVE: "success",
+  BUILDING: "building",
+  DEPLOYING: "deploying",
+  ERROR: "failed",
+  FAILED: "failed",
+  HEALTHY: "success",
+  PENDING: "pending",
+  QUEUED: "pending",
+  ROLLED_BACK: "rolled_back",
+  RUNNING: "success",
+};
 
 export class CirronApi {
   private config: CirronConfig;
@@ -55,19 +81,36 @@ export class CirronApi {
     return response as any;
   }
 
+  /**
+   * Exchange a refresh token for a new access token.
+   *
+   * `POST /api/cli/auth/refresh` returns a flat snake_case body rather than
+   * the `{ success, data }` envelope, which `DeviceTokenResponse` already
+   * models exactly.
+   */
   async refreshToken(refreshToken: string): Promise<DeviceTokenResponse> {
-    const response = await this.requestRaw("/api/cli/auth/refresh", {
+    return await this.requestRaw<DeviceTokenResponse>("/api/cli/auth/refresh", {
       method: "POST",
       body: { refresh_token: refreshToken },
     });
-    return response.data;
   }
 
-  async validateAuth(): Promise<{ valid: boolean; user?: any }> {
-    const response = await this.request("/api/cli/status");
-    return response.data;
+  /**
+   * Validate the stored credentials.
+   *
+   * `GET /api/cli/status` returns a flat `{ valid, token, user, organization }`
+   * body rather than the `{ success, data }` envelope.
+   */
+  async validateAuth(): Promise<AuthInfo> {
+    return await this.request<AuthInfo>("/api/cli/status");
   }
 
+  /**
+   * Register a new model with the platform.
+   *
+   * `POST /api/cli/models` returns `{ success, model }` rather than the
+   * `{ success, data }` envelope.
+   */
   async createProject(projectData: {
     name: string;
     framework: string;
@@ -76,14 +119,23 @@ export class CirronApi {
     servingConfig?: Record<string, any>;
     repositoryId?: string;
     repositoryPath?: string;
-  }): Promise<any> {
-    const response = await this.request("/api/cli/models", {
-      method: "POST",
-      body: projectData,
-    });
-    return response.data;
+  }): Promise<ModelSummary> {
+    const response = await this.request<CreateModelResponse>(
+      "/api/cli/models",
+      {
+        method: "POST",
+        body: projectData,
+      }
+    );
+    return response.model;
   }
 
+  /**
+   * Create a deployment.
+   *
+   * The platform keys off `modelId`/`modelName` and ignores `projectName`, so
+   * `modelName` is sent alongside it.
+   */
   async createDeployment(deploymentData: {
     projectName: string;
     environment: string;
@@ -92,16 +144,21 @@ export class CirronApi {
     deployConfig: any;
     envConfig: any;
   }): Promise<DeploymentInfo> {
-    const response = await this.request("/api/cli/deployments", {
-      method: "POST",
-      body: deploymentData,
-    });
-    return response.data;
+    const response = await this.request<DeploymentResponse>(
+      "/api/cli/deployments",
+      {
+        method: "POST",
+        body: { ...deploymentData, modelName: deploymentData.projectName },
+      }
+    );
+    return this.normalizeDeployment(response.data);
   }
 
   async getDeployment(deploymentId: string): Promise<DeploymentInfo> {
-    const response = await this.request(`/api/cli/deployments/${deploymentId}`);
-    return response.data;
+    const response = await this.request<DeploymentResponse>(
+      `/api/cli/deployments/${deploymentId}`
+    );
+    return this.normalizeDeployment(response.data);
   }
 
   async getDeployments(
@@ -123,18 +180,27 @@ export class CirronApi {
       params.append("limit", options.limit.toString());
     }
 
-    const response = await this.request(
+    const response = await this.request<DeploymentListResponse>(
       `/api/cli/models/${projectName}/deployments?${params}`
     );
-    return response.data;
+    return response.data.map((deployment) =>
+      this.normalizeDeployment(deployment)
+    );
   }
 
+  /**
+   * Roll an environment back to a previous deployment.
+   *
+   * `POST /api/cli/models/{name}/rollback` returns
+   * `{ success, message, deployment, rolledBackFrom }` rather than the
+   * `{ success, data }` envelope.
+   */
   async rollbackDeployment(
     projectName: string,
     environment: string,
     deploymentId: string
   ): Promise<DeploymentInfo> {
-    const response = await this.request(
+    const response = await this.request<RollbackDeploymentResponse>(
       `/api/cli/models/${projectName}/rollback`,
       {
         method: "POST",
@@ -144,9 +210,15 @@ export class CirronApi {
         },
       }
     );
-    return response.data;
+    return this.normalizeDeployment(response.deployment);
   }
 
+  /**
+   * Report a build result to the platform.
+   *
+   * The platform keys off `modelId`/`modelName` and ignores `projectName`, so
+   * `modelName` is sent alongside it.
+   */
   async reportBuild(buildData: {
     projectName: string;
     environment: string;
@@ -156,8 +228,23 @@ export class CirronApi {
   }): Promise<void> {
     await this.request("/api/cli/builds", {
       method: "POST",
-      body: buildData,
+      body: { ...buildData, modelName: buildData.projectName },
     });
+  }
+
+  /**
+   * Normalize a wire deployment's status onto the CLI's lowercase union.
+   *
+   * The status field is an open string rather than a closed set, so the
+   * toLowerCase() fallback covers any state the map does not list.
+   */
+  private normalizeDeployment(deployment: RawDeploymentInfo): DeploymentInfo {
+    return {
+      ...deployment,
+      status:
+        DEPLOYMENT_STATUS_MAP[deployment.status] ??
+        (deployment.status.toLowerCase() as DeploymentInfo["status"]),
+    };
   }
 
   async getLogs(
@@ -919,7 +1006,18 @@ export class CirronApi {
     }
   }
 
-  private async request(
+  /**
+   * Perform an authenticated request, refreshing the access token once on 401.
+   *
+   * The stored token is used until the server rejects it — on a 401 the token
+   * is refreshed once and the request retried once. There is no proactive
+   * refresh.
+   *
+   * `T` is the parsed response body. Most platform routes wrap their payload
+   * in the `{ success, data }` envelope, so `T` defaults to `ApiResponse`;
+   * routes that return a flat or differently-named body pass their own type.
+   */
+  private async request<T = ApiResponse>(
     endpoint: string,
     options: {
       method?: string;
@@ -927,11 +1025,9 @@ export class CirronApi {
       headers?: Record<string, string>;
       isFormData?: boolean;
     } = {}
-  ): Promise<ApiResponse> {
-    // Use the stored token until the server rejects it.
-    // On 401, refresh once and retry once. No proactive refresh.
+  ): Promise<T> {
     try {
-      return await this.requestRaw(endpoint, options);
+      return await this.requestRaw<T>(endpoint, options);
     } catch (error) {
       const isUnauthorized = error instanceof NotAuthenticatedError;
       if (!(isUnauthorized && this.config.auth?.refreshToken)) {
@@ -962,11 +1058,18 @@ export class CirronApi {
         throw error;
       }
 
-      return this.requestRaw(endpoint, options);
+      return await this.requestRaw<T>(endpoint, options);
     }
   }
 
-  private async requestRaw(
+  /**
+   * Perform a single request with retries, without the 401 refresh path.
+   *
+   * Throws a typed `PlatformError` on any non-2xx response, so callers can
+   * treat the resolved value as a successful body. `T` is the parsed response
+   * body and defaults to the `{ success, data }` envelope.
+   */
+  private async requestRaw<T = ApiResponse>(
     endpoint: string,
     options: {
       method?: string;
@@ -974,7 +1077,7 @@ export class CirronApi {
       headers?: Record<string, string>;
       isFormData?: boolean;
     } = {}
-  ): Promise<ApiResponse> {
+  ): Promise<T> {
     const url = new URL(endpoint, this.config.apiUrl);
     const method = options.method || "GET";
 
@@ -1029,7 +1132,7 @@ export class CirronApi {
         }
 
         const data = await response.json();
-        return data as ApiResponse;
+        return data as T;
       } catch (error) {
         // Convert raw fetch/network failures into typed PlatformError.
         const classified =
