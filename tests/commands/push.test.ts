@@ -590,6 +590,37 @@ describe("pushCommand", () => {
       );
     });
 
+    it("aborts rather than recording an empty etag", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const partSize = 200 * 1024 * 1024;
+      stubHugeFile("huge.bin", partSize * 2);
+      stubMultipartChain({ partCount: 2, partSize });
+      // A provider that answers 200 with no ETag header. Recording "" would
+      // fail later at part-complete, whose schema requires a non-empty
+      // string, surfacing as "Invalid request body" instead of the cause.
+      vi.spyOn(CirronApi.prototype, "uploadFilePart").mockRejectedValue(
+        new Error(
+          "Part upload succeeded but the storage provider returned no ETag (part at byte 0). Multipart completion cannot proceed without it."
+        )
+      );
+      const recordSpy = vi.spyOn(CirronApi.prototype, "recordMultipartPart");
+      const abortSpy = vi
+        .spyOn(CirronApi.prototype, "abortMultipartUpload")
+        .mockResolvedValue({ sessionId: "sess-1", aborted: true });
+
+      let caught: unknown;
+      try {
+        await pushCommand("./huge.bin", undefined, {});
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(recordSpy).not.toHaveBeenCalled();
+      expect(abortSpy).toHaveBeenCalled();
+      expect(exitCodeFromError(caught)).toBe(1);
+      expect(errorSpy.mock.calls.flat().join(" ")).toMatch(/no ETag/);
+    });
+
     it("surfaces the missing parts when complete reports a gap", async () => {
       createAuthenticatedSession(tmp.dir);
       const partSize = 200 * 1024 * 1024;

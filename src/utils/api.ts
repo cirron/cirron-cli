@@ -1053,7 +1053,16 @@ export class CirronApi {
 
         // Returned verbatim, quotes included: the platform hands this straight
         // back to the provider's complete call, which expects that form.
-        return response.headers.get("etag") || "";
+        const etag = response.headers.get("etag");
+        if (!etag) {
+          // Recording an empty etag would fail later and further away: the
+          // platform's part-complete requires a non-empty string, so the user
+          // would see "Invalid request body" instead of the real cause.
+          throw new Error(
+            `Part upload succeeded but the storage provider returned no ETag (part at byte ${start}). Multipart completion cannot proceed without it.`
+          );
+        }
+        return etag;
       } catch (error) {
         lastError = error as Error;
 

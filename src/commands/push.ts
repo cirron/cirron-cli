@@ -493,14 +493,24 @@ async function uploadMultipart(
         const start = (partNumber - 1) * init.partSize;
         const length = Math.min(init.partSize, fileInfo.size - start);
 
+        // `uploadFilePart` retries internally, and each attempt re-streams the
+        // part from byte zero. Counting raw deltas would therefore add a
+        // retried part's bytes twice and run the percentage ahead of reality.
+        // Cap each part's contribution at its own length instead, which keeps
+        // per-byte granularity without double-counting.
+        let partCounted = 0;
         const etag = await api.uploadFilePart(
           url,
           fileInfo.filePath,
           start,
           length,
           (delta) => {
-            uploadedBytes += delta;
-            updateProgress();
+            const counted = Math.min(delta, length - partCounted);
+            if (counted > 0) {
+              partCounted += counted;
+              uploadedBytes += counted;
+              updateProgress();
+            }
           }
         );
 

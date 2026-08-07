@@ -94,6 +94,35 @@ describe("mapWithConcurrency", () => {
     expect(started).toEqual([1, 2]);
   });
 
+  it("stops the OTHER workers too, not just the failing one", async () => {
+    const started: number[] = [];
+
+    await expect(
+      mapWithConcurrency(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        4,
+        async (n) => {
+          started.push(n);
+          await tick(5);
+          if (n === 1) {
+            throw new Error("boom");
+          }
+          return n;
+        }
+      )
+    ).rejects.toThrow("boom");
+
+    // Let any still-running workers pull more work, if they would.
+    await tick(60);
+
+    // A worker whose callback rejects exits its own loop, but with limit 4
+    // the other three would keep draining the queue. For part uploads that
+    // means pushing megabytes for an upload about to be aborted. Only the
+    // first batch of 4 should ever have started.
+    expect(started).toHaveLength(4);
+    expect(started.sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
+  });
+
   it("handles empty input", async () => {
     const results = await mapWithConcurrency([], 4, () =>
       Promise.reject(new Error("should never run"))

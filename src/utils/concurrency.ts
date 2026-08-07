@@ -12,13 +12,22 @@ export async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
+  // Shared across workers: a worker whose callback rejects exits its own loop,
+  // but the others would happily keep pulling indices. For part uploads that
+  // means pushing megabytes for an upload the caller is about to abort.
+  let failed = false;
 
   const workers = Array.from(
     { length: Math.max(1, Math.min(limit, items.length)) },
     async () => {
-      while (next < items.length) {
+      while (!failed && next < items.length) {
         const index = next++;
-        results[index] = await fn(items[index] as T, index);
+        try {
+          results[index] = await fn(items[index] as T, index);
+        } catch (error) {
+          failed = true;
+          throw error;
+        }
       }
     }
   );
