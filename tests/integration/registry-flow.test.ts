@@ -11,7 +11,7 @@ import { makeTmpDir } from "../helpers/tmpdir";
  * from an in-process stub platform, through a full token-refresh cycle.
  *
  * This is the only test that exercises the auth/refresh/streaming stack for
- * real. The unit suites mock `node-fetch`, so they cannot catch a regression in
+ * real. The unit suites stub the global fetch, so they cannot catch a regression in
  * how the spawned process reads HOME, persists rotated tokens, or streams a
  * response body to disk. It is also the safety net for any future change to the
  * HTTP client itself.

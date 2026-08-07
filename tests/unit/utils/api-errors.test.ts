@@ -76,7 +76,7 @@ describe("classifyFetchError", () => {
     expect(classifyFetchError(raw)).toBeInstanceOf(PlatformUnavailableError);
   });
 
-  it("maps node-fetch FetchError by name", () => {
+  it("maps a legacy FetchError by name", () => {
     const raw = Object.assign(new Error("fetch failed"), {
       name: "FetchError",
     });

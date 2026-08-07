@@ -2,9 +2,7 @@ import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("open", () => ({ default: vi.fn() }));
-vi.mock("node-fetch", () => ({ default: vi.fn() }));
 
-import fetch from "node-fetch";
 import open from "open";
 import {
   authCommand,
@@ -22,7 +20,18 @@ import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 const openMock = vi.mocked(open);
-const fetchMock = vi.mocked(fetch);
+const fetchMock = vi.fn();
+
+// Stub per test rather than at module scope: Vitest workers share globalThis,
+// so an unrestored stub can leak into later files and make the suite
+// order-dependent.
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /**
  * Verifies the graceful-error layer for the auth command:
@@ -336,7 +345,7 @@ describe("refreshCommand", () => {
  * These used to stub `pollDeviceAuthorization` wholesale and resolve
  * `{ status: "pending" }`, a body the server has never sent. The suite stayed
  * green while the real flow died after roughly 35 seconds, so the mock is gone
- * and `node-fetch` is the seam instead.
+ * and the global fetch is the seam instead.
  */
 describe("loginCommand (device flow)", () => {
   let tmp: ReturnType<typeof makeTmpDir>;
