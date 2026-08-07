@@ -384,6 +384,44 @@ describe("syncCommand", () => {
       expect(CirronApi.prototype.downloadFile).toHaveBeenCalled();
     });
 
+    it("rejects a conflict path that escapes the project directory", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir);
+      writeFileAt(tmp.dir, "models/m1.pth", "hello world");
+      vi.spyOn(CirronApi.prototype, "getSyncDiff").mockResolvedValue(
+        syncDiff({
+          conflicts: [
+            {
+              path: "../escape.txt",
+              localChecksum: HELLO_CHECKSUM,
+              remoteChecksum: HELLO_CHECKSUM,
+              localSize: 11,
+              remoteSize: 11,
+              artifactId: "art-evil",
+              artifactName: "evil",
+              type: "model",
+              tag: "latest",
+            },
+          ],
+        })
+      );
+      vi.spyOn(CirronApi.prototype, "completeSyncMetadata").mockResolvedValue(
+        undefined as never
+      );
+      const downloadSpy = vi.spyOn(CirronApi.prototype, "downloadFile");
+
+      let caught: unknown;
+      try {
+        await syncCommand(undefined, { conflicts: "remote-wins" });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(downloadSpy).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(tmp.dir, "..", "escape.txt"))).toBe(false);
+      expect(exitCodeFromError(caught)).toBe(1);
+    });
+
     it("keep-both creates .local and .remote copies", async () => {
       createAuthenticatedSession(tmp.dir);
       writeProjectConfig(tmp.dir);

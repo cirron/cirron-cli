@@ -17,6 +17,7 @@ import { ConfigManager } from "../utils/config";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
 import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { resolveWithin } from "../utils/safe-path";
 
 // --- Constants ---
 
@@ -94,7 +95,16 @@ async function resolveOutputPath(
 ): Promise<string> {
   const outputDir = outputOption || process.cwd();
   await fs.ensureDir(outputDir);
-  return path.join(outputDir, artifact.filename);
+
+  // `filename` is server-supplied: contain it inside the chosen output
+  // directory. The user's own --output stays unconstrained.
+  const dest = resolveWithin(outputDir, artifact.filename);
+  if (!dest || dest === path.resolve(outputDir)) {
+    throw new Error(
+      `Refusing to write artifact with unsafe filename: ${artifact.filename}`
+    );
+  }
+  return dest;
 }
 
 async function checkConflict(

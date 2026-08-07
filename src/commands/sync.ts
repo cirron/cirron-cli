@@ -23,6 +23,7 @@ import { ConfigManager } from "../utils/config";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
 import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { resolveWithin } from "../utils/safe-path";
 import { downloadArtifact } from "./pull";
 import { computeFileChecksum, formatSize, uploadSingleFile } from "./push";
 
@@ -641,12 +642,11 @@ async function pullSyncFiles(
 
   for (const file of files) {
     const artifactInfo = toArtifactInfo(file);
-    const destPath = path.resolve(cwd, file.path);
     const itemSpinner = ora(`${label}: ${file.path}...`).start();
 
     // Validate the resolved path stays within the project directory
-    const relPath = path.relative(cwd, destPath);
-    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
+    const destPath = resolveWithin(cwd, file.path);
+    if (!destPath) {
       itemSpinner.fail(`Rejected ${file.path}: path traversal detected`);
       failed++;
       continue;
@@ -730,9 +730,14 @@ async function resolveConflicts(
       const itemSpinner = ora(
         `Resolving conflict (remote-wins): ${conflict.path}...`
       ).start();
+      const destPath = resolveWithin(process.cwd(), conflict.path);
+      if (!destPath) {
+        itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+        failed++;
+        continue;
+      }
       try {
         const artifactInfo = toArtifactInfo(conflict);
-        const destPath = path.resolve(process.cwd(), conflict.path);
         await fs.ensureDir(path.dirname(destPath));
         await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
         itemSpinner.succeed(
@@ -758,8 +763,15 @@ async function resolveConflicts(
       const itemSpinner = ora(
         `Resolving conflict (keep-both): ${conflict.path}...`
       ).start();
+      const originalPath = resolveWithin(process.cwd(), conflict.path);
+      if (!originalPath) {
+        itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+        failed++;
+        continue;
+      }
       try {
-        const originalPath = path.resolve(process.cwd(), conflict.path);
+        // buildKeepBothPaths only appends suffixes, so guarding the original
+        // covers the .local/.remote destinations too.
         const { localPath, remotePath } = buildKeepBothPaths(originalPath);
 
         // Copy local file to .local suffix
@@ -845,9 +857,14 @@ async function resolveConflicts(
 
     if (resolution === "overwrite-local") {
       const itemSpinner = ora(`Pulling ${conflict.path}...`).start();
+      const destPath = resolveWithin(process.cwd(), conflict.path);
+      if (!destPath) {
+        itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+        failed++;
+        continue;
+      }
       try {
         const artifactInfo = toArtifactInfo(conflict);
-        const destPath = path.resolve(process.cwd(), conflict.path);
         await fs.ensureDir(path.dirname(destPath));
         await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
         itemSpinner.succeed(
@@ -871,8 +888,13 @@ async function resolveConflicts(
       const itemSpinner = ora(
         `Keeping both versions of ${conflict.path}...`
       ).start();
+      const originalPath = resolveWithin(process.cwd(), conflict.path);
+      if (!originalPath) {
+        itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+        failed++;
+        continue;
+      }
       try {
-        const originalPath = path.resolve(process.cwd(), conflict.path);
         const { localPath, remotePath } = buildKeepBothPaths(originalPath);
 
         await fs.copy(originalPath, localPath);
