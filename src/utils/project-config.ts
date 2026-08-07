@@ -5,7 +5,7 @@
 
 import path from "node:path";
 import fs from "fs-extra";
-import yaml from "js-yaml";
+import { dump as dumpYaml, load as loadYaml } from "js-yaml";
 import type { ProjectConfig } from "../types";
 
 const CONFIG_FILES = ["cirron.yaml", "cirron.yml", "cirron.json"] as const;
@@ -34,7 +34,7 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
       const isYaml = filename.endsWith(".yaml") || filename.endsWith(".yml");
       try {
         const config = isYaml
-          ? (yaml.load(raw) as ProjectConfig)
+          ? (loadYaml(raw) as ProjectConfig)
           : JSON.parse(raw);
         return { configPath, filename, config };
       } catch (err) {
@@ -76,7 +76,7 @@ export function saveProjectConfig(
   if (isYaml) {
     fs.writeFileSync(
       configPath,
-      yaml.dump(config, { indent: 2, lineWidth: 120, noRefs: true }),
+      dumpYaml(config, { indent: 2, lineWidth: 120, noRefs: true }),
       "utf8"
     );
   } else {

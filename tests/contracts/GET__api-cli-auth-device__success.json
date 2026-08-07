@@ -1,0 +1,31 @@
+{
+  "endpoint": "/api/cli/auth/device",
+  "method": "GET",
+  "scenario": "success",
+  "request": {
+    "query": {
+      "device_code": "device_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "accessToken": "<JWT>",
+      "refreshToken": "<REFRESH_TOKEN>",
+      "tokenType": "Bearer",
+      "expiresIn": 604800,
+      "user": {
+        "id": "user_1",
+        "username": "dev",
+        "email": "dev@example.com",
+        "name": "Dev User",
+        "clerkUserId": "user_clerk_1"
+      },
+      "organization": {
+        "id": "org_1",
+        "name": "Acme",
+        "accountType": "TEAM"
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "endpoint": "/api/cli/registry/pull/download",
+  "method": "GET",
+  "scenario": "success",
+  "request": {
+    "query": {
+      "artifactId": "art_1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "artifactId": "art_1",
+        "downloadUrl": "https://storage.example.com/download/art_1",
+        "expiresAt": "2026-01-01T01:00:00.000Z"
+      }
+    }
+  }
+}

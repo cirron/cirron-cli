@@ -2,7 +2,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
-import fetch from "node-fetch";
 import type { CirronConfig } from "../types";
 import { ConfigManager } from "../utils/config";
 import {

@@ -6,6 +6,7 @@ import {
   NotAuthenticatedError,
   PlatformBadRequestError,
   PlatformError,
+  PlatformRateLimitError,
   PlatformServerError,
   PlatformUnavailableError,
 } from "../../../src/utils/api-errors";
@@ -75,7 +76,7 @@ describe("classifyFetchError", () => {
     expect(classifyFetchError(raw)).toBeInstanceOf(PlatformUnavailableError);
   });
 
-  it("maps node-fetch FetchError by name", () => {
+  it("maps a legacy FetchError by name", () => {
     const raw = Object.assign(new Error("fetch failed"), {
       name: "FetchError",
     });
@@ -112,11 +113,24 @@ describe("classifyHttpError", () => {
   });
 
   it.each([
-    400, 404, 409, 422, 429,
+    400, 404, 409, 422,
   ])("maps client error HTTP %s to PlatformBadRequestError", (status) => {
     const err = classifyHttpError(status, "bad request");
     expect(err).toBeInstanceOf(PlatformBadRequestError);
     expect((err as PlatformBadRequestError).status).toBe(status);
+  });
+
+  it("maps HTTP 429 to PlatformRateLimitError carrying Retry-After", () => {
+    const err = classifyHttpError(429, "Rate limit exceeded", 7);
+    expect(err).toBeInstanceOf(PlatformRateLimitError);
+    expect((err as PlatformRateLimitError).retryAfterSeconds).toBe(7);
+    expect((err as PlatformRateLimitError).status).toBe(429);
+  });
+
+  it("leaves retryAfterSeconds undefined when the header is absent", () => {
+    const err = classifyHttpError(429, "Rate limit exceeded");
+    expect(err).toBeInstanceOf(PlatformRateLimitError);
+    expect((err as PlatformRateLimitError).retryAfterSeconds).toBeUndefined();
   });
 
   it.each([

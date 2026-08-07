@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import { dump as dumpYaml } from "js-yaml";
 import { dedent } from "../../utils/dedent";
 import {
   buildSklearnJoblibServeScript,
@@ -64,7 +64,7 @@ function buildCirronYaml(projectName: string, modelType: string): string {
       modelType
     ),
   };
-  return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
+  return dumpYaml(cfg, { indent: 2, lineWidth: 100, noRefs: true });
 }
 
 export async function createCustomFiles(

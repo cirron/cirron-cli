@@ -1,0 +1,30 @@
+{
+  "endpoint": "/api/cli/models/{name}/deployments",
+  "method": "GET",
+  "scenario": "unmapped-status",
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "model": {
+        "id": "m_1",
+        "name": "demo-model"
+      },
+      "data": [
+        {
+          "id": "dep_2",
+          "name": "demo-model",
+          "environment": "production",
+          "status": "STOPPED",
+          "createdAt": "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      "pagination": {
+        "total": 1,
+        "limit": 50,
+        "offset": 0,
+        "hasMore": false
+      }
+    }
+  }
+}

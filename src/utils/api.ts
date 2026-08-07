@@ -1,6 +1,6 @@
 import { createReadStream, createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
 import fs from "fs-extra";
-import fetch from "node-fetch";
 import type {
   ApiResponse,
   AuthInfo,
@@ -31,6 +31,7 @@ import {
   NotAuthenticatedError,
   PlatformBadRequestError,
   PlatformError,
+  PlatformRateLimitError,
 } from "./api-errors";
 import { USER_AGENT } from "./version";
 
@@ -585,18 +586,21 @@ export class CirronApi {
         let downloaded = 0;
 
         const fileStream = createWriteStream(destPath);
+        // Native fetch hands back a web ReadableStream; the rest of this
+        // method wants Node stream semantics.
+        const bodyStream = Readable.fromWeb(response.body);
 
         await new Promise<void>((resolve, reject) => {
-          response.body?.on("data", (chunk: Buffer) => {
+          bodyStream.on("data", (chunk: Buffer) => {
             downloaded += chunk.length;
             if (onProgress && totalSize > 0) {
               onProgress(downloaded, totalSize);
             }
           });
 
-          response.body?.pipe(fileStream);
+          bodyStream.pipe(fileStream);
 
-          response.body?.on("error", (err: Error) => {
+          bodyStream.on("error", (err: Error) => {
             fileStream.close();
             reject(err);
           });
@@ -827,9 +831,13 @@ export class CirronApi {
         const response = await fetch(url, {
           method: "PUT",
           headers,
-          body: fileStream as any,
+          // Native fetch needs a web stream and duplex; the explicit
+          // Content-Length above is still honored, so presigned PUTs keep
+          // getting a sized request rather than chunked encoding.
+          body: Readable.toWeb(fileStream) as never,
+          duplex: "half",
           signal: controller.signal,
-        });
+        } as RequestInit);
 
         if (!response.ok) {
           throw new Error(
@@ -906,9 +914,10 @@ export class CirronApi {
       const response = await fetch(url, {
         method: "PUT",
         headers,
-        body: fileStream as any,
-        signal: controller.signal as any,
-      });
+        body: Readable.toWeb(fileStream) as never,
+        duplex: "half",
+        signal: controller.signal,
+      } as RequestInit);
 
       if (!response.ok) {
         throw new Error(
@@ -1103,15 +1112,18 @@ export class CirronApi {
       }
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, this.config.timeout);
-
     let attempt = 0;
     let lastError: Error = new Error("Request failed after retries");
 
     while (attempt <= this.config.retries) {
+      // Per attempt, matching downloadFile/uploadFile: a controller shared
+      // across retries latches aborted after the first timeout, so every
+      // remaining retry would reject instantly instead of being tried.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout);
+
       try {
         const response = await fetch(url.toString(), {
           method,
@@ -1120,15 +1132,26 @@ export class CirronApi {
           signal: controller.signal,
         });
 
-        clearTimeout(timeoutId);
-
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           const errorMessage =
             (errorData as any)?.message ||
             (errorData as any)?.error ||
             `HTTP ${response.status}: ${response.statusText}`;
-          throw classifyHttpError(response.status, errorMessage);
+          const retryAfterHeader = response.headers.get("retry-after");
+          const parsedRetryAfter = retryAfterHeader
+            ? Number.parseInt(retryAfterHeader, 10)
+            : Number.NaN;
+          // A Retry-After of 0 is valid ("retry immediately"), so test for NaN
+          // rather than falsiness.
+          const retryAfterSeconds = Number.isNaN(parsedRetryAfter)
+            ? undefined
+            : parsedRetryAfter;
+          throw classifyHttpError(
+            response.status,
+            errorMessage,
+            retryAfterSeconds
+          );
         }
 
         const data = await response.json();
@@ -1140,10 +1163,12 @@ export class CirronApi {
         lastError = classified as Error;
 
         // Don't retry on auth errors or other client-side (4xx) failures —
-        // the request is wrong, retrying won't fix it.
+        // the request is wrong, retrying won't fix it. 429 is also left to the
+        // caller, which knows whether to honor Retry-After and carry on.
         if (
           classified instanceof NotAuthenticatedError ||
-          classified instanceof PlatformBadRequestError
+          classified instanceof PlatformBadRequestError ||
+          classified instanceof PlatformRateLimitError
         ) {
           throw classified;
         }
@@ -1154,15 +1179,19 @@ export class CirronApi {
         }
 
         attempt++;
-        if (attempt <= this.config.retries) {
-          // Exponential backoff
-          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // Backoff happens after the finally so this attempt's timer is already
+      // disarmed while we sleep.
+      if (attempt <= this.config.retries) {
+        // Exponential backoff
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
-    clearTimeout(timeoutId);
     throw lastError;
   }
 }

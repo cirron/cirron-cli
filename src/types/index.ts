@@ -248,11 +248,16 @@ export interface DeviceTokenResponse {
   token_type: string;
 }
 
+/**
+ * A successful device-flow poll. The platform answers 200 with a flat
+ * camelCase body; every non-success case is a 4xx/429 the transport throws on,
+ * so there is no `status` discriminator on the wire.
+ */
 export interface DeviceAuthStatus {
   accessToken?: string;
   expiresIn?: number;
   refreshToken?: string;
-  status: "pending" | "authorized" | "expired" | "denied";
+  tokenType?: string;
 }
 
 export interface DeploymentInfo {

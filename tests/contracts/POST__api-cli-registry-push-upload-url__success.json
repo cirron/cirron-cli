@@ -1,0 +1,26 @@
+{
+  "endpoint": "/api/cli/registry/push/upload-url",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "filename": "demo-model.pth",
+      "size": 1024,
+      "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "uploadUrl": "https://storage.example.com/upload/upload_1",
+        "uploadId": "upload_1",
+        "expiresAt": "2026-01-01T01:00:00.000Z",
+        "chunkSize": 5242880,
+        "maxChunks": 1,
+        "checksumBinding": true
+      }
+    }
+  }
+}

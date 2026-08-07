@@ -20,6 +20,18 @@ import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 const openMock = vi.mocked(open);
+const fetchMock = vi.fn();
+
+// Stub per test rather than at module scope: Vitest workers share globalThis,
+// so an unrestored stub can leak into later files and make the suite
+// order-dependent.
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /**
  * Verifies the graceful-error layer for the auth command:
@@ -326,6 +338,15 @@ describe("refreshCommand", () => {
   });
 });
 
+/**
+ * Device-flow login, driven through the real transport against the shapes the
+ * platform actually sends.
+ *
+ * These used to stub `pollDeviceAuthorization` wholesale and resolve
+ * `{ status: "pending" }`, a body the server has never sent. The suite stayed
+ * green while the real flow died after roughly 35 seconds, so the mock is gone
+ * and the global fetch is the seam instead.
+ */
 describe("loginCommand (device flow)", () => {
   let tmp: ReturnType<typeof makeTmpDir>;
   let exitStub: ReturnType<typeof stubProcessExit>;
@@ -333,7 +354,94 @@ describe("loginCommand (device flow)", () => {
   // Originals to restore (these may be undefined on a non-TTY stdin).
   const orig: Record<string, unknown> = {};
 
+  /** Scripted poll responses, consumed in order; the last one repeats. */
+  let pollQueue: FakeResponse[];
+  let pollCount: number;
+  /** When set, every poll rejects with this instead of answering. */
+  let pollError: Error | null;
+  let verificationUrl: string;
+  /** Milliseconds of the authorization window each poll consumes. */
+  let pollClockStepMs: number;
+  let fakeNow: number;
+  /** Every delay the poll loop asked to sleep for, in ms. */
+  let sleepDelays: number[];
+
+  interface FakeResponse {
+    headers: { get: (name: string) => string | null };
+    json: () => Promise<unknown>;
+    ok: boolean;
+    status: number;
+    statusText: string;
+  }
+
+  function makeResponse(
+    status: number,
+    body: unknown,
+    headers: Record<string, string> = {}
+  ): FakeResponse {
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      statusText: status === 200 ? "OK" : "Error",
+      headers: { get: (name) => headers[name.toLowerCase()] ?? null },
+      json: () => Promise.resolve(body),
+    };
+  }
+
+  const jsonResponse = (body: unknown) => makeResponse(200, body);
+  const errorResponse = (
+    status: number,
+    body: unknown,
+    headers?: Record<string, string>
+  ) => makeResponse(status, body, headers);
+
   beforeEach(() => {
+    pollQueue = [];
+    pollCount = 0;
+    pollError = null;
+    pollClockStepMs = 0;
+    fakeNow = 1_000_000;
+    sleepDelays = [];
+    verificationUrl = "https://cirron.dev/activate";
+
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(((url: string, init?: { method?: string }) => {
+      const method = init?.method ?? "GET";
+
+      if (url.includes("/api/cli/auth/device")) {
+        if (method === "POST") {
+          return Promise.resolve(
+            jsonResponse({
+              deviceCode: `device_${"a".repeat(32)}`,
+              userCode: "ABCD12345678",
+              verificationUrl,
+              expiresIn: 600,
+              interval: 1,
+            })
+          );
+        }
+
+        pollCount++;
+        fakeNow += pollClockStepMs;
+        if (pollError) {
+          return Promise.reject(pollError);
+        }
+        const next = pollQueue.length > 1 ? pollQueue.shift() : pollQueue.at(0);
+        return Promise.resolve(next);
+      }
+
+      if (url.includes("/api/cli/status")) {
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            user: { email: "dev@example.com", name: "Dev User" },
+          })
+        );
+      }
+
+      return Promise.reject(new Error(`unexpected request: ${method} ${url}`));
+    }) as never);
+
     tmp = makeTmpDir("cirron-deviceflow-");
     vi.spyOn(os, "homedir").mockReturnValue(tmp.dir);
     exitStub = stubProcessExit();
@@ -356,7 +464,11 @@ describe("loginCommand (device flow)", () => {
       return process.stdin;
     });
     // Skip the polling-interval sleeps.
-    vi.spyOn(global, "setTimeout").mockImplementation(((cb: () => void) => {
+    vi.spyOn(global, "setTimeout").mockImplementation(((
+      cb: () => void,
+      ms?: number
+    ) => {
+      sleepDelays.push(ms ?? 0);
       cb();
       return 0 as unknown as NodeJS.Timeout;
     }) as never);
@@ -376,53 +488,97 @@ describe("loginCommand (device flow)", () => {
     tmp.cleanup();
   });
 
-  it("completes the device flow and persists JWT tokens", async () => {
-    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockResolvedValue({
-      deviceCode: "dev-123",
-      userCode: "ABCD-1234",
-      verificationUrl: "https://cirron.dev/activate",
-      expiresIn: 600,
-      interval: 1,
-    } as never);
-    vi.spyOn(CirronApi.prototype, "pollDeviceAuthorization")
-      .mockResolvedValueOnce({ status: "pending" } as never)
-      .mockResolvedValueOnce({
-        status: "authorized",
+  it("keeps polling through a long authorization and then succeeds", async () => {
+    // The platform allows 10 minutes. The old poll loop tolerated 5 errors
+    // and treated every 400 authorization_pending as one, so it gave up after
+    // roughly 35 seconds.
+    for (let i = 0; i < 12; i++) {
+      pollQueue.push(errorResponse(400, { error: "authorization_pending" }));
+    }
+    pollQueue.push(
+      jsonResponse({
         accessToken: "access-xyz",
         refreshToken: "refresh-xyz",
+        tokenType: "Bearer",
         expiresIn: 604_800,
-      } as never);
-    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
-      valid: true,
-      user: { email: "dev@example.com", name: "Dev User" },
-    } as never);
+      })
+    );
 
     await loginCommand({});
 
     const cfg = new ConfigManager().load();
     expect(cfg.auth?.accessToken).toBe("access-xyz");
     expect(cfg.auth?.refreshToken).toBe("refresh-xyz");
-    expect(openMock).toHaveBeenCalledWith("https://cirron.dev/activate");
+    expect(pollCount).toBe(13);
     expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/dev@example\.com/);
   });
 
+  it("succeeds when the first poll already carries tokens", async () => {
+    pollQueue.push(
+      jsonResponse({
+        accessToken: "a",
+        refreshToken: "r",
+        tokenType: "Bearer",
+        expiresIn: 604_800,
+      })
+    );
+
+    await loginCommand({});
+
+    expect(new ConfigManager().load().auth?.accessToken).toBe("a");
+    expect(pollCount).toBe(1);
+    expect(openMock).toHaveBeenCalledWith("https://cirron.dev/activate");
+  });
+
+  it("stops immediately on an expired device code", async () => {
+    pollQueue.push(errorResponse(400, { error: "expired_token" }));
+
+    await expect(loginCommand({})).rejects.toThrow(/expired/i);
+    expect(pollCount).toBe(1);
+  });
+
+  it("honors Retry-After on a 429 and carries on", async () => {
+    pollQueue.push(
+      errorResponse(
+        429,
+        { error: "Rate limit exceeded" },
+        { "retry-after": "7" }
+      )
+    );
+    pollQueue.push(
+      jsonResponse({
+        accessToken: "a",
+        refreshToken: "r",
+        tokenType: "Bearer",
+        expiresIn: 604_800,
+      })
+    );
+
+    await loginCommand({});
+
+    expect(new ConfigManager().load().auth?.accessToken).toBe("a");
+    // The 429 neither aborted the login nor burned the transport budget.
+    expect(pollCount).toBe(2);
+  });
+
+  it("gives up after repeated transport failures", async () => {
+    pollError = Object.assign(new Error("connect ECONNREFUSED"), {
+      code: "ECONNREFUSED",
+    });
+
+    await expect(loginCommand({})).rejects.toThrow();
+  });
+
   it("rewrites a 'null/...' verification URL using the API base", async () => {
-    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockResolvedValue({
-      deviceCode: "dev-1",
-      userCode: "AAAA-1111",
-      verificationUrl: "null/activate",
-      expiresIn: 600,
-      interval: 1,
-    } as never);
-    vi.spyOn(CirronApi.prototype, "pollDeviceAuthorization").mockResolvedValue({
-      status: "authorized",
-      accessToken: "a",
-      refreshToken: "r",
-      expiresIn: 604_800,
-    } as never);
-    vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
-      valid: true,
-    } as never);
+    verificationUrl = "null/activate";
+    pollQueue.push(
+      jsonResponse({
+        accessToken: "a",
+        refreshToken: "r",
+        tokenType: "Bearer",
+        expiresIn: 604_800,
+      })
+    );
 
     await loginCommand({ url: "https://platform.cirron.dev/api" });
 
@@ -432,19 +588,24 @@ describe("loginCommand (device flow)", () => {
     );
   });
 
-  it("rejects when the device authorization is denied", async () => {
-    vi.spyOn(CirronApi.prototype, "requestDeviceCode").mockResolvedValue({
-      deviceCode: "dev-1",
-      userCode: "AAAA-1111",
-      verificationUrl: "https://cirron.dev/activate",
-      expiresIn: 600,
-      interval: 1,
-    } as never);
-    vi.spyOn(CirronApi.prototype, "pollDeviceAuthorization").mockResolvedValue({
-      status: "denied",
-    } as never);
+  it("gives up with an actionable message once the window closes", async () => {
+    // The server allows 600s. Burn two minutes of it per poll so the deadline
+    // arrives after a handful of them, without waiting in real time.
+    vi.spyOn(Date, "now").mockImplementation(() => fakeNow);
+    // 600s window, and each poll burns 299.8s of it, so the third iteration
+    // has only 400ms left: less than the 1s poll interval.
+    pollClockStepMs = 299_800;
+    pollQueue.push(errorResponse(400, { error: "authorization_pending" }));
 
-    await expect(loginCommand({})).rejects.toThrow(/denied/);
+    await expect(loginCommand({})).rejects.toThrow(
+      /timed out\. Run cirron auth login/
+    );
+
+    // It really polled rather than falling straight through the loop.
+    expect(pollCount).toBeGreaterThan(1);
+    // The final sleep was clamped to what was left of the window instead of
+    // overshooting it by a whole interval.
+    expect(sleepDelays.some((ms) => ms > 0 && ms < 1000)).toBe(true);
   });
 
   it("rejects when requestDeviceCode fails", async () => {

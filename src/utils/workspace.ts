@@ -10,7 +10,7 @@
 
 import path from "node:path";
 import fs from "fs-extra";
-import yaml from "js-yaml";
+import { load as loadYaml } from "js-yaml";
 import { minimatch } from "minimatch";
 import type {
   ProjectConfig,
@@ -49,7 +49,7 @@ function parseConfigFile(configPath: string, filename: string): unknown {
   const raw = fs.readFileSync(configPath, "utf8");
   const isYaml = filename.endsWith(".yaml") || filename.endsWith(".yml");
   try {
-    return isYaml ? yaml.load(raw) : JSON.parse(raw);
+    return isYaml ? loadYaml(raw) : JSON.parse(raw);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to parse ${filename}: ${msg}`);

@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import yaml from "js-yaml";
+import { load as loadYaml } from "js-yaml";
 import type {
   CirronConfig,
   GlobalSettings,
@@ -427,7 +427,7 @@ export class SettingsManager {
       const content = fs.readFileSync(configPath, "utf8");
 
       if (configPath.endsWith(".yaml") || configPath.endsWith(".yml")) {
-        return yaml.load(content) as ProjectConfig;
+        return loadYaml(content) as ProjectConfig;
       }
       return JSON.parse(content) as ProjectConfig;
     } catch (error) {

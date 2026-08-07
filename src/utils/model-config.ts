@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import yaml from "js-yaml";
+import { dump as dumpYaml, load as loadYaml } from "js-yaml";
 import type { ModelConfig } from "../types";
 import { schemaValidator } from "./schema";
 
@@ -66,7 +66,7 @@ export class ModelConfigManager {
     const configPath = path.join(this.projectPath, fileName);
 
     if (format === "yaml") {
-      const yamlContent = yaml.dump(result.data, {
+      const yamlContent = dumpYaml(result.data, {
         indent: 2,
         lineWidth: 120,
         noRefs: true,
@@ -89,7 +89,7 @@ export class ModelConfigManager {
       let config: any;
 
       if (configPath.endsWith(".yaml") || configPath.endsWith(".yml")) {
-        config = yaml.load(content);
+        config = loadYaml(content);
       } else {
         config = JSON.parse(content);
       }

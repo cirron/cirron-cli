@@ -35,7 +35,7 @@ Coverage: 20.48% → 57.63% lines across all src/  (commands/ alone: 73%)
   canonical way around vitest's static ESM binding; used by build / compile / test / replay.
   Combine with `vi.spyOn(executionMod, …)` for the spawn-backed `executePythonScript` /
   `executePythonFile` / `executeScript` helpers in `src/utils/execution.ts`.
-- `vi.mock("node-fetch")` (spool) and `vi.mock("open")` (auth device flow)
+- `vi.stubGlobal("fetch", ...)` (spool, auth, api, contracts) and `vi.mock("open")` (auth device flow)
 - For `auth` device flow: assign `process.stdin.{setRawMode,resume,pause,once}` directly
   (they're absent on a non-TTY stdin so `vi.spyOn` can't be used), and stub `setTimeout`.
 - `vi.spyOn(ModelConfigManager.prototype, "loadModelConfig")` to skip the

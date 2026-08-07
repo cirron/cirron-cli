@@ -7,6 +7,7 @@ import ora from "ora";
 import type { DeploymentInfo, DeployOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
@@ -33,7 +34,7 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
     const config = new ConfigManager();
     const currentConfig = config.load();
 
-    if (!currentConfig.token) {
+    if (!isAuthenticated(currentConfig)) {
       spinner.fail(chalk.red("Not authenticated"));
       logger.error(`Run ${chalk.cyan("cirron auth login")} to authenticate`);
       process.exit(1);
