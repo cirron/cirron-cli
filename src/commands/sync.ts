@@ -20,6 +20,7 @@ import type {
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
 import { computeFileChecksum } from "../utils/checksum";
+import { mapWithConcurrency } from "../utils/concurrency";
 import { ConfigManager } from "../utils/config";
 import { formatSize } from "../utils/format";
 import { CirronIgnore } from "../utils/ignore";
@@ -37,6 +38,12 @@ const VALID_CONFLICT_STRATEGIES: SyncConflictStrategy[] = [
   "remote-wins",
   "prompt",
 ];
+
+/**
+ * Files hashed at once while building the local manifest. Disk-and-CPU bound
+ * rather than network-bound, so higher than the upload concurrency.
+ */
+const CHECKSUM_CONCURRENCY = 8;
 
 // --- Helpers ---
 
@@ -63,11 +70,20 @@ async function collectFiles(targetPath: string): Promise<string[]> {
 
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
-    const entries = await fs.readdir(dir);
+    // withFileTypes avoids one stat syscall per entry. Dirents do NOT follow
+    // symlinks, though, and the previous fs.stat did, so symlinks keep their
+    // own branch to preserve which files a sync picks up.
+    const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry);
-      const entryStat = await fs.stat(fullPath);
-      if (entryStat.isDirectory()) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) {
+        const linkStat = await fs.stat(fullPath);
+        if (linkStat.isDirectory()) {
+          await walk(fullPath);
+        } else {
+          files.push(fullPath);
+        }
+      } else if (entry.isDirectory()) {
         await walk(fullPath);
       } else {
         files.push(fullPath);
@@ -239,18 +255,19 @@ async function buildLocalManifest(
     return [];
   }
 
-  const manifest: SyncFileManifestEntry[] = [];
-  for (const fp of filePaths) {
-    const stat = await fs.stat(fp);
-    const checksum = await computeFileChecksum(fp);
-    manifest.push({
-      path: path.relative(process.cwd(), fp),
-      checksum,
-      size: stat.size,
-    });
-  }
-
-  return manifest;
+  return await mapWithConcurrency(
+    filePaths,
+    CHECKSUM_CONCURRENCY,
+    async (fp): Promise<SyncFileManifestEntry> => {
+      const stat = await fs.stat(fp);
+      const checksum = await computeFileChecksum(fp);
+      return {
+        path: path.relative(process.cwd(), fp),
+        checksum,
+        size: stat.size,
+      };
+    }
+  );
 }
 
 // --- Filtering ---

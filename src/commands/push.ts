@@ -40,6 +40,12 @@ const MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
 /** Parts in flight at once. Bounded to stay well inside registry rate limits. */
 const PART_UPLOAD_CONCURRENCY = 4;
 
+/**
+ * Files hashed at once. Hashing is disk-and-CPU bound rather than
+ * network-bound, so this is higher than the upload concurrency.
+ */
+const CHECKSUM_CONCURRENCY = 8;
+
 // --- Helpers ---
 
 function checkAuth(): { api: CirronApi } | null {
@@ -95,11 +101,20 @@ async function collectFiles(targetPath: string): Promise<string[]> {
 
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
-    const entries = await fs.readdir(dir);
+    // withFileTypes avoids one stat syscall per entry. Dirents do NOT follow
+    // symlinks, though, and the previous fs.stat did, so symlinks keep their
+    // own branch to preserve which files a push picks up.
+    const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry);
-      const entryStat = await fs.stat(fullPath);
-      if (entryStat.isDirectory()) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) {
+        const linkStat = await fs.stat(fullPath);
+        if (linkStat.isDirectory()) {
+          await walk(fullPath);
+        } else {
+          files.push(fullPath);
+        }
+      } else if (entry.isDirectory()) {
         await walk(fullPath);
       } else {
         files.push(fullPath);
@@ -819,10 +834,11 @@ async function pushPathBased(
     }
 
     spinner.text = `Computing checksums for ${filePaths.length} file(s)...`;
-    const fileInfos: PushFileInfo[] = [];
-    for (const fp of filePaths) {
-      fileInfos.push(await prepareFileInfo(fp));
-    }
+    const fileInfos = await mapWithConcurrency(
+      filePaths,
+      CHECKSUM_CONCURRENCY,
+      (fp) => prepareFileInfo(fp)
+    );
 
     if (options.dryRun) {
       spinner.stop();
@@ -954,10 +970,11 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     }
 
     spinner.text = `Computing checksums for ${filePaths.length} file(s)...`;
-    const fileInfos: PushFileInfo[] = [];
-    for (const fp of filePaths) {
-      fileInfos.push(await prepareFileInfo(fp));
-    }
+    const fileInfos = await mapWithConcurrency(
+      filePaths,
+      CHECKSUM_CONCURRENCY,
+      (fp) => prepareFileInfo(fp)
+    );
 
     const resolvedTag = resolveTag(options.tag, undefined);
     const gitHash = getShortCommitHash() || undefined;

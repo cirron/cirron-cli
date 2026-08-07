@@ -227,6 +227,30 @@ describe("pushCommand", () => {
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Push summary/);
     });
 
+    it("follows symlinked files and directories during the walk", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeFileAt(tmp.dir, "bundle/a.bin", "aaa");
+      writeFileAt(tmp.dir, "outside/target.bin", "ttt");
+      writeFileAt(tmp.dir, "outside-dir/nested.bin", "nnn");
+      // A symlinked file and a symlinked directory. readdir's Dirents do not
+      // follow symlinks, so the walk needs an explicit stat for these; without
+      // it both would silently drop out of the push.
+      fs.symlinkSync(
+        path.join(tmp.dir, "outside/target.bin"),
+        path.join(tmp.dir, "bundle/link.bin")
+      );
+      fs.symlinkSync(
+        path.join(tmp.dir, "outside-dir"),
+        path.join(tmp.dir, "bundle/linked-dir")
+      );
+      stubUploadChain();
+
+      await pushCommand("./bundle", undefined, {});
+
+      // a.bin + link.bin + linked-dir/nested.bin
+      expect(CirronApi.prototype.confirmUpload).toHaveBeenCalledTimes(3);
+    });
+
     it("path-based dry-run skips upload", async () => {
       createAuthenticatedSession(tmp.dir);
       writeFileAt(tmp.dir, "bundle/a.bin", "aaa");
