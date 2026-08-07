@@ -704,6 +704,14 @@ async function resolveConflicts(
       const itemSpinner = ora(
         `Resolving conflict (local-wins): ${conflict.path}...`
       ).start();
+      // Guarded even though this branch only READS locally and uploads: the
+      // path is server-supplied, so an unguarded resolve lets a hostile
+      // response name any readable file and have the CLI upload it.
+      if (!resolveWithin(process.cwd(), conflict.path)) {
+        itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+        failed++;
+        continue;
+      }
       try {
         const fileInfo = toFileInfo(conflict);
         const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
@@ -835,6 +843,13 @@ async function resolveConflicts(
 
     if (resolution === "overwrite-remote") {
       const itemSpinner = ora(`Pushing ${conflict.path}...`).start();
+      // See the local-wins branch: a server-supplied path is guarded on the
+      // read side too, or a hostile response can exfiltrate any readable file.
+      if (!resolveWithin(process.cwd(), conflict.path)) {
+        itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+        failed++;
+        continue;
+      }
       try {
         const fileInfo = toFileInfo(conflict);
         const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);

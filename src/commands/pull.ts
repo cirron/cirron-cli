@@ -99,7 +99,7 @@ async function resolveOutputPath(
   // `filename` is server-supplied: contain it inside the chosen output
   // directory. The user's own --output stays unconstrained.
   const dest = resolveWithin(outputDir, artifact.filename);
-  if (!dest || dest === path.resolve(outputDir)) {
+  if (!dest) {
     throw new Error(
       `Refusing to write artifact with unsafe filename: ${artifact.filename}`
     );

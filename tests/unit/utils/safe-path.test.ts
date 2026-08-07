@@ -34,11 +34,6 @@ describe("resolveWithin", () => {
       );
     });
 
-    it("resolves the base itself to the base", () => {
-      expect(resolveWithin(base, ".")).toBe(base);
-      expect(resolveWithin(base, "")).toBe(base);
-    });
-
     it("resolves a relative base against cwd", () => {
       expect(resolveWithin("some-dir", "file.txt")).toBe(
         path.resolve("some-dir", "file.txt")
@@ -71,6 +66,16 @@ describe("resolveWithin", () => {
 
     it("rejects a traversal that lands on a sibling with a shared prefix", () => {
       expect(resolveWithin(base, "../project-evil/file.txt")).toBeNull();
+    });
+
+    it("rejects candidates that resolve to the base directory itself", () => {
+      // Callers want a file destination. Returning the base would let a
+      // caller treat the project directory as a file, and keep-both would
+      // derive `<projectDir>.local` — a sibling, outside the base.
+      expect(resolveWithin(base, "")).toBeNull();
+      expect(resolveWithin(base, ".")).toBeNull();
+      expect(resolveWithin(base, "./")).toBeNull();
+      expect(resolveWithin(base, "a/..")).toBeNull();
     });
   });
 });

@@ -384,6 +384,48 @@ describe("syncCommand", () => {
       expect(CirronApi.prototype.downloadFile).toHaveBeenCalled();
     });
 
+    it("refuses to upload a conflict path that escapes the project directory", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir);
+      writeFileAt(tmp.dir, "models/m1.pth", "hello world");
+      vi.spyOn(CirronApi.prototype, "getSyncDiff").mockResolvedValue(
+        syncDiff({
+          conflicts: [
+            {
+              path: "../../../.ssh/id_rsa",
+              localChecksum: HELLO_CHECKSUM,
+              remoteChecksum: HELLO_CHECKSUM,
+              localSize: 11,
+              remoteSize: 11,
+              artifactId: "art-evil",
+              artifactName: "evil",
+              type: "model",
+              tag: "latest",
+            },
+          ],
+        })
+      );
+      vi.spyOn(CirronApi.prototype, "completeSyncMetadata").mockResolvedValue(
+        undefined as never
+      );
+      const dedupeSpy = vi.spyOn(CirronApi.prototype, "checkDedupe");
+      const uploadSpy = vi.spyOn(CirronApi.prototype, "uploadFile");
+
+      let caught: unknown;
+      try {
+        await syncCommand(undefined, { conflicts: "local-wins" });
+      } catch (err) {
+        caught = err;
+      }
+
+      // local-wins only reads locally and pushes, but the path it reads is
+      // server-supplied: without a guard a hostile response names any
+      // readable file and the CLI uploads it.
+      expect(dedupeSpy).not.toHaveBeenCalled();
+      expect(uploadSpy).not.toHaveBeenCalled();
+      expect(exitCodeFromError(caught)).toBe(1);
+    });
+
     it("rejects a conflict path that escapes the project directory", async () => {
       createAuthenticatedSession(tmp.dir);
       writeProjectConfig(tmp.dir);
