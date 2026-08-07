@@ -25,19 +25,29 @@ describe("CirronApi requestRaw", () => {
 
   let api: CirronApi;
 
+  /** Header bag matching what node-fetch hands back. */
+  const noHeaders = { get: () => null };
+
   /** A minimal successful JSON response. */
   function okResponse() {
     return {
       ok: true,
       status: 200,
       statusText: "OK",
+      headers: noHeaders,
       json: async () => ({ valid: true }),
     };
   }
 
   /** A minimal error response with the given status. */
   function errorResponse(status: number, statusText: string) {
-    return { ok: false, status, statusText, json: async () => ({}) };
+    return {
+      ok: false,
+      status,
+      statusText,
+      headers: noHeaders,
+      json: async () => ({}),
+    };
   }
 
   beforeEach(() => {

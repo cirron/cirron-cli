@@ -31,6 +31,7 @@ import {
   NotAuthenticatedError,
   PlatformBadRequestError,
   PlatformError,
+  PlatformRateLimitError,
 } from "./api-errors";
 import { USER_AGENT } from "./version";
 
@@ -1129,7 +1130,15 @@ export class CirronApi {
             (errorData as any)?.message ||
             (errorData as any)?.error ||
             `HTTP ${response.status}: ${response.statusText}`;
-          throw classifyHttpError(response.status, errorMessage);
+          const retryAfterHeader = response.headers.get("retry-after");
+          const retryAfterSeconds = retryAfterHeader
+            ? Number.parseInt(retryAfterHeader, 10) || undefined
+            : undefined;
+          throw classifyHttpError(
+            response.status,
+            errorMessage,
+            retryAfterSeconds
+          );
         }
 
         const data = await response.json();
@@ -1141,10 +1150,12 @@ export class CirronApi {
         lastError = classified as Error;
 
         // Don't retry on auth errors or other client-side (4xx) failures —
-        // the request is wrong, retrying won't fix it.
+        // the request is wrong, retrying won't fix it. 429 is also left to the
+        // caller, which knows whether to honor Retry-After and carry on.
         if (
           classified instanceof NotAuthenticatedError ||
-          classified instanceof PlatformBadRequestError
+          classified instanceof PlatformBadRequestError ||
+          classified instanceof PlatformRateLimitError
         ) {
           throw classified;
         }
