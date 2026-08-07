@@ -360,6 +360,11 @@ describe("loginCommand (device flow)", () => {
   /** When set, every poll rejects with this instead of answering. */
   let pollError: Error | null;
   let verificationUrl: string;
+  /** Milliseconds of the authorization window each poll consumes. */
+  let pollClockStepMs: number;
+  let fakeNow: number;
+  /** Every delay the poll loop asked to sleep for, in ms. */
+  let sleepDelays: number[];
 
   interface FakeResponse {
     headers: { get: (name: string) => string | null };
@@ -394,6 +399,9 @@ describe("loginCommand (device flow)", () => {
     pollQueue = [];
     pollCount = 0;
     pollError = null;
+    pollClockStepMs = 0;
+    fakeNow = 1_000_000;
+    sleepDelays = [];
     verificationUrl = "https://cirron.dev/activate";
 
     fetchMock.mockReset();
@@ -414,6 +422,7 @@ describe("loginCommand (device flow)", () => {
         }
 
         pollCount++;
+        fakeNow += pollClockStepMs;
         if (pollError) {
           return Promise.reject(pollError);
         }
@@ -455,7 +464,11 @@ describe("loginCommand (device flow)", () => {
       return process.stdin;
     });
     // Skip the polling-interval sleeps.
-    vi.spyOn(global, "setTimeout").mockImplementation(((cb: () => void) => {
+    vi.spyOn(global, "setTimeout").mockImplementation(((
+      cb: () => void,
+      ms?: number
+    ) => {
+      sleepDelays.push(ms ?? 0);
       cb();
       return 0 as unknown as NodeJS.Timeout;
     }) as never);
@@ -573,6 +586,26 @@ describe("loginCommand (device flow)", () => {
     expect(openMock).toHaveBeenCalledWith(
       "https://platform.cirron.dev/activate"
     );
+  });
+
+  it("gives up with an actionable message once the window closes", async () => {
+    // The server allows 600s. Burn two minutes of it per poll so the deadline
+    // arrives after a handful of them, without waiting in real time.
+    vi.spyOn(Date, "now").mockImplementation(() => fakeNow);
+    // 600s window, and each poll burns 299.8s of it, so the third iteration
+    // has only 400ms left: less than the 1s poll interval.
+    pollClockStepMs = 299_800;
+    pollQueue.push(errorResponse(400, { error: "authorization_pending" }));
+
+    await expect(loginCommand({})).rejects.toThrow(
+      /timed out\. Run cirron auth login/
+    );
+
+    // It really polled rather than falling straight through the loop.
+    expect(pollCount).toBeGreaterThan(1);
+    // The final sleep was clamped to what was left of the window instead of
+    // overshooting it by a whole interval.
+    expect(sleepDelays.some((ms) => ms > 0 && ms < 1000)).toBe(true);
   });
 
   it("rejects when requestDeviceCode fails", async () => {

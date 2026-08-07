@@ -203,7 +203,9 @@ async function pollForAuthorization(
   let delaySeconds = interval;
 
   while (Date.now() < deadline) {
-    await sleep(delaySeconds * 1000);
+    // Never sleep past the window. Otherwise the last iteration overshoots by
+    // a full interval, or by a 429's Retry-After, before giving up.
+    await sleep(Math.min(delaySeconds * 1000, deadline - Date.now()));
     delaySeconds = interval;
 
     try {
@@ -254,7 +256,10 @@ async function pollForAuthorization(
     }
   }
 
-  throw new Error("Authorization timeout");
+  // Same outcome the user sees for an expired code, so give the same next step.
+  throw new Error(
+    "Authorization timed out. Run cirron auth login to try again."
+  );
 }
 
 async function saveTokens(
