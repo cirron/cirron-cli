@@ -2,12 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  computeFileChecksum,
-  formatSize,
-  pushArtifact,
-  pushCommand,
-} from "../../src/commands/push";
+import { pushArtifact, pushCommand } from "../../src/commands/push";
 import { CirronApi } from "../../src/utils/api";
 import {
   exitCodeFromError,
@@ -377,26 +372,6 @@ describe("pushCommand", () => {
     const parsed = JSON.parse(jsonArg ?? "{}");
     expect(parsed.totalFiles).toBe(2);
     expect(parsed.uploaded).toBe(2);
-  });
-
-  describe("formatSize", () => {
-    it("formats bytes/KB/MB/GB correctly", () => {
-      expect(formatSize(0)).toBe("0 B");
-      expect(formatSize(512)).toBe("512 B");
-      expect(formatSize(2048)).toBe("2.0 KB");
-      expect(formatSize(2 * 1024 * 1024)).toBe("2.00 MB");
-      expect(formatSize(3 * 1024 * 1024 * 1024)).toBe("3.00 GB");
-    });
-  });
-
-  describe("computeFileChecksum", () => {
-    it("returns sha256 hex for file content", async () => {
-      const fp = writeFileAt(tmp.dir, "x.bin", "hello world");
-      const checksum = await computeFileChecksum(fp);
-      expect(checksum).toBe(
-        "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
-      );
-    });
   });
 
   describe("multipart upload", () => {

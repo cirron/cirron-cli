@@ -1,11 +1,9 @@
-import crypto from "node:crypto";
 import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
 import type {
-  ProjectConfig,
   PullArtifactInfo,
   PullOptions,
   PullResourceType,
@@ -13,10 +11,12 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import { computeFileChecksum } from "../utils/checksum";
 import { ConfigManager } from "../utils/config";
+import { formatSize } from "../utils/format";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
-import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 import { resolveWithin } from "../utils/safe-path";
 
 // --- Constants ---
@@ -56,37 +56,6 @@ function parseNameTag(nameArg: string): { name: string; tag?: string } {
     };
   }
   return { name: nameArg };
-}
-
-function loadProjectConfig(): ProjectConfig | null {
-  const result = loadProjectConfigUtil();
-  if (!result) {
-    return null;
-  }
-  return result.config;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-async function computeFileChecksum(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256");
-    const stream = fs.createReadStream(filePath);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
-    stream.on("error", reject);
-  });
 }
 
 async function resolveOutputPath(

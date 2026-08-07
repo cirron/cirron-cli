@@ -19,13 +19,15 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import { computeFileChecksum } from "../utils/checksum";
 import { ConfigManager } from "../utils/config";
+import { formatSize } from "../utils/format";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
-import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 import { resolveWithin } from "../utils/safe-path";
 import { downloadArtifact } from "./pull";
-import { computeFileChecksum, formatSize, uploadSingleFile } from "./push";
+import { uploadSingleFile } from "./push";
 
 // --- Constants ---
 
@@ -49,14 +51,6 @@ function checkAuth(): { api: CirronApi } | null {
   }
 
   return { api: new CirronApi(currentConfig) };
-}
-
-function loadProjectConfig(): ProjectConfig | null {
-  const result = loadProjectConfigUtil();
-  if (!result) {
-    return null;
-  }
-  return result.config;
 }
 
 async function collectFiles(targetPath: string): Promise<string[]> {
