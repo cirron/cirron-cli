@@ -78,6 +78,35 @@ const MODEL_TYPES = {
   custom: "Custom",
 };
 
+/**
+ * Ask what to do about a directory that already has a Cirron config.
+ *
+ * Both entry points (running inside an existing project, and targeting an
+ * existing directory by name) offer the same three choices; only the message
+ * differs.
+ */
+async function promptExistingProjectAction(
+  message: string
+): Promise<"register" | "overwrite" | "cancel"> {
+  const { action } = await inquirer.prompt([
+    {
+      type: "select",
+      name: "action",
+      message,
+      choices: [
+        {
+          name: "Register existing project with Cirron (no file changes)",
+          value: "register",
+        },
+        { name: "Overwrite and reinitialize", value: "overwrite" },
+        { name: "Cancel", value: "cancel" },
+      ],
+      loop: false,
+    },
+  ]);
+  return action;
+}
+
 export async function initCommand(
   projectName?: string,
   options: InitOptions = { template: "pytorch" }
@@ -86,22 +115,9 @@ export async function initCommand(
     // Check if running from a directory that already has a cirron config
     const existingConfigInCwd = findProjectConfigPath(process.cwd());
     if (existingConfigInCwd) {
-      const { action } = await inquirer.prompt([
-        {
-          type: "select",
-          name: "action",
-          message: `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`,
-          choices: [
-            {
-              name: "Register existing project with Cirron (no file changes)",
-              value: "register",
-            },
-            { name: "Overwrite and reinitialize", value: "overwrite" },
-            { name: "Cancel", value: "cancel" },
-          ],
-          loop: false,
-        },
-      ]);
+      const action = await promptExistingProjectAction(
+        `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`
+      );
 
       if (action === "cancel") {
         logger.info("Initialization cancelled");
@@ -156,22 +172,9 @@ export async function initCommand(
 
       if (cirronConfigExists) {
         // Existing project with config - offer to register instead of overwrite
-        const { action } = await inquirer.prompt([
-          {
-            type: "select",
-            name: "action",
-            message: `Directory "${resolvedName}" already has a Cirron config. What would you like to do?`,
-            choices: [
-              {
-                name: "Register existing project with Cirron (no file changes)",
-                value: "register",
-              },
-              { name: "Overwrite and reinitialize", value: "overwrite" },
-              { name: "Cancel", value: "cancel" },
-            ],
-            loop: false,
-          },
-        ]);
+        const action = await promptExistingProjectAction(
+          `Directory "${resolvedName}" already has a Cirron config. What would you like to do?`
+        );
 
         if (action === "cancel") {
           logger.info("Initialization cancelled");

@@ -3,6 +3,7 @@ import inquirer from "inquirer";
 import type { ConfigCommandOptions, SettingsOptions } from "../types";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
+import { getNestedValue, setNestedValue } from "../utils/nested";
 import { settingsCommand } from "./settings";
 
 interface CliConfigOptions {
@@ -477,22 +478,6 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
     default:
       break;
   }
-}
-
-function getNestedValue(obj: any, path: string): any {
-  return path.split(".").reduce((current, key) => current?.[key], obj);
-}
-
-function setNestedValue(obj: any, path: string, value: any): void {
-  const keys = path.split(".");
-  const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
-    if (!(key in current)) {
-      current[key] = {};
-    }
-    return current[key];
-  }, obj);
-  target[lastKey] = value;
 }
 
 function isValidUrl(string: string): boolean {
