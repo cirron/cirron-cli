@@ -57,17 +57,26 @@ describe("setNestedValue", () => {
     // path through __proto__ reaches the prototype rather than being
     // rejected. This test documents today's behavior so a future hardening
     // change is deliberate and visible, not an accidental side effect.
+    //
+    // The mutation is global to the Vitest worker, so cleanup runs in a
+    // `finally`: without it, a failing assertion would leave the prototype
+    // polluted and break unrelated tests that happen to run afterwards. The
+    // property name is deliberately obscure for the same reason.
+    const marker = "__cirronNestedProtoPin__";
     const obj: Record<string, unknown> = {};
-    setNestedValue(obj, "__proto__.polluted", "yes");
 
-    // The write lands on the object's prototype, not as an own key.
-    expect(Object.hasOwn(obj, "polluted")).toBe(false);
-    // And it is therefore visible from an unrelated object.
-    expect(({} as Record<string, unknown>).polluted).toBe("yes");
+    try {
+      setNestedValue(obj, `__proto__.${marker}`, "yes");
 
-    // Clean up so the pollution cannot leak into other tests.
-    delete (Object.prototype as Record<string, unknown>).polluted;
-    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      // The write lands on the object's prototype, not as an own key.
+      expect(Object.hasOwn(obj, marker)).toBe(false);
+      // And it is therefore visible from an unrelated object.
+      expect(({} as Record<string, unknown>)[marker]).toBe("yes");
+    } finally {
+      delete (Object.prototype as Record<string, unknown>)[marker];
+    }
+
+    expect(({} as Record<string, unknown>)[marker]).toBeUndefined();
   });
 });
 
