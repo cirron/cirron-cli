@@ -14,9 +14,20 @@ import { PlatformRateLimitError } from "../../../src/utils/api-errors";
 import { ConfigManager } from "../../../src/utils/config";
 import { makeTmpDir } from "../../helpers/tmpdir";
 
-/** Header bag matching what node-fetch hands back, with optional entries. */
+/**
+ * Header bag matching what node-fetch hands back. Lookups are
+ * case-insensitive in both directions, like the real thing, so a caller can
+ * write `headerBag({ "Content-Length": "12" })` and still read it back with
+ * `get("content-length")`.
+ */
 function headerBag(entries: Record<string, string> = {}) {
-  return { get: (name: string) => entries[name.toLowerCase()] ?? null };
+  const normalized = new Map(
+    Object.entries(entries).map(([name, entryValue]) => [
+      name.toLowerCase(),
+      entryValue,
+    ])
+  );
+  return { get: (name: string) => normalized.get(name.toLowerCase()) ?? null };
 }
 
 /** The Authorization header sent on the Nth fetch call (0-indexed). */
