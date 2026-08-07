@@ -10,5 +10,5 @@ import type { CirronConfig } from "../types";
  * has to land in both places.
  */
 export function isAuthenticated(config: CirronConfig): boolean {
-  return Boolean(config.token || config.auth?.accessToken);
+  return Boolean(config.auth?.accessToken || config.token);
 }
