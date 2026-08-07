@@ -4,11 +4,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import fetch from "node-fetch";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("node-fetch", () => ({ default: vi.fn() }));
-const fetchMock = vi.mocked(fetch);
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
 
 import { CirronApi } from "../../src/utils/api";
 import {

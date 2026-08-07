@@ -114,17 +114,26 @@ export class PlatformServerError extends PlatformError {
 }
 
 /**
- * Convert a thrown error from `fetch` / `node-fetch` into a typed PlatformError.
+ * Convert a thrown `fetch` error into a typed PlatformError.
  * Network-level failures (DNS, refused, abort, timeout) become
  * PlatformUnavailableError; anything unrecognized is returned unchanged for the
  * caller to handle.
+ *
+ * Native fetch reports connection failures as a bare `TypeError: fetch failed`
+ * and hangs the real syscall error off `.cause`, so the code is read from both
+ * places.
  */
 export function classifyFetchError(error: unknown): PlatformError | unknown {
   if (!(error instanceof Error)) {
     return error;
   }
 
-  const code = (error as NodeJS.ErrnoException).code;
+  // `Error.cause` isn't in the ES2020 lib this project targets, so read it
+  // through a cast the same way PlatformError writes it.
+  const cause = (error as { cause?: unknown }).cause;
+  const code =
+    (error as NodeJS.ErrnoException).code ??
+    (cause as NodeJS.ErrnoException | undefined)?.code;
   const networkCodes = new Set([
     "ECONNREFUSED",
     "ECONNRESET",

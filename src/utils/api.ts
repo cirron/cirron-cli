@@ -1,6 +1,6 @@
 import { createReadStream, createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
 import fs from "fs-extra";
-import fetch from "node-fetch";
 import type {
   ApiResponse,
   AuthInfo,
@@ -586,18 +586,23 @@ export class CirronApi {
         let downloaded = 0;
 
         const fileStream = createWriteStream(destPath);
+        // Native fetch hands back a web ReadableStream; the rest of this
+        // method wants Node stream semantics.
+        const bodyStream = Readable.fromWeb(
+          response.body as Parameters<typeof Readable.fromWeb>[0]
+        );
 
         await new Promise<void>((resolve, reject) => {
-          response.body?.on("data", (chunk: Buffer) => {
+          bodyStream.on("data", (chunk: Buffer) => {
             downloaded += chunk.length;
             if (onProgress && totalSize > 0) {
               onProgress(downloaded, totalSize);
             }
           });
 
-          response.body?.pipe(fileStream);
+          bodyStream.pipe(fileStream);
 
-          response.body?.on("error", (err: Error) => {
+          bodyStream.on("error", (err: Error) => {
             fileStream.close();
             reject(err);
           });
@@ -828,9 +833,13 @@ export class CirronApi {
         const response = await fetch(url, {
           method: "PUT",
           headers,
-          body: fileStream as any,
+          // Native fetch needs a web stream and duplex; the explicit
+          // Content-Length above is still honored, so presigned PUTs keep
+          // getting a sized request rather than chunked encoding.
+          body: Readable.toWeb(fileStream) as never,
+          duplex: "half",
           signal: controller.signal,
-        });
+        } as RequestInit);
 
         if (!response.ok) {
           throw new Error(
@@ -907,9 +916,10 @@ export class CirronApi {
       const response = await fetch(url, {
         method: "PUT",
         headers,
-        body: fileStream as any,
-        signal: controller.signal as any,
-      });
+        body: Readable.toWeb(fileStream) as never,
+        duplex: "half",
+        signal: controller.signal,
+      } as RequestInit);
 
       if (!response.ok) {
         throw new Error(

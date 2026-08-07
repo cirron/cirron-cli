@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import { dump as dumpYaml } from "js-yaml";
 import { dedent } from "../../utils/dedent";
 import {
   buildOnnxServeScript,
@@ -85,7 +85,7 @@ function buildCirronYaml(
     description,
     servingConfig: buildSyntheticTabularServingConfig("onnx", modelType),
   };
-  return yaml.dump(cfg, { indent: 2, lineWidth: 100, noRefs: true });
+  return dumpYaml(cfg, { indent: 2, lineWidth: 100, noRefs: true });
 }
 
 export async function createTensorFlowFiles(

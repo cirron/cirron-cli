@@ -5,8 +5,6 @@ import chalk from "chalk";
 import Table from "cli-table3";
 import fs from "fs-extra";
 import inquirer from "inquirer";
-import type { Response } from "node-fetch";
-import fetch from "node-fetch";
 import ora from "ora";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";

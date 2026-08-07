@@ -2,11 +2,10 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import fs from "fs-extra";
-import fetch from "node-fetch";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("node-fetch", () => ({ default: vi.fn() }));
-const fetchMock = vi.mocked(fetch);
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
 
 import type { CirronConfig } from "../../../src/types";
 import { CirronApi } from "../../../src/utils/api";
@@ -15,7 +14,7 @@ import { ConfigManager } from "../../../src/utils/config";
 import { makeTmpDir } from "../../helpers/tmpdir";
 
 /**
- * Header bag matching what node-fetch hands back. Lookups are
+ * Header bag matching what fetch hands back. Lookups are
  * case-insensitive in both directions, like the real thing, so a caller can
  * write `headerBag({ "Content-Length": "12" })` and still read it back with
  * `get("content-length")`.
@@ -60,7 +59,7 @@ describe("CirronApi requestRaw", () => {
 
   let api: CirronApi;
 
-  /** Header bag matching what node-fetch hands back. */
+  /** Header bag matching what fetch hands back. */
   const noHeaders = { get: () => null };
 
   /** A minimal successful JSON response. */
@@ -346,14 +345,15 @@ describe("CirronApi ensureValidToken on downloads", () => {
     token_type: "Bearer",
   };
 
-  /** A download response whose body is a Node readable, as node-fetch gives. */
+  /** A download response whose body is a web stream, as fetch gives. */
   function downloadResponse(payload: string) {
     return {
       ok: true,
       status: 200,
       statusText: "OK",
       headers: headerBag({ "content-length": String(payload.length) }),
-      body: Readable.from(Buffer.from(payload)),
+      // Native fetch bodies are web streams; downloadFile converts back.
+      body: Readable.toWeb(Readable.from(Buffer.from(payload))),
     };
   }
 
