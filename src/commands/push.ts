@@ -131,6 +131,29 @@ function resolvePlatformHint(flag: string | undefined): string | undefined {
   return flag ?? loadProjectConfig()?.platform;
 }
 
+/**
+ * Follow a 404 with a hint at what to fix.
+ *
+ * A rejected `--platform` slug also comes back as "not found", so the generic
+ * "register your project" advice would send the user to fix something
+ * unrelated. Match the more specific case first.
+ */
+function logNotFoundHint(message: string): void {
+  const lower = message.toLowerCase();
+  if (!(lower.includes("not found") || message.includes("404"))) {
+    return;
+  }
+  if (lower.includes("platform")) {
+    logger.info(
+      `Check the platform slug, or omit ${chalk.cyan("--platform")} to use your default`
+    );
+    return;
+  }
+  logger.info(
+    `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
+  );
+}
+
 function resolveTag(
   optionTag: string | undefined,
   parsedTag: string | undefined
@@ -740,14 +763,7 @@ async function pushResourceTyped(
     handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
-      if (
-        error.message.toLowerCase().includes("not found") ||
-        error.message.includes("404")
-      ) {
-        logger.info(
-          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
-        );
-      }
+      logNotFoundHint(error.message);
     } else {
       logger.error("Unknown error occurred");
     }
@@ -863,14 +879,7 @@ async function pushPathBased(
     spinner.fail(`Failed to push ${resourcePath}`);
     if (error instanceof Error) {
       logger.error(error.message);
-      if (
-        error.message.toLowerCase().includes("not found") ||
-        error.message.includes("404")
-      ) {
-        logger.info(
-          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
-        );
-      }
+      logNotFoundHint(error.message);
     } else {
       logger.error("Unknown error occurred");
     }
@@ -967,14 +976,7 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     spinner.fail("Failed to push project artifacts");
     if (error instanceof Error) {
       logger.error(error.message);
-      if (
-        error.message.toLowerCase().includes("not found") ||
-        error.message.includes("404")
-      ) {
-        logger.info(
-          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
-        );
-      }
+      logNotFoundHint(error.message);
     } else {
       logger.error("Unknown error occurred");
     }

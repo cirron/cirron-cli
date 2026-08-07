@@ -463,6 +463,31 @@ describe("pushCommand", () => {
       expect(Object.hasOwn(opts, "platform")).toBe(false);
     });
 
+    it("points at the slug, not at register, when the platform is rejected", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
+      vi.spyOn(CirronApi.prototype, "checkDedupe").mockResolvedValue(
+        pushDedupe()
+      );
+      vi.spyOn(CirronApi.prototype, "getUploadUrl").mockRejectedValue(
+        new Error("Platform not found")
+      );
+
+      let caught: unknown;
+      try {
+        await pushCommand("model", "demo.pth", { platform: "nope" });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(exitCodeFromError(caught)).toBe(1);
+      const out = infoSpy.mock.calls.flat().join(" ");
+      // The generic 404 hint matches any "not found", which would send the
+      // user to register a project that is already registered.
+      expect(out).toMatch(/platform slug/);
+      expect(out).not.toMatch(/cirron register/);
+    });
+
     it("sends the hint on the multipart path too", async () => {
       createAuthenticatedSession(tmp.dir);
       const partSize = 200 * 1024 * 1024;
