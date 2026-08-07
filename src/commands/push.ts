@@ -13,23 +13,23 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import {
+  collectFiles,
+  collectProjectFiles,
+  isResourceTyped,
+  KNOWN_RESOURCE_TYPES,
+  parseNameTag,
+} from "../utils/artifacts";
 import { computeFileChecksum } from "../utils/checksum";
 import { mapWithConcurrency } from "../utils/concurrency";
 import { ConfigManager } from "../utils/config";
 import { formatSize } from "../utils/format";
 import { getShortCommitHash } from "../utils/git";
-import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
 import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 
 // --- Constants ---
 
-const KNOWN_RESOURCE_TYPES: PushResourceType[] = [
-  "model",
-  "image",
-  "build",
-  "runtime",
-];
 /**
  * The client has to choose an upload path before it has talked to the server,
  * so this cannot be read from the API. `init` echoes the authoritative value
@@ -61,19 +61,57 @@ function checkAuth(): { api: CirronApi } | null {
   return { api: new CirronApi(currentConfig) };
 }
 
-function isResourceTyped(resource: string): boolean {
-  return KNOWN_RESOURCE_TYPES.includes(resource as PushResourceType);
+/** The narrowed option bag `uploadSingleFile` accepts. */
+interface UploadOpts {
+  force?: boolean;
+  gitHash?: string;
+  message?: string;
+  name?: string;
+  registry?: string;
+  resource?: string;
+  tag?: string;
 }
 
-function parseNameTag(nameArg: string): { name: string; tag?: string } {
-  const colonIndex = nameArg.lastIndexOf(":");
-  if (colonIndex > 0) {
-    return {
-      name: nameArg.slice(0, colonIndex),
-      tag: nameArg.slice(colonIndex + 1),
-    };
+/**
+ * Drop the unset fields from a set of upload options.
+ *
+ * `exactOptionalPropertyTypes` rejects `{ tag: undefined }` where the target
+ * declares `tag?: string`, so every caller was hand-writing the same
+ * conditional assignment block. The input type accepts explicit `undefined`;
+ * the output type does not.
+ */
+function buildUploadOpts(values: {
+  force?: boolean | undefined;
+  gitHash?: string | undefined;
+  message?: string | undefined;
+  name?: string | undefined;
+  registry?: string | undefined;
+  resource?: string | undefined;
+  tag?: string | undefined;
+}): UploadOpts {
+  const opts: UploadOpts = {};
+  if (values.resource) {
+    opts.resource = values.resource;
   }
-  return { name: nameArg };
+  if (values.name) {
+    opts.name = values.name;
+  }
+  if (values.tag) {
+    opts.tag = values.tag;
+  }
+  if (values.message) {
+    opts.message = values.message;
+  }
+  if (values.registry) {
+    opts.registry = values.registry;
+  }
+  if (values.force) {
+    opts.force = values.force;
+  }
+  if (values.gitHash) {
+    opts.gitHash = values.gitHash;
+  }
+  return opts;
 }
 
 function resolveTag(
@@ -87,90 +125,6 @@ function resolveTag(
     return parsedTag;
   }
   return;
-}
-
-// --- File Collection ---
-
-async function collectFiles(targetPath: string): Promise<string[]> {
-  const resolved = path.resolve(targetPath);
-  const stat = await fs.stat(resolved);
-
-  if (stat.isFile()) {
-    return [resolved];
-  }
-
-  const files: string[] = [];
-  const walk = async (dir: string): Promise<void> => {
-    // withFileTypes avoids one stat syscall per entry. Dirents do NOT follow
-    // symlinks, though, and the previous fs.stat did, so symlinks keep their
-    // own branch to preserve which files a push picks up.
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isSymbolicLink()) {
-        const linkStat = await fs.stat(fullPath);
-        if (linkStat.isDirectory()) {
-          await walk(fullPath);
-        } else {
-          files.push(fullPath);
-        }
-      } else if (entry.isDirectory()) {
-        await walk(fullPath);
-      } else {
-        files.push(fullPath);
-      }
-    }
-  };
-  await walk(resolved);
-  return files;
-}
-
-async function collectProjectFiles(
-  projectConfig: ProjectConfig,
-  ignorePatterns: string | undefined
-): Promise<string[]> {
-  const cwd = process.cwd();
-  const pathsToScan: string[] = [];
-
-  if (projectConfig.artifacts) {
-    if (projectConfig.artifacts.modelPath) {
-      pathsToScan.push(path.join(cwd, projectConfig.artifacts.modelPath));
-    }
-    if (projectConfig.artifacts.checkpointPath) {
-      pathsToScan.push(path.join(cwd, projectConfig.artifacts.checkpointPath));
-    }
-  }
-
-  const commonDirs = ["models", "artifacts", "build"];
-  for (const dir of commonDirs) {
-    const dirPath = path.join(cwd, dir);
-    if (await fs.pathExists(dirPath)) {
-      pathsToScan.push(dirPath);
-    }
-  }
-
-  let allFiles: string[] = [];
-  for (const scanPath of pathsToScan) {
-    if (await fs.pathExists(scanPath)) {
-      const files = await collectFiles(scanPath);
-      allFiles.push(...files);
-    }
-  }
-
-  // Deduplicate
-  allFiles = [...new Set(allFiles)];
-
-  // Apply .cirronignore + --ignore patterns
-  const ignore = new CirronIgnore();
-  if (ignorePatterns) {
-    const patterns = ignorePatterns.split(",").map((p) => p.trim());
-    for (const pattern of patterns) {
-      ignore.addPattern(pattern);
-    }
-  }
-  allFiles = allFiles.filter((f) => !ignore.isIgnored(path.relative(cwd, f)));
-
-  return allFiles;
 }
 
 async function prepareFileInfo(filePath: string): Promise<PushFileInfo> {
@@ -645,36 +599,15 @@ export async function pushArtifact(
   const spinner = ora(`Pushing ${path.basename(filePath)}...`).start();
 
   try {
-    const uploadOpts: {
-      resource?: string;
-      name?: string;
-      tag?: string;
-      message?: string;
-      registry?: string;
-      force?: boolean;
-      gitHash?: string;
-    } = {};
-    if (options.resource) {
-      uploadOpts.resource = options.resource;
-    }
-    if (options.name) {
-      uploadOpts.name = options.name;
-    }
-    if (options.tag) {
-      uploadOpts.tag = options.tag;
-    }
-    if (options.message) {
-      uploadOpts.message = options.message;
-    }
-    if (options.registry) {
-      uploadOpts.registry = options.registry;
-    }
-    if (options.force) {
-      uploadOpts.force = options.force;
-    }
-    if (gitHash) {
-      uploadOpts.gitHash = gitHash;
-    }
+    const uploadOpts = buildUploadOpts({
+      resource: options.resource,
+      name: options.name,
+      tag: options.tag,
+      message: options.message,
+      registry: options.registry,
+      force: options.force,
+      gitHash,
+    });
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -745,33 +678,15 @@ async function pushResourceTyped(
       return;
     }
 
-    const uploadOpts: {
-      resource?: string;
-      name?: string;
-      tag?: string;
-      message?: string;
-      registry?: string;
-      force?: boolean;
-      gitHash?: string;
-    } = {
+    const uploadOpts = buildUploadOpts({
       resource,
       name: resolvedName,
-    };
-    if (resolvedTag) {
-      uploadOpts.tag = resolvedTag;
-    }
-    if (options.message) {
-      uploadOpts.message = options.message;
-    }
-    if (options.registry) {
-      uploadOpts.registry = options.registry;
-    }
-    if (options.force) {
-      uploadOpts.force = options.force;
-    }
-    if (gitHash) {
-      uploadOpts.gitHash = gitHash;
-    }
+      tag: resolvedTag,
+      message: options.message,
+      registry: options.registry,
+      force: options.force,
+      gitHash,
+    });
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -849,28 +764,13 @@ async function pushPathBased(
     if (fileInfos.length === 1) {
       const fileInfo = fileInfos[0]!;
 
-      const uploadOpts: {
-        tag?: string;
-        message?: string;
-        registry?: string;
-        force?: boolean;
-        gitHash?: string;
-      } = {};
-      if (resolvedTag) {
-        uploadOpts.tag = resolvedTag;
-      }
-      if (options.message) {
-        uploadOpts.message = options.message;
-      }
-      if (options.registry) {
-        uploadOpts.registry = options.registry;
-      }
-      if (options.force) {
-        uploadOpts.force = options.force;
-      }
-      if (gitHash) {
-        uploadOpts.gitHash = gitHash;
-      }
+      const uploadOpts = buildUploadOpts({
+        tag: resolvedTag,
+        message: options.message,
+        registry: options.registry,
+        force: options.force,
+        gitHash,
+      });
 
       const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -1066,28 +966,13 @@ async function pushMultipleFiles(
     ).start();
 
     try {
-      const uploadOpts: {
-        tag?: string;
-        message?: string;
-        registry?: string;
-        force?: boolean;
-        gitHash?: string;
-      } = {};
-      if (options.tag) {
-        uploadOpts.tag = options.tag;
-      }
-      if (options.message) {
-        uploadOpts.message = options.message;
-      }
-      if (options.registry) {
-        uploadOpts.registry = options.registry;
-      }
-      if (options.force) {
-        uploadOpts.force = options.force;
-      }
-      if (options.gitHash) {
-        uploadOpts.gitHash = options.gitHash;
-      }
+      const uploadOpts = buildUploadOpts({
+        tag: options.tag,
+        message: options.message,
+        registry: options.registry,
+        force: options.force,
+        gitHash: options.gitHash,
+      });
 
       const result = await uploadSingleFile(
         api,

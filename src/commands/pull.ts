@@ -11,6 +11,11 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import {
+  isResourceTyped,
+  KNOWN_RESOURCE_TYPES,
+  parseNameTag,
+} from "../utils/artifacts";
 import { computeFileChecksum } from "../utils/checksum";
 import { ConfigManager } from "../utils/config";
 import { formatSize } from "../utils/format";
@@ -18,15 +23,6 @@ import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
 import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 import { resolveWithin } from "../utils/safe-path";
-
-// --- Constants ---
-
-const KNOWN_RESOURCE_TYPES: PullResourceType[] = [
-  "model",
-  "image",
-  "build",
-  "runtime",
-];
 
 // --- Helpers ---
 
@@ -41,21 +37,6 @@ function checkAuth(): { api: CirronApi } | null {
   }
 
   return { api: new CirronApi(currentConfig) };
-}
-
-function isResourceTyped(resource: string): boolean {
-  return KNOWN_RESOURCE_TYPES.includes(resource as PullResourceType);
-}
-
-function parseNameTag(nameArg: string): { name: string; tag?: string } {
-  const colonIndex = nameArg.lastIndexOf(":");
-  if (colonIndex > 0) {
-    return {
-      name: nameArg.slice(0, colonIndex),
-      tag: nameArg.slice(colonIndex + 1),
-    };
-  }
-  return { name: nameArg };
 }
 
 async function resolveOutputPath(
@@ -140,6 +121,51 @@ export async function downloadArtifact(
       await fs.remove(tempPath);
     }
     throw error;
+  }
+}
+
+/**
+ * The shared tail of a single-artifact pull: dry-run, destination, conflict
+ * prompt, download, and the optional JSON result.
+ *
+ * `successSubject` is the only thing the resource-typed and path-based callers
+ * disagree on, so it is a parameter rather than two copies of the sequence.
+ */
+async function completePull(
+  api: CirronApi,
+  artifact: PullArtifactInfo,
+  options: PullOptions,
+  spinner: ReturnType<typeof ora>,
+  successSubject: string
+): Promise<void> {
+  const outputDir = options.output || process.cwd();
+
+  if (options.dryRun) {
+    spinner.stop();
+    printDryRun([artifact], outputDir, options.json ?? false);
+    return;
+  }
+
+  const destPath = await resolveOutputPath(artifact, options.output);
+
+  const shouldProceed = await checkConflict(destPath, options.force ?? false);
+  if (!shouldProceed) {
+    spinner.info(`Skipped ${artifact.name} (file exists)`);
+    return;
+  }
+
+  await downloadArtifact(api, artifact, destPath, spinner);
+
+  spinner.succeed(`Pulled ${successSubject} -> ${destPath}`);
+
+  if (options.json) {
+    const result: PullResult = {
+      artifact,
+      outputPath: destPath,
+      verified: true,
+      skipped: false,
+    };
+    console.log(JSON.stringify(result, null, 2));
   }
 }
 
@@ -293,37 +319,13 @@ async function pullResourceTyped(
     }
 
     const artifact = artifacts[0]!;
-    const outputDir = options.output || process.cwd();
-
-    if (options.dryRun) {
-      spinner.stop();
-      printDryRun([artifact], outputDir, options.json ?? false);
-      return;
-    }
-
-    const destPath = await resolveOutputPath(artifact, options.output);
-
-    const shouldProceed = await checkConflict(destPath, options.force ?? false);
-    if (!shouldProceed) {
-      spinner.info(`Skipped ${artifact.name} (file exists)`);
-      return;
-    }
-
-    await downloadArtifact(api, artifact, destPath, spinner);
-
-    spinner.succeed(
-      `Pulled ${chalk.cyan(artifact.name)}:${resolvedTag} -> ${destPath}`
+    await completePull(
+      api,
+      artifact,
+      options,
+      spinner,
+      `${chalk.cyan(artifact.name)}:${resolvedTag}`
     );
-
-    if (options.json) {
-      const result: PullResult = {
-        artifact,
-        outputPath: destPath,
-        verified: true,
-        skipped: false,
-      };
-      console.log(JSON.stringify(result, null, 2));
-    }
   } catch (error) {
     spinner.fail(`Failed to pull ${resource} ${resolvedName}`);
     if (error instanceof Error) {
@@ -361,35 +363,13 @@ async function pullPathBased(
     }
 
     const artifact = artifacts[0]!;
-    const outputDir = options.output || process.cwd();
-
-    if (options.dryRun) {
-      spinner.stop();
-      printDryRun([artifact], outputDir, options.json ?? false);
-      return;
-    }
-
-    const destPath = await resolveOutputPath(artifact, options.output);
-
-    const shouldProceed = await checkConflict(destPath, options.force ?? false);
-    if (!shouldProceed) {
-      spinner.info(`Skipped ${artifact.name} (file exists)`);
-      return;
-    }
-
-    await downloadArtifact(api, artifact, destPath, spinner);
-
-    spinner.succeed(`Pulled ${chalk.cyan(resourcePath)} -> ${destPath}`);
-
-    if (options.json) {
-      const result: PullResult = {
-        artifact,
-        outputPath: destPath,
-        verified: true,
-        skipped: false,
-      };
-      console.log(JSON.stringify(result, null, 2));
-    }
+    await completePull(
+      api,
+      artifact,
+      options,
+      spinner,
+      chalk.cyan(resourcePath)
+    );
   } catch (error) {
     spinner.fail(`Failed to pull ${resourcePath}`);
     if (error instanceof Error) {
