@@ -7,7 +7,17 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
+
+// Stub per test rather than at module scope: Vitest workers share globalThis,
+// so an unrestored stub can leak into later files and make the suite
+// order-dependent.
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 import { CirronApi } from "../../src/utils/api";
 import {

@@ -588,9 +588,7 @@ export class CirronApi {
         const fileStream = createWriteStream(destPath);
         // Native fetch hands back a web ReadableStream; the rest of this
         // method wants Node stream semantics.
-        const bodyStream = Readable.fromWeb(
-          response.body as Parameters<typeof Readable.fromWeb>[0]
-        );
+        const bodyStream = Readable.fromWeb(response.body);
 
         await new Promise<void>((resolve, reject) => {
           bodyStream.on("data", (chunk: Buffer) => {

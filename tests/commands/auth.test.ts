@@ -21,7 +21,17 @@ import { makeTmpDir } from "../helpers/tmpdir";
 
 const openMock = vi.mocked(open);
 const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
+
+// Stub per test rather than at module scope: Vitest workers share globalThis,
+// so an unrestored stub can leak into later files and make the suite
+// order-dependent.
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /**
  * Verifies the graceful-error layer for the auth command:
