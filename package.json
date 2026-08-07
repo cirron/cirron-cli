@@ -44,7 +44,8 @@
     "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build && npm test",
     "lint": "ultracite check",
-    "lint:fix": "ultracite fix"
+    "lint:fix": "ultracite fix",
+    "contracts:check": "node scripts/contracts-check.mjs"
   },
   "version": "0.1.1",
   "description": "Official CLI for Cirron, providing streamlined commands for building, deploying, and managing ML models on and off the platform.",

@@ -1,0 +1,30 @@
+{
+  "endpoint": "/api/cli/models",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "name": "demo-model",
+      "framework": "pytorch"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "success": true,
+      "model": {
+        "id": "m_1",
+        "name": "demo-model",
+        "category": null,
+        "source": null,
+        "framework": "pytorch",
+        "description": null,
+        "active": true,
+        "servingConfig": null,
+        "selectedDirectory": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    }
+  }
+}

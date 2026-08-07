@@ -1,0 +1,32 @@
+{
+  "endpoint": "/api/cli/registry/pull",
+  "method": "GET",
+  "scenario": "success",
+  "request": {
+    "query": {
+      "resource": "model",
+      "name": "demo-model",
+      "tag": "latest"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "artifacts": [
+          {
+            "id": "art_1",
+            "name": "demo-model",
+            "type": "model",
+            "tag": "latest",
+            "filename": "demo-model.pth",
+            "size": 1024,
+            "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "createdAt": "2026-01-01T00:00:00.000Z"
+          }
+        ]
+      }
+    }
+  }
+}
