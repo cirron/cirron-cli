@@ -1,0 +1,16 @@
+{
+  "endpoint": "/api/cli/auth/device",
+  "method": "POST",
+  "scenario": "success",
+  "response": {
+    "status": 200,
+    "body": {
+      "deviceCode": "device_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "userCode": "ABCD12345678",
+      "verificationUrl": "https://app.cirron.com/cli/authorize",
+      "verificationUrlComplete": "https://app.cirron.com/cli/authorize?user_code=ABCD12345678",
+      "expiresIn": 600,
+      "interval": 5
+    }
+  }
+}

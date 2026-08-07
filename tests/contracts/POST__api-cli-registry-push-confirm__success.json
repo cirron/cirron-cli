@@ -1,0 +1,27 @@
+{
+  "endpoint": "/api/cli/registry/push/confirm",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "uploadId": "upload_1",
+      "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 1024
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "artifactId": "art_1",
+        "name": "demo-model",
+        "type": "model",
+        "tag": "latest",
+        "size": 1024,
+        "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "createdAt": "2026-01-01T00:00:00.000Z"
+      }
+    }
+  }
+}

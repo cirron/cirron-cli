@@ -1,0 +1,16 @@
+{
+  "endpoint": "/api/cli/auth/device",
+  "method": "GET",
+  "scenario": "rate-limited",
+  "response": {
+    "status": 429,
+    "headers": {
+      "retry-after": "7"
+    },
+    "body": {
+      "error": "Rate limit exceeded",
+      "reason": "rate_limited",
+      "retryAfterMs": 7000
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "endpoint": "/api/cli/auth/device",
+  "method": "GET",
+  "scenario": "expired",
+  "response": {
+    "status": 400,
+    "body": {
+      "error": "expired_token",
+      "errorDescription": "Device code has expired"
+    }
+  }
+}

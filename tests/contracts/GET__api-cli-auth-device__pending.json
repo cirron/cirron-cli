@@ -1,0 +1,12 @@
+{
+  "endpoint": "/api/cli/auth/device",
+  "method": "GET",
+  "scenario": "pending",
+  "response": {
+    "status": 400,
+    "body": {
+      "error": "authorization_pending",
+      "errorDescription": "User has not yet authorized the device"
+    }
+  }
+}
