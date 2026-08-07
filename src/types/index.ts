@@ -92,6 +92,16 @@ export interface ProjectConfig {
   metadata?: ModelMetadata;
   // Required core fields, matching the cirron-sample-models reference shape.
   name: string;
+  /**
+   * Slug of the Cirron Platform this project belongs to.
+   *
+   * A hint only: the CLI never resolves it locally and never learns a bucket
+   * or credential from it. The server validates the slug against the caller's
+   * organization and rejects one they do not own. Omitted means the server
+   * infers the Platform from the artifact name or falls back to the org
+   * default.
+   */
+  platform?: string;
   profiling?: Record<string, unknown>;
 
   // Legacy fields kept optional because their consumer commands (compile,
@@ -849,6 +859,8 @@ export interface PushOptions {
   ignore?: string;
   json?: boolean;
   message?: string;
+  /** `--platform <slug>`; overrides `platform` in the project config. */
+  platform?: string;
   registry?: string;
   tag?: string;
 }

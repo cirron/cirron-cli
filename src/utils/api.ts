@@ -676,6 +676,7 @@ export class CirronApi {
     name?: string;
     tag?: string;
     registry?: string;
+    platform?: string;
   }): Promise<PushUploadUrl> {
     const body: Record<string, string | number> = {
       filename: options.filename,
@@ -693,6 +694,9 @@ export class CirronApi {
     }
     if (options.registry) {
       body["registry"] = options.registry;
+    }
+    if (options.platform) {
+      body["platform"] = options.platform;
     }
 
     const response = await this.request("/api/cli/registry/push/upload-url", {
@@ -805,6 +809,7 @@ export class CirronApi {
     checksum: string;
     name?: string;
     contentType?: string;
+    platform?: string;
   }): Promise<PushMultipartInit> {
     const body: Record<string, string | number> = {
       filename: options.filename,
@@ -816,6 +821,12 @@ export class CirronApi {
     }
     if (options.contentType) {
       body["contentType"] = options.contentType;
+    }
+    // Forwarded here as well as on getUploadUrl: artifacts above the
+    // multipart threshold never touch upload-url, and those are exactly the
+    // large model weights most likely to need an explicit Platform.
+    if (options.platform) {
+      body["platform"] = options.platform;
     }
 
     const response = await this.request(

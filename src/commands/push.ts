@@ -67,6 +67,7 @@ interface UploadOpts {
   gitHash?: string;
   message?: string;
   name?: string;
+  platform?: string;
   registry?: string;
   resource?: string;
   tag?: string;
@@ -85,6 +86,7 @@ function buildUploadOpts(values: {
   gitHash?: string | undefined;
   message?: string | undefined;
   name?: string | undefined;
+  platform?: string | undefined;
   registry?: string | undefined;
   resource?: string | undefined;
   tag?: string | undefined;
@@ -111,7 +113,22 @@ function buildUploadOpts(values: {
   if (values.gitHash) {
     opts.gitHash = values.gitHash;
   }
+  if (values.platform) {
+    opts.platform = values.platform;
+  }
   return opts;
+}
+
+/**
+ * The Platform slug to send with an upload, if any.
+ *
+ * `--platform` beats the `platform` key in the project config; with neither
+ * set the CLI sends nothing and the server resolves the Platform from the
+ * artifact name or the organization default. The CLI never interprets the
+ * slug beyond passing it along.
+ */
+function resolvePlatformHint(flag: string | undefined): string | undefined {
+  return flag ?? loadProjectConfig()?.platform;
 }
 
 function resolveTag(
@@ -199,6 +216,7 @@ export async function uploadSingleFile(
     registry?: string;
     force?: boolean;
     gitHash?: string;
+    platform?: string;
   },
   spinner: ReturnType<typeof ora>
 ): Promise<PushResult> {
@@ -246,9 +264,12 @@ export async function uploadSingleFile(
   let uploadId: string;
 
   if (fileInfo.size > MULTIPART_THRESHOLD_BYTES) {
-    const multipartOpts: { name?: string } = {};
+    const multipartOpts: { name?: string; platform?: string } = {};
     if (options.name) {
       multipartOpts.name = options.name;
+    }
+    if (options.platform) {
+      multipartOpts.platform = options.platform;
     }
     uploadId = await uploadMultipart(
       api,
@@ -268,6 +289,7 @@ export async function uploadSingleFile(
       name?: string;
       tag?: string;
       registry?: string;
+      platform?: string;
     } = {
       filename: path.basename(fileInfo.filePath),
       size: fileInfo.size,
@@ -284,6 +306,9 @@ export async function uploadSingleFile(
     }
     if (options.registry) {
       uploadUrlOpts.registry = options.registry;
+    }
+    if (options.platform) {
+      uploadUrlOpts.platform = options.platform;
     }
 
     const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
@@ -368,7 +393,7 @@ async function uploadMultipart(
   fileInfo: PushFileInfo,
   spinner: ReturnType<typeof ora>,
   displayName: string,
-  options: { name?: string }
+  options: { name?: string; platform?: string }
 ): Promise<string> {
   spinner.text = `Starting multipart upload for ${displayName}...`;
 
@@ -377,6 +402,7 @@ async function uploadMultipart(
     size: number;
     checksum: string;
     name?: string;
+    platform?: string;
   } = {
     filename: path.basename(fileInfo.filePath),
     size: fileInfo.size,
@@ -384,6 +410,9 @@ async function uploadMultipart(
   };
   if (options.name) {
     initOpts.name = options.name;
+  }
+  if (options.platform) {
+    initOpts.platform = options.platform;
   }
 
   const init = await api.initMultipartUpload(initOpts);
@@ -585,6 +614,7 @@ export async function pushArtifact(
     registry?: string;
     force?: boolean;
     json?: boolean;
+    platform?: string;
   }
 ): Promise<PushResult> {
   const auth = checkAuth();
@@ -607,6 +637,7 @@ export async function pushArtifact(
       registry: options.registry,
       force: options.force,
       gitHash,
+      platform: resolvePlatformHint(options.platform),
     });
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
@@ -686,6 +717,7 @@ async function pushResourceTyped(
       registry: options.registry,
       force: options.force,
       gitHash,
+      platform: resolvePlatformHint(options.platform),
     });
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
@@ -770,6 +802,7 @@ async function pushPathBased(
         registry: options.registry,
         force: options.force,
         gitHash,
+        platform: resolvePlatformHint(options.platform),
       });
 
       const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
@@ -799,6 +832,7 @@ async function pushPathBased(
         force?: boolean;
         json?: boolean;
         gitHash?: string;
+        platform?: string;
       } = {};
       if (resolvedTag) {
         multiOpts.tag = resolvedTag;
@@ -817,6 +851,10 @@ async function pushPathBased(
       }
       if (gitHash) {
         multiOpts.gitHash = gitHash;
+      }
+      const multiPlatform = resolvePlatformHint(options.platform);
+      if (multiPlatform) {
+        multiOpts.platform = multiPlatform;
       }
 
       await pushMultipleFiles(api, fileInfos, multiOpts);
@@ -897,6 +935,7 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
       json?: boolean;
       gitHash?: string;
       projectName?: string;
+      platform?: string;
     } = {
       projectName: projectConfig.name,
     };
@@ -917,6 +956,10 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     }
     if (gitHash) {
       allOpts.gitHash = gitHash;
+    }
+    const allPlatform = resolvePlatformHint(options.platform);
+    if (allPlatform) {
+      allOpts.platform = allPlatform;
     }
 
     await pushMultipleFiles(api, fileInfos, allOpts);
@@ -952,6 +995,7 @@ async function pushMultipleFiles(
     json?: boolean;
     gitHash?: string;
     projectName?: string;
+    platform?: string;
   }
 ): Promise<void> {
   const results: PushResult[] = [];
@@ -972,6 +1016,7 @@ async function pushMultipleFiles(
         registry: options.registry,
         force: options.force,
         gitHash: options.gitHash,
+        platform: options.platform,
       });
 
       const result = await uploadSingleFile(

@@ -401,6 +401,118 @@ describe("pushCommand", () => {
     expect(parsed.uploaded).toBe(2);
   });
 
+  describe("--platform hint", () => {
+    /**
+     * The CLI only forwards a slug; it never resolves a Platform, bucket or
+     * credential locally. The server validates the slug against the caller's
+     * org. These cases pin the precedence and, critically, that the hint
+     * reaches BOTH upload paths.
+     */
+    it("sends the --platform flag on a single-PUT upload", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
+      stubUploadChain();
+
+      await pushCommand("model", "demo.pth", { platform: "prod-ml" });
+
+      expect(CirronApi.prototype.getUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "prod-ml" })
+      );
+    });
+
+    it("falls back to the platform key in the project config", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir, { platform: "from-config" });
+      writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
+      stubUploadChain();
+
+      await pushCommand("model", "demo.pth", {});
+
+      expect(CirronApi.prototype.getUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "from-config" })
+      );
+    });
+
+    it("prefers the flag over the project config", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir, { platform: "from-config" });
+      writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
+      stubUploadChain();
+
+      await pushCommand("model", "demo.pth", { platform: "from-flag" });
+
+      expect(CirronApi.prototype.getUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "from-flag" })
+      );
+    });
+
+    it("sends no platform key when neither is set", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
+      stubUploadChain();
+
+      await pushCommand("model", "demo.pth", {});
+
+      // Absent, not empty-string: the server distinguishes "no hint" (resolve
+      // from the artifact name or the org default) from a slug to validate.
+      const [opts] = (
+        CirronApi.prototype.getUploadUrl as unknown as {
+          mock: { calls: [Record<string, unknown>][] };
+        }
+      ).mock.calls[0] as [Record<string, unknown>];
+      expect(Object.hasOwn(opts, "platform")).toBe(false);
+    });
+
+    it("sends the hint on the multipart path too", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const partSize = 200 * 1024 * 1024;
+      const filePath = path.join(tmp.dir, "huge.bin");
+      fs.writeFileSync(filePath, "small-real-contents");
+      const realStat = fs.stat.bind(fs);
+      vi.spyOn(fs, "stat").mockImplementation((async (target: string) => {
+        const stat = await realStat(target);
+        if (String(target).endsWith("huge.bin")) {
+          return Object.assign(stat, { size: partSize * 2 });
+        }
+        return stat;
+      }) as never);
+
+      vi.spyOn(CirronApi.prototype, "checkDedupe").mockResolvedValue(
+        pushDedupe()
+      );
+      vi.spyOn(CirronApi.prototype, "initMultipartUpload").mockResolvedValue(
+        pushMultipartInit({ partCount: 2, partSize })
+      );
+      vi.spyOn(CirronApi.prototype, "getMultipartPartUrl").mockResolvedValue(
+        pushMultipartPartUrl()
+      );
+      vi.spyOn(CirronApi.prototype, "uploadFilePart").mockResolvedValue(
+        '"etag-x"'
+      );
+      vi.spyOn(CirronApi.prototype, "recordMultipartPart").mockResolvedValue(
+        pushMultipartPartRecord()
+      );
+      vi.spyOn(
+        CirronApi.prototype,
+        "completeMultipartUpload"
+      ).mockResolvedValue(pushMultipartComplete());
+      vi.spyOn(CirronApi.prototype, "confirmUpload").mockResolvedValue(
+        pushConfirmation()
+      );
+      const uploadUrlSpy = vi.spyOn(CirronApi.prototype, "getUploadUrl");
+
+      await pushCommand("./huge.bin", undefined, { platform: "prod-ml" });
+
+      // Artifacts above the threshold never touch upload-url, so forwarding
+      // the hint only there would drop it for exactly the large model
+      // weights this flag exists to route.
+      expect(CirronApi.prototype.initMultipartUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "prod-ml" })
+      );
+      expect(uploadUrlSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("multipart upload", () => {
     const THRESHOLD = 256 * 1024 * 1024;
 
