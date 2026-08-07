@@ -2,6 +2,13 @@
   "endpoint": "/api/cli/registry/pull",
   "method": "GET",
   "scenario": "success",
+  "request": {
+    "query": {
+      "resource": "model",
+      "name": "demo-model",
+      "tag": "latest"
+    }
+  },
   "response": {
     "status": 200,
     "body": {

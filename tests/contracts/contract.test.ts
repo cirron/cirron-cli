@@ -37,7 +37,15 @@ import { makeTmpDir } from "../helpers/tmpdir";
 interface Fixture {
   endpoint: string;
   method: string;
-  request?: { body?: Record<string, unknown> };
+  request?: {
+    body?: Record<string, unknown>;
+    /**
+     * Query parameters that are part of the contract. Several calls carry
+     * their whole payload here (device_code, artifactId, resource/name/tag),
+     * so a rename on either side has to fail a test.
+     */
+    query?: Record<string, string>;
+  };
   response: {
     status: number;
     headers?: Record<string, string>;
@@ -56,6 +64,9 @@ interface Case {
 }
 
 const FIXTURE_DIR = __dirname;
+
+/** Matches the device code the auth/device fixtures pin. */
+const DEVICE_CODE = `device_${"a".repeat(32)}`;
 
 function loadFixtures(): Fixture[] {
   return fs
@@ -111,7 +122,7 @@ const CASES: Record<string, Case> = {
   },
 
   "GET /api/cli/auth/device success": {
-    invoke: (api) => api.pollDeviceAuthorization("device_code"),
+    invoke: (api) => api.pollDeviceAuthorization(DEVICE_CODE),
     assert: (outcome) => {
       const status = value(outcome);
       // Device success is camelCase and flat, with no status discriminator.
@@ -123,7 +134,7 @@ const CASES: Record<string, Case> = {
   },
 
   "GET /api/cli/auth/device pending": {
-    invoke: (api) => api.pollDeviceAuthorization("device_code"),
+    invoke: (api) => api.pollDeviceAuthorization(DEVICE_CODE),
     assert: (outcome) => {
       const err = error(outcome);
       expect(err).toBeInstanceOf(PlatformBadRequestError);
@@ -133,7 +144,7 @@ const CASES: Record<string, Case> = {
   },
 
   "GET /api/cli/auth/device expired": {
-    invoke: (api) => api.pollDeviceAuthorization("device_code"),
+    invoke: (api) => api.pollDeviceAuthorization(DEVICE_CODE),
     assert: (outcome) => {
       const err = error(outcome);
       expect(err).toBeInstanceOf(PlatformBadRequestError);
@@ -142,7 +153,7 @@ const CASES: Record<string, Case> = {
   },
 
   "GET /api/cli/auth/device rate-limited": {
-    invoke: (api) => api.pollDeviceAuthorization("device_code"),
+    invoke: (api) => api.pollDeviceAuthorization(DEVICE_CODE),
     assert: (outcome) => {
       const err = error(outcome);
       expect(err).toBeInstanceOf(PlatformRateLimitError);
@@ -273,7 +284,11 @@ const CASES: Record<string, Case> = {
 
   "GET /api/cli/registry/pull success": {
     invoke: (api) =>
-      api.getPullArtifacts({ resource: "model", name: "demo-model" }),
+      api.getPullArtifacts({
+        resource: "model",
+        name: "demo-model",
+        tag: "latest",
+      }),
     assert: (outcome) => {
       // Pull nests its list one level deeper, under data.artifacts.
       const artifacts = value(outcome);
@@ -375,7 +390,19 @@ describe("CLI/platform wire contract", () => {
       expect(requestUrl.pathname).toMatch(pathMatcher(fixture.endpoint));
       expect(init?.method ?? "GET").toBe(fixture.method);
 
-      // 2. Every key the fixture declares is present in what we sent. The
+      // 2. Every query parameter the fixture declares was sent, with the
+      //    value it declares. Renaming device_code or artifactId is a
+      //    breaking change and has to fail here.
+      if (fixture.request?.query) {
+        for (const [param, expected] of Object.entries(fixture.request.query)) {
+          expect(
+            requestUrl.searchParams.get(param),
+            `query parameter "${param}"`
+          ).toBe(expected);
+        }
+      }
+
+      // 3. Every key the fixture declares is present in what we sent. The
       //    client may send more; it may not send less.
       if (fixture.request?.body) {
         const sent = JSON.parse(init?.body ?? "{}");
@@ -386,7 +413,7 @@ describe("CLI/platform wire contract", () => {
         }
       }
 
-      // 3. Whatever the fixture pins about how the body is read.
+      // 4. Whatever the fixture pins about how the body is read.
       testCase.assert?.(outcome);
     });
   }

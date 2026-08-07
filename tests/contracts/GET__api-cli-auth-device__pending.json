@@ -2,6 +2,11 @@
   "endpoint": "/api/cli/auth/device",
   "method": "GET",
   "scenario": "pending",
+  "request": {
+    "query": {
+      "device_code": "device_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
   "response": {
     "status": 400,
     "body": {

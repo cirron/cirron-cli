@@ -2,6 +2,11 @@
   "endpoint": "/api/cli/registry/pull/download",
   "method": "GET",
   "scenario": "success",
+  "request": {
+    "query": {
+      "artifactId": "art_1"
+    }
+  },
   "response": {
     "status": 200,
     "body": {
