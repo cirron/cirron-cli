@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
@@ -11,11 +10,11 @@ import type {
   PushOptions,
   PushResourceType,
   PushResult,
-  PushSessionInfo,
   PushSummary,
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import { mapWithConcurrency } from "../utils/concurrency";
 import { ConfigManager } from "../utils/config";
 import { getShortCommitHash } from "../utils/git";
 import { CirronIgnore } from "../utils/ignore";
@@ -30,8 +29,15 @@ const KNOWN_RESOURCE_TYPES: PushResourceType[] = [
   "build",
   "runtime",
 ];
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
-const UPLOAD_SESSIONS_DIR = path.join(os.homedir(), ".cirron", "uploads");
+/**
+ * The client has to choose an upload path before it has talked to the server,
+ * so this cannot be read from the API. `init` echoes the authoritative value
+ * back and the driver logs a debug line when the two disagree.
+ */
+const MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
+
+/** Parts in flight at once. Bounded to stay well inside registry rate limits. */
+const PART_UPLOAD_CONCURRENCY = 4;
 
 // --- Helpers ---
 
@@ -241,38 +247,6 @@ async function resolveResourceFile(
   return null;
 }
 
-// --- Upload Session Management ---
-
-async function loadUploadSession(
-  checksum: string
-): Promise<PushSessionInfo | null> {
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${checksum}.json`);
-  if (await fs.pathExists(sessionFile)) {
-    try {
-      return await fs.readJSON(sessionFile);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-async function saveUploadSession(session: PushSessionInfo): Promise<void> {
-  await fs.ensureDir(UPLOAD_SESSIONS_DIR);
-  const sessionFile = path.join(
-    UPLOAD_SESSIONS_DIR,
-    `${session.checksum}.json`
-  );
-  await fs.writeJSON(sessionFile, session, { spaces: 2 });
-}
-
-async function removeUploadSession(checksum: string): Promise<void> {
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${checksum}.json`);
-  if (await fs.pathExists(sessionFile)) {
-    await fs.remove(sessionFile);
-  }
-}
-
 // --- Core Upload Flow ---
 
 export async function uploadSingleFile(
@@ -325,48 +299,57 @@ export async function uploadSingleFile(
     }
   }
 
-  // Step 2: Get signed upload URL
-  spinner.text = `Requesting upload URL for ${displayName}...`;
+  // Steps 2-3: Upload the bytes.
+  //
+  // Above the platform's multipart threshold, `init` opens its own upload
+  // session, so requesting a single-PUT upload URL first would orphan a
+  // second one. Both paths yield the session id that `confirm` resolves.
+  let uploadId: string;
 
-  const uploadUrlOpts: {
-    filename: string;
-    size: number;
-    checksum: string;
-    resource?: string;
-    name?: string;
-    tag?: string;
-    registry?: string;
-  } = {
-    filename: path.basename(fileInfo.filePath),
-    size: fileInfo.size,
-    checksum: fileInfo.checksum,
-  };
-  if (options.resource) {
-    uploadUrlOpts.resource = options.resource;
-  }
-  if (options.name) {
-    uploadUrlOpts.name = options.name;
-  }
-  if (options.tag) {
-    uploadUrlOpts.tag = options.tag;
-  }
-  if (options.registry) {
-    uploadUrlOpts.registry = options.registry;
-  }
-
-  const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
-
-  // Step 3: Upload file
-  if (fileInfo.size > CHUNK_SIZE) {
-    await uploadChunked(
+  if (fileInfo.size > MULTIPART_THRESHOLD_BYTES) {
+    const multipartOpts: { name?: string } = {};
+    if (options.name) {
+      multipartOpts.name = options.name;
+    }
+    uploadId = await uploadMultipart(
       api,
       fileInfo,
-      uploadInfo.uploadUrl,
-      uploadInfo.chunkSize || CHUNK_SIZE,
       spinner,
-      displayName
+      displayName,
+      multipartOpts
     );
   } else {
+    spinner.text = `Requesting upload URL for ${displayName}...`;
+
+    const uploadUrlOpts: {
+      filename: string;
+      size: number;
+      checksum: string;
+      resource?: string;
+      name?: string;
+      tag?: string;
+      registry?: string;
+    } = {
+      filename: path.basename(fileInfo.filePath),
+      size: fileInfo.size,
+      checksum: fileInfo.checksum,
+    };
+    if (options.resource) {
+      uploadUrlOpts.resource = options.resource;
+    }
+    if (options.name) {
+      uploadUrlOpts.name = options.name;
+    }
+    if (options.tag) {
+      uploadUrlOpts.tag = options.tag;
+    }
+    if (options.registry) {
+      uploadUrlOpts.registry = options.registry;
+    }
+
+    const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
+    uploadId = uploadInfo.uploadId;
+
     spinner.text = `Uploading ${displayName} (${formatSize(fileInfo.size)})...`;
     await api.uploadFile(
       uploadInfo.uploadUrl,
@@ -391,7 +374,7 @@ export async function uploadSingleFile(
     message?: string;
     gitHash?: string;
   } = {
-    uploadId: uploadInfo.uploadId,
+    uploadId,
     checksum: fileInfo.checksum,
     size: fileInfo.size,
   };
@@ -430,100 +413,127 @@ export async function uploadSingleFile(
   };
 }
 
-// --- Chunked Upload with Resume ---
+// --- Multipart Upload ---
 
-async function uploadChunked(
+/**
+ * Upload an artifact as provider-native multipart parts.
+ *
+ * Returns the upload session id, which is what `confirmUpload` resolves (the
+ * provider's own upload id is internal to the platform).
+ *
+ * Parts are presigned one at a time immediately before their PUT because a
+ * presigned part URL expires well before a very large upload finishes.
+ */
+async function uploadMultipart(
   api: CirronApi,
   fileInfo: PushFileInfo,
-  uploadUrl: string,
-  chunkSize: number,
   spinner: ReturnType<typeof ora>,
-  displayName: string
-): Promise<void> {
-  const totalChunks = Math.ceil(fileInfo.size / chunkSize);
+  displayName: string,
+  options: { name?: string }
+): Promise<string> {
+  spinner.text = `Starting multipart upload for ${displayName}...`;
 
-  // Check for existing session (resume)
-  let session = await loadUploadSession(fileInfo.checksum);
+  const initOpts: {
+    filename: string;
+    size: number;
+    checksum: string;
+    name?: string;
+  } = {
+    filename: path.basename(fileInfo.filePath),
+    size: fileInfo.size,
+    checksum: fileInfo.checksum,
+  };
+  if (options.name) {
+    initOpts.name = options.name;
+  }
 
-  // Discard stale session if chunk parameters no longer match
-  if (
-    session &&
-    (session.chunkSize !== chunkSize || session.totalChunks !== totalChunks)
-  ) {
-    logger.info(
-      `Discarding stale upload session for ${displayName} (chunk parameters changed)`
+  const init = await api.initMultipartUpload(initOpts);
+
+  if (init.multipartThreshold !== MULTIPART_THRESHOLD_BYTES) {
+    logger.debug(
+      `Server multipart threshold is ${init.multipartThreshold} but this CLI uses ${MULTIPART_THRESHOLD_BYTES}`
     );
-    await removeUploadSession(fileInfo.checksum);
-    session = null;
   }
 
-  const completedChunks = new Set<number>(session?.completedChunks || []);
+  // Every part, every time.
+  //
+  // Resuming an interrupted upload is not possible against the current
+  // platform contract: `init` unconditionally opens a NEW provider-side
+  // multipart upload before it decides whether to reuse a session row, so a
+  // re-run can never adopt the parts a previous run uploaded. Reading
+  // `session/{id}` for prior progress would always come back empty. If init
+  // ever becomes idempotent, this is the place that changes.
+  const pending: number[] = [];
+  for (let partNumber = 1; partNumber <= init.partCount; partNumber++) {
+    pending.push(partNumber);
+  }
 
-  if (session && completedChunks.size > 0) {
-    logger.info(
-      `Resuming upload for ${displayName}: ${completedChunks.size}/${totalChunks} chunks already uploaded`
+  let uploadedBytes = 0;
+  let done = 0;
+
+  const updateProgress = (): void => {
+    const pct = Math.min(
+      100,
+      Math.round((uploadedBytes / fileInfo.size) * 100)
     );
-  }
+    spinner.text = `Uploading ${displayName}: ${pct}% (${done}/${init.partCount} parts)`;
+  };
+  updateProgress();
 
-  if (!session) {
-    const serverSession = await api.createUploadSession({
-      filePath: fileInfo.relativePath,
-      totalSize: fileInfo.size,
-      chunkSize,
-      totalChunks,
-      checksum: fileInfo.checksum,
-    });
+  try {
+    await mapWithConcurrency(
+      pending,
+      PART_UPLOAD_CONCURRENCY,
+      async (partNumber) => {
+        const { url } = await api.getMultipartPartUrl({
+          sessionId: init.sessionId,
+          partNumber,
+        });
 
-    session = {
-      sessionId: serverSession.sessionId,
-      filePath: fileInfo.filePath,
-      checksum: fileInfo.checksum,
-      totalSize: fileInfo.size,
-      chunkSize,
-      totalChunks,
-      completedChunks: [],
-      chunkChecksums: {},
-      uploadUrl,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await saveUploadSession(session);
-  }
+        const start = (partNumber - 1) * init.partSize;
+        const length = Math.min(init.partSize, fileInfo.size - start);
 
-  // Upload remaining chunks
-  for (let i = 0; i < totalChunks; i++) {
-    if (completedChunks.has(i)) {
-      continue;
-    }
-
-    const chunkNum = i + 1;
-    spinner.text = `Uploading ${displayName}: chunk ${chunkNum}/${totalChunks} (${formatSize(fileInfo.size)})`;
-
-    const etag = await api.uploadFileChunk(
-      uploadUrl,
-      fileInfo.filePath,
-      i,
-      chunkSize,
-      fileInfo.size,
-      (uploaded, _chunkTotal) => {
-        const overallUploaded = Math.min(
-          completedChunks.size * chunkSize + uploaded,
-          fileInfo.size
+        const etag = await api.uploadFilePart(
+          url,
+          fileInfo.filePath,
+          start,
+          length,
+          (delta) => {
+            uploadedBytes += delta;
+            updateProgress();
+          }
         );
-        const pct = Math.round((overallUploaded / fileInfo.size) * 100);
-        spinner.text = `Uploading ${displayName}: ${pct}% (chunk ${chunkNum}/${totalChunks})`;
+
+        await api.recordMultipartPart({
+          sessionId: init.sessionId,
+          partNumber,
+          etag,
+          sizeBytes: length,
+        });
+
+        done++;
+        updateProgress();
       }
     );
 
-    completedChunks.add(i);
-    session.completedChunks = [...completedChunks];
-    session.chunkChecksums[i] = etag;
-    session.updatedAt = new Date().toISOString();
-    await saveUploadSession(session);
+    spinner.text = `Assembling ${displayName} (${init.partCount} parts)...`;
+    await api.completeMultipartUpload({ sessionId: init.sessionId });
+  } catch (error) {
+    // Abort so the provider stops billing for the orphaned parts. A failed
+    // abort must not mask the failure that got us here.
+    try {
+      await api.abortMultipartUpload({ sessionId: init.sessionId });
+    } catch (abortError) {
+      const msg =
+        abortError instanceof Error ? abortError.message : "Unknown error";
+      logger.debug(
+        `Failed to abort multipart upload ${init.sessionId}: ${msg}`
+      );
+    }
+    throw error;
   }
 
-  // Clean up session on success
-  await removeUploadSession(session.checksum);
+  return init.sessionId;
 }
 
 // --- Dry Run ---

@@ -18,6 +18,11 @@ import type {
   PullDownloadInfo,
   PushConfirmation,
   PushDedupeResult,
+  PushMultipartAbort,
+  PushMultipartComplete,
+  PushMultipartInit,
+  PushMultipartPartRecord,
+  PushMultipartPartUrl,
   PushSessionInfo,
   PushUploadUrl,
   RawDeploymentInfo,
@@ -786,6 +791,107 @@ export class CirronApi {
     return response.data;
   }
 
+  // Multipart upload (artifacts above the platform's multipart threshold)
+
+  /**
+   * Open a provider-native multipart upload.
+   *
+   * Creates the upload session itself, so callers must NOT also call
+   * `getUploadUrl` or `createUploadSession` for the same artifact.
+   */
+  async initMultipartUpload(options: {
+    filename: string;
+    size: number;
+    checksum: string;
+    name?: string;
+    contentType?: string;
+  }): Promise<PushMultipartInit> {
+    const body: Record<string, string | number> = {
+      filename: options.filename,
+      size: options.size,
+      checksum: options.checksum,
+    };
+    if (options.name) {
+      body["name"] = options.name;
+    }
+    if (options.contentType) {
+      body["contentType"] = options.contentType;
+    }
+
+    const response = await this.request(
+      "/api/cli/registry/push/multipart/init",
+      { method: "POST", body }
+    );
+    return response.data;
+  }
+
+  /**
+   * Presign one part's PUT. Part numbers are 1-based.
+   *
+   * Presigned part URLs expire, so call this immediately before uploading the
+   * part rather than presigning the whole upload up front.
+   */
+  async getMultipartPartUrl(options: {
+    sessionId: string;
+    partNumber: number;
+  }): Promise<PushMultipartPartUrl> {
+    const response = await this.request(
+      "/api/cli/registry/push/multipart/part-url",
+      { method: "POST", body: options }
+    );
+    return response.data;
+  }
+
+  /** Record a finished part. Idempotent per part, so retries are safe. */
+  async recordMultipartPart(options: {
+    sessionId: string;
+    partNumber: number;
+    etag: string;
+    sizeBytes?: number;
+  }): Promise<PushMultipartPartRecord> {
+    const body: Record<string, string | number> = {
+      sessionId: options.sessionId,
+      partNumber: options.partNumber,
+      etag: options.etag,
+    };
+    if (options.sizeBytes !== undefined) {
+      body["sizeBytes"] = options.sizeBytes;
+    }
+
+    const response = await this.request(
+      "/api/cli/registry/push/multipart/part-complete",
+      { method: "POST", body }
+    );
+    return response.data;
+  }
+
+  /**
+   * Assemble the uploaded parts into the final object.
+   *
+   * Leaves the session open on purpose: `confirmUpload` remains the step that
+   * creates the artifact and closes the session.
+   */
+  async completeMultipartUpload(options: {
+    sessionId: string;
+  }): Promise<PushMultipartComplete> {
+    const response = await this.request(
+      "/api/cli/registry/push/multipart/complete",
+      { method: "POST", body: options }
+    );
+    return response.data;
+  }
+
+  /** Discard an in-progress multipart upload and its recorded parts. */
+  async abortMultipartUpload(options: {
+    sessionId: string;
+  }): Promise<PushMultipartAbort> {
+    const response = await this.request(
+      "/api/cli/registry/push/multipart/abort",
+      { method: "POST", body: options }
+    );
+    return response.data;
+  }
+
   async uploadFile(
     url: string,
     filePath: string,
@@ -846,6 +952,108 @@ export class CirronApi {
         }
 
         return;
+      } catch (error) {
+        lastError = error as Error;
+
+        if (
+          error instanceof Error &&
+          (error.message.includes("401") || error.message.includes("403"))
+        ) {
+          throw error;
+        }
+
+        attempt++;
+        if (attempt <= this.config.retries) {
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * PUT one multipart part to its presigned URL and return the storage
+   * provider's ETag.
+   *
+   * Deliberately does NOT send `Content-Range`: a presigned part URL is signed
+   * for one (uploadId, partNumber) and takes the part's bytes as its entire
+   * body. That is the difference from `uploadFileChunk`, which targets a
+   * single-object URL and cannot be reused here.
+   *
+   * Retries per part rather than per upload, so a transient failure costs one
+   * part instead of the whole artifact.
+   *
+   * `onProgress` reports a byte DELTA, not a running total, because parts
+   * upload concurrently and the caller aggregates across them.
+   */
+  async uploadFilePart(
+    url: string,
+    filePath: string,
+    start: number,
+    length: number,
+    onProgress?: (uploadedDelta: number) => void
+  ): Promise<string> {
+    await this.ensureValidToken();
+
+    const headers: Record<string, string> = {
+      "User-Agent": USER_AGENT,
+      "Content-Type": "application/octet-stream",
+      "Content-Length": length.toString(),
+    };
+
+    let attempt = 0;
+    let lastError: Error = new Error("Part upload failed after retries");
+
+    while (attempt <= this.config.retries) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout * 10);
+
+      try {
+        // Recreated per attempt: a consumed stream cannot be replayed.
+        // createReadStream's `end` is inclusive.
+        const fileStream = createReadStream(filePath, {
+          start,
+          end: start + length - 1,
+        });
+
+        fileStream.on("data", (chunk: string | Buffer) => {
+          if (onProgress) {
+            onProgress(
+              typeof chunk === "string"
+                ? Buffer.byteLength(chunk)
+                : chunk.length
+            );
+          }
+        });
+
+        fileStream.on("error", () => {
+          fileStream.destroy();
+          controller.abort();
+        });
+
+        const response = await fetch(url, {
+          method: "PUT",
+          headers,
+          body: Readable.toWeb(fileStream) as never,
+          duplex: "half",
+          signal: controller.signal,
+        } as RequestInit);
+
+        if (!response.ok) {
+          throw new Error(
+            `Part upload failed: HTTP ${response.status} ${response.statusText}`
+          );
+        }
+
+        // Returned verbatim, quotes included: the platform hands this straight
+        // back to the provider's complete call, which expects that form.
+        return response.headers.get("etag") || "";
       } catch (error) {
         lastError = error as Error;
 

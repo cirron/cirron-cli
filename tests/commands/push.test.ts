@@ -13,6 +13,10 @@ import {
   exitCodeFromError,
   pushConfirmation,
   pushDedupe,
+  pushMultipartComplete,
+  pushMultipartInit,
+  pushMultipartPartRecord,
+  pushMultipartPartUrl,
   pushUploadUrl,
   stubProcessExit,
 } from "../helpers/mock-api";
@@ -395,32 +399,225 @@ describe("pushCommand", () => {
     });
   });
 
-  describe("chunked upload (>5MB)", () => {
-    it("calls createUploadSession + uploadFileChunk for each chunk", async () => {
-      createAuthenticatedSession(tmp.dir);
-      // 6 MB file -> 2 chunks at 5 MB chunkSize
-      const big = path.join(tmp.dir, "big.bin");
-      fs.writeFileSync(big, Buffer.alloc(6 * 1024 * 1024, 0));
+  describe("multipart upload", () => {
+    const THRESHOLD = 256 * 1024 * 1024;
 
+    /**
+     * Make a real (small) file report a huge size so the multipart path is
+     * taken without writing hundreds of megabytes to disk. The checksum still
+     * reads the real bytes; the part uploads are stubbed.
+     */
+    function stubHugeFile(name: string, size: number): string {
+      const filePath = path.join(tmp.dir, name);
+      fs.writeFileSync(filePath, "small-real-contents");
+      const realStat = fs.stat.bind(fs);
+      vi.spyOn(fs, "stat").mockImplementation((async (target: string) => {
+        const stat = await realStat(target);
+        if (String(target).endsWith(name)) {
+          return Object.assign(stat, { size });
+        }
+        return stat;
+      }) as never);
+      return filePath;
+    }
+
+    function stubMultipartChain(init: { partCount: number; partSize: number }) {
       vi.spyOn(CirronApi.prototype, "checkDedupe").mockResolvedValue(
         pushDedupe()
       );
-      vi.spyOn(CirronApi.prototype, "getUploadUrl").mockResolvedValue(
-        pushUploadUrl({ chunkSize: 5 * 1024 * 1024, maxChunks: 2 })
+      vi.spyOn(CirronApi.prototype, "initMultipartUpload").mockResolvedValue(
+        pushMultipartInit(init)
       );
-      vi.spyOn(CirronApi.prototype, "createUploadSession").mockResolvedValue({
-        sessionId: "sess-1",
-      } as never);
-      const chunkSpy = vi
-        .spyOn(CirronApi.prototype, "uploadFileChunk")
-        .mockResolvedValue("etag-x" as never);
+      vi.spyOn(CirronApi.prototype, "getMultipartPartUrl").mockImplementation(
+        (opts) =>
+          Promise.resolve(
+            pushMultipartPartUrl({
+              partNumber: opts.partNumber,
+              url: `https://example.invalid/part/${opts.partNumber}`,
+            })
+          )
+      );
+      vi.spyOn(CirronApi.prototype, "recordMultipartPart").mockResolvedValue(
+        pushMultipartPartRecord()
+      );
+      vi.spyOn(
+        CirronApi.prototype,
+        "completeMultipartUpload"
+      ).mockResolvedValue(pushMultipartComplete());
       vi.spyOn(CirronApi.prototype, "confirmUpload").mockResolvedValue(
-        pushConfirmation({ size: 6 * 1024 * 1024 })
+        pushConfirmation()
       );
+    }
+
+    it("a 6 MB file still takes the single-PUT path", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const big = path.join(tmp.dir, "big.bin");
+      fs.writeFileSync(big, Buffer.alloc(6 * 1024 * 1024, 0));
+
+      stubUploadChain();
+      const initSpy = vi.spyOn(CirronApi.prototype, "initMultipartUpload");
+      const uploadSpy = vi.spyOn(CirronApi.prototype, "uploadFile");
 
       await pushCommand("./big.bin", undefined, {});
 
-      expect(chunkSpy).toHaveBeenCalledTimes(2);
+      // The regression this plan fixes: >5 MB used to take the broken
+      // chunked path. It is now a single PUT, and multipart is not involved
+      // below the threshold.
+      expect(uploadSpy).toHaveBeenCalledTimes(1);
+      expect(initSpy).not.toHaveBeenCalled();
+    });
+
+    it("a file exactly at the threshold takes the single-PUT path", async () => {
+      createAuthenticatedSession(tmp.dir);
+      stubHugeFile("edge.bin", THRESHOLD);
+
+      stubUploadChain();
+      const initSpy = vi.spyOn(CirronApi.prototype, "initMultipartUpload");
+
+      await pushCommand("./edge.bin", undefined, {});
+
+      // The cutover is strictly greater-than, matching the server's "below
+      // this, keep using the single bound PUT". A 256 MiB single PUT is well
+      // inside S3's 5 GiB limit, so the boundary is safe either way.
+      expect(initSpy).not.toHaveBeenCalled();
+      expect(CirronApi.prototype.uploadFile).toHaveBeenCalledTimes(1);
+    });
+
+    it("uploads every part, records each etag, then completes", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const partSize = 128 * 1024 * 1024;
+      stubHugeFile("huge.bin", partSize * 3);
+      stubMultipartChain({ partCount: 3, partSize });
+
+      const partSpy = vi
+        .spyOn(CirronApi.prototype, "uploadFilePart")
+        .mockImplementation((_url, _fp, start) =>
+          Promise.resolve(`"etag-${start}"`)
+        );
+
+      await pushCommand("./huge.bin", undefined, {});
+
+      // Parts upload concurrently, so assert on the set, not the order.
+      const requested = (
+        CirronApi.prototype.getMultipartPartUrl as unknown as {
+          mock: { calls: [{ partNumber: number }][] };
+        }
+      ).mock.calls
+        .map((call) => call[0].partNumber)
+        .sort((a, b) => a - b);
+      expect(requested).toEqual([1, 2, 3]);
+      expect(partSpy).toHaveBeenCalledTimes(3);
+
+      const recorded = (
+        CirronApi.prototype.recordMultipartPart as unknown as {
+          mock: { calls: [{ partNumber: number; etag: string }][] };
+        }
+      ).mock.calls
+        .map((call) => [call[0].partNumber, call[0].etag] as const)
+        .sort((a, b) => a[0] - b[0]);
+      expect(recorded).toEqual([
+        [1, '"etag-0"'],
+        [2, `"etag-${partSize}"`],
+        [3, `"etag-${partSize * 2}"`],
+      ]);
+
+      expect(CirronApi.prototype.completeMultipartUpload).toHaveBeenCalledWith({
+        sessionId: "sess-1",
+      });
+    });
+
+    it("confirms with the session id, not the provider upload id", async () => {
+      createAuthenticatedSession(tmp.dir);
+      stubHugeFile("huge.bin", THRESHOLD * 2);
+      stubMultipartChain({ partCount: 1, partSize: THRESHOLD * 2 });
+      vi.spyOn(CirronApi.prototype, "uploadFilePart").mockResolvedValue(
+        '"etag-1"'
+      );
+
+      await pushCommand("./huge.bin", undefined, {});
+
+      expect(CirronApi.prototype.confirmUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ uploadId: "sess-1" })
+      );
+    });
+
+    it("does not consult prior session progress, because init is not resumable", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const partSize = 128 * 1024 * 1024;
+      stubHugeFile("huge.bin", partSize * 3);
+      stubMultipartChain({ partCount: 3, partSize });
+
+      const sessionSpy = vi.spyOn(CirronApi.prototype, "getUploadSession");
+      const partSpy = vi
+        .spyOn(CirronApi.prototype, "uploadFilePart")
+        .mockResolvedValue('"etag-x"');
+
+      await pushCommand("./huge.bin", undefined, {});
+
+      // `init` opens a fresh provider-side multipart upload every call, so a
+      // prior run's parts can never be adopted. Reading session progress
+      // would be a wasted round trip that always returns nothing.
+      expect(sessionSpy).not.toHaveBeenCalled();
+      expect(partSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("aborts the upload when a part fails", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const partSize = 200 * 1024 * 1024;
+      stubHugeFile("huge.bin", partSize * 2);
+      stubMultipartChain({ partCount: 2, partSize });
+      vi.spyOn(CirronApi.prototype, "uploadFilePart").mockRejectedValue(
+        new Error("Part upload failed: HTTP 500 Internal Server Error")
+      );
+      const abortSpy = vi
+        .spyOn(CirronApi.prototype, "abortMultipartUpload")
+        .mockResolvedValue({ sessionId: "sess-1", aborted: true });
+
+      let caught: unknown;
+      try {
+        await pushCommand("./huge.bin", undefined, {});
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(abortSpy).toHaveBeenCalledWith({ sessionId: "sess-1" });
+      expect(
+        CirronApi.prototype.completeMultipartUpload
+      ).not.toHaveBeenCalled();
+      expect(exitCodeFromError(caught)).toBe(1);
+      expect(errorSpy.mock.calls.flat().join(" ")).toMatch(
+        /Part upload failed/
+      );
+    });
+
+    it("surfaces the missing parts when complete reports a gap", async () => {
+      createAuthenticatedSession(tmp.dir);
+      const partSize = 200 * 1024 * 1024;
+      stubHugeFile("huge.bin", partSize * 2);
+      stubMultipartChain({ partCount: 2, partSize });
+      vi.spyOn(CirronApi.prototype, "uploadFilePart").mockResolvedValue(
+        '"etag-x"'
+      );
+      vi.spyOn(
+        CirronApi.prototype,
+        "completeMultipartUpload"
+      ).mockRejectedValue(new Error("Upload is missing parts: 2"));
+      const abortSpy = vi
+        .spyOn(CirronApi.prototype, "abortMultipartUpload")
+        .mockResolvedValue({ sessionId: "sess-1", aborted: true });
+
+      let caught: unknown;
+      try {
+        await pushCommand("./huge.bin", undefined, {});
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(exitCodeFromError(caught)).toBe(1);
+      expect(abortSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls.flat().join(" ")).toMatch(
+        /missing parts.*2|Upload is missing parts/
+      );
     });
   });
 

@@ -904,11 +904,50 @@ export interface PushSessionInfo {
   completedChunks: number[];
   createdAt: string;
   filePath: string;
+  /** True when the session is backed by a provider-native multipart upload. */
+  multipart?: boolean;
   sessionId: string;
   totalChunks: number;
   totalSize: number;
   updatedAt: string;
   uploadUrl: string;
+}
+
+/**
+ * Multipart upload contract. `partSize` and `partCount` are authoritative:
+ * the server owns the part geometry and the client slices to whatever it
+ * returns. `multipartThreshold` is echoed back so a client can detect that its
+ * own cutover constant has drifted from the server's.
+ */
+export interface PushMultipartInit {
+  multipartThreshold: number;
+  partCount: number;
+  partSize: number;
+  sessionId: string;
+  /** The storage provider's multipart upload id, not the session id. */
+  uploadId: string;
+}
+
+export interface PushMultipartPartUrl {
+  expiresAt: string;
+  partNumber: number;
+  url: string;
+}
+
+export interface PushMultipartPartRecord {
+  completedParts: number;
+  partNumber: number;
+  totalParts: number;
+}
+
+export interface PushMultipartComplete {
+  partCount: number;
+  sessionId: string;
+}
+
+export interface PushMultipartAbort {
+  aborted: boolean;
+  sessionId: string;
 }
 
 export interface PushResult {
