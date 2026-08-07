@@ -290,11 +290,15 @@ npm run test:coverage  # with coverage
 npm run lint           # lint
 npm run lint:fix       # lint and fix
 
+npm run contracts:check  # check the wire fixtures against the platform's copies
+
 npm link               # symlink `cirron` to this checkout for local testing
 npm unlink -g cirron   # remove the symlink
 ```
 
-Tests live in `tests/`. The CLI source is under `src/` (`src/commands/` for command handlers, `src/utils/` for shared utilities, `src/types/` for types), with project templates in `templates/`. See `CLAUDE.md` for contributor conventions.
+Tests live in `tests/`. The CLI source is under `src/` (`src/commands/` for command handlers, `src/utils/` for shared utilities, `src/types/` for types), with the project template generators in `src/commands/files/`. See `CLAUDE.md` for contributor conventions.
+
+`tests/contracts/` holds the shared wire contract with the platform: one JSON fixture per endpoint-scenario, transcribed from the platform's route handlers, which the API client is tested against. The platform repo keeps byte-identical copies and asserts its routes against the same files, so changing the contract means updating the fixture in one repo, running its suite, copying it to the other, and running that one. `npm run contracts:check` enforces the copy step and reports a skip when no platform checkout is present.
 
 ## Contributing
 
