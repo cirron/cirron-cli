@@ -7,6 +7,7 @@ import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig, ProjectStatus } from "../types";
 import { CirronApi } from "../utils/api";
+import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
@@ -165,7 +166,7 @@ async function getRemoteStatus(
     const config = new ConfigManager();
     const currentConfig = config.load();
 
-    if (!currentConfig.token) {
+    if (!isAuthenticated(currentConfig)) {
       return null;
     }
 

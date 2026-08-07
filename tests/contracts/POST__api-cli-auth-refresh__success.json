@@ -1,0 +1,19 @@
+{
+  "endpoint": "/api/cli/auth/refresh",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "refresh_token": "<REFRESH_TOKEN>"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "access_token": "<JWT>",
+      "refresh_token": "<REFRESH_TOKEN>",
+      "expires_in": 3600,
+      "token_type": "Bearer"
+    }
+  }
+}

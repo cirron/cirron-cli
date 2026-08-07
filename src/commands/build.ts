@@ -5,6 +5,7 @@ import fs from "fs-extra";
 import ora from "ora";
 import type { BuildOptions, HardwareConfig, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
+import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { executePythonScript, formatExecutionError } from "../utils/execution";
 import { HardwareDetector } from "../utils/hardware";
@@ -1033,7 +1034,7 @@ async function reportBuildStatus(
     const config = new ConfigManager();
     const currentConfig = config.load();
 
-    if (!currentConfig.token) {
+    if (!isAuthenticated(currentConfig)) {
       return; // Not authenticated, skip reporting
     }
 

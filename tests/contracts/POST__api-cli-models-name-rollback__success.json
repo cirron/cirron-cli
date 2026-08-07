@@ -1,0 +1,30 @@
+{
+  "endpoint": "/api/cli/models/{name}/rollback",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "environment": "production",
+      "deploymentId": "dep_1"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "message": "Rollback initiated to deployment dep_1",
+      "deployment": {
+        "id": "dep_3",
+        "name": "demo-model",
+        "environment": "production",
+        "status": "PENDING",
+        "buildHash": "abc123",
+        "createdAt": "2026-01-01T00:00:00.000Z"
+      },
+      "rolledBackFrom": {
+        "id": "dep_1",
+        "name": "demo-model"
+      }
+    }
+  }
+}

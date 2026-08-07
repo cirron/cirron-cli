@@ -1,0 +1,26 @@
+{
+  "endpoint": "/api/cli/builds",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "status": "success",
+      "modelName": "demo-model"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "success": true,
+      "data": {
+        "id": "build_1",
+        "status": "SUCCESS",
+        "commitSha": null,
+        "imageTag": null,
+        "startedAt": null,
+        "finishedAt": "2026-01-01T00:00:00.000Z",
+        "createdAt": "2026-01-01T00:00:00.000Z"
+      }
+    }
+  }
+}

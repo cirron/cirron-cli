@@ -2,7 +2,7 @@ import path from "node:path";
 import chalk from "chalk";
 import Table from "cli-table3";
 import fs from "fs-extra";
-import yaml from "js-yaml";
+import { load as loadYaml } from "js-yaml";
 import ora from "ora";
 import type {
   PipelineConfig,
@@ -48,7 +48,7 @@ async function loadPipelineConfig(configPath: string): Promise<PipelineConfig> {
 
   try {
     if (ext === ".yaml" || ext === ".yml") {
-      return yaml.load(content) as PipelineConfig;
+      return loadYaml(content) as PipelineConfig;
     }
 
     return JSON.parse(content) as PipelineConfig;

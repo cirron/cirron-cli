@@ -1,0 +1,24 @@
+{
+  "endpoint": "/api/cli/deployments",
+  "method": "POST",
+  "scenario": "success",
+  "request": {
+    "body": {
+      "environment": "production",
+      "modelName": "demo-model"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "success": true,
+      "data": {
+        "id": "dep_1",
+        "environment": "production",
+        "status": "PENDING",
+        "message": "Deploy to production",
+        "createdAt": "2026-01-01T00:00:00.000Z"
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import child_process from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import inquirer from "inquirer";
@@ -35,6 +36,9 @@ describe("deployCommand", () => {
     tmp = makeTmpDir("cirron-deploy-");
     origCwd = process.cwd();
     process.chdir(tmp.dir);
+    // Redirect HOME so the auth gate reads the tmp config, never the
+    // developer's real ~/.cirron/config.json.
+    vi.spyOn(os, "homedir").mockReturnValue(tmp.dir);
     exitStub = stubProcessExit();
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     infoSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);

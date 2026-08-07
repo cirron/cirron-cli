@@ -2,11 +2,20 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import inquirer from "inquirer";
-import fetch from "node-fetch";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("node-fetch", () => ({ default: vi.fn() }));
-const fetchMock = vi.mocked(fetch);
+const fetchMock = vi.fn();
+
+// Stub per test rather than at module scope: Vitest workers share globalThis,
+// so an unrestored stub can leak into later files and make the suite
+// order-dependent.
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 import {
   spoolClearCommand,

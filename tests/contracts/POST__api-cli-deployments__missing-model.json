@@ -1,0 +1,11 @@
+{
+  "endpoint": "/api/cli/deployments",
+  "method": "POST",
+  "scenario": "missing-model",
+  "response": {
+    "status": 400,
+    "body": {
+      "error": "Model ID or model name is required"
+    }
+  }
+}
