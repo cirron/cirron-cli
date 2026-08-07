@@ -1103,15 +1103,18 @@ export class CirronApi {
       }
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, this.config.timeout);
-
     let attempt = 0;
     let lastError: Error = new Error("Request failed after retries");
 
     while (attempt <= this.config.retries) {
+      // Per attempt, matching downloadFile/uploadFile: a controller shared
+      // across retries latches aborted after the first timeout, so every
+      // remaining retry would reject instantly instead of being tried.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, this.config.timeout);
+
       try {
         const response = await fetch(url.toString(), {
           method,
@@ -1119,8 +1122,6 @@ export class CirronApi {
           body,
           signal: controller.signal,
         });
-
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -1154,15 +1155,19 @@ export class CirronApi {
         }
 
         attempt++;
-        if (attempt <= this.config.retries) {
-          // Exponential backoff
-          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // Backoff happens after the finally so this attempt's timer is already
+      // disarmed while we sleep.
+      if (attempt <= this.config.retries) {
+        // Exponential backoff
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
-    clearTimeout(timeoutId);
     throw lastError;
   }
 }
