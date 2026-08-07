@@ -4,6 +4,7 @@ import inquirer from "inquirer";
 import ora from "ora";
 import type { ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
+import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
@@ -135,7 +136,7 @@ async function setupCommand(): Promise<{
   const config = new ConfigManager();
   const currentConfig = config.load();
 
-  if (!currentConfig.token) {
+  if (!isAuthenticated(currentConfig)) {
     throw new Error("Not authenticated. Run cirron auth login to authenticate");
   }
 

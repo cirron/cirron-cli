@@ -5,6 +5,7 @@ import inquirer from "inquirer";
 import ora from "ora";
 import type { InitOptions, ProjectConfig, Template } from "../types";
 import { CirronApi } from "../utils/api";
+import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { executeScript, formatExecutionError } from "../utils/execution";
 import { logger } from "../utils/logger";
@@ -328,7 +329,7 @@ export async function initCommand(
       const config = new ConfigManager();
       const currentConfig = config.load();
 
-      if (currentConfig.token) {
+      if (isAuthenticated(currentConfig)) {
         spinner.text = "Registering project with Cirron...";
         try {
           const api = new CirronApi(currentConfig);
@@ -365,7 +366,7 @@ export async function initCommand(
       logger.info(`  ${chalk.cyan("python train.py")}`);
       logger.info(`  ${chalk.cyan("python serve.py")}`);
 
-      if (!currentConfig.token) {
+      if (!isAuthenticated(currentConfig)) {
         console.log();
         logger.info(
           chalk.yellow("Tip: Run ") +
