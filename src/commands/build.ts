@@ -14,6 +14,13 @@ import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
 import { loadProjectConfig } from "../utils/project-config";
+import {
+  checkCudaPytorch,
+  checkIndexConfig,
+  checkModelCreation,
+  checkPythonVersion,
+  checkRequiredFiles,
+} from "../utils/validation";
 
 interface ValidationResult {
   critical: string[];
@@ -1197,95 +1204,31 @@ async function runValidationChecks(
   architecture: string,
   options: BuildOptions
 ): Promise<void> {
-  const validationErrors: string[] = [];
-
-  const requiredFiles = ["src/model.py", "requirements.txt"];
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(file)) {
-      validationErrors.push(`Required file missing: ${file}`);
-    }
-  }
-
-  try {
-    const pythonVersion = execSync("python3 --version", {
-      encoding: "utf8",
-    }).trim();
-    const versionMatch = pythonVersion.match(/Python (\d+\.\d+\.\d+)/);
-
-    if (versionMatch && versionMatch[1]) {
-      const versionParts = versionMatch[1].split(".");
-      const major = Number.parseInt(versionParts[0] || "0", 10);
-      const minor = Number.parseInt(versionParts[1] || "0", 10);
-      const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
-      const requiredMajor = Number.parseInt(requiredParts[0] || "3", 10);
-      const requiredMinor = Number.parseInt(requiredParts[1] || "9", 10);
-
-      if (
-        major < requiredMajor ||
-        (major === requiredMajor && minor < requiredMinor)
-      ) {
-        validationErrors.push(
-          `Python ${projectConfig.pythonVersion || "3.9"}+ required, found ${major}.${minor}`
-        );
-      }
-    }
-  } catch {
-    validationErrors.push("Python3 not available");
-  }
+  const validationErrors: string[] = [
+    ...checkRequiredFiles(),
+    ...checkPythonVersion(projectConfig.pythonVersion),
+  ];
 
   if (
     (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
   ) {
-    try {
-      const testScript = "import torch; assert torch.cuda.is_available()";
-      const result = await executePythonScript(testScript);
-      if (!result.success) {
-        validationErrors.push("CUDA not available for PyTorch");
-        if (
-          result.parsedErrors &&
-          result.parsedErrors.length > 0 &&
-          result.parsedErrors[0]
-        ) {
-          logger.debug(
-            "CUDA validation details:",
-            result.parsedErrors[0].message
-          );
-        }
-      }
-    } catch {
-      validationErrors.push("CUDA not available for PyTorch");
-    }
+    // Note: build deliberately does not thread strict mode into this probe;
+    // compile and plan do. Preserved as-is by plan 010's refactor.
+    validationErrors.push(...(await checkCudaPytorch({ debugLog: true })));
   }
 
-  if (
-    indexConfig &&
-    !(indexConfig.features && Array.isArray(indexConfig.features))
-  ) {
-    validationErrors.push("Index file missing or invalid features array");
-  }
+  validationErrors.push(
+    ...checkIndexConfig(indexConfig, { requireDataTypes: false })
+  );
 
-  try {
-    const testScript =
-      'import sys; sys.path.append("src"); from model import create_model; create_model()';
-    const result = await executePythonScript(testScript);
-    if (!result.success) {
-      validationErrors.push("Model creation failed during validation");
-      if (result.parsedErrors && result.parsedErrors.length > 0) {
-        const firstError = result.parsedErrors[0];
-        if (firstError) {
-          logger.debug("Model validation error:", firstError.message);
-          if (firstError.file && firstError.line) {
-            logger.debug(
-              `Error location: ${firstError.file}:${firstError.line}`
-            );
-          }
-        }
-      }
-    }
-  } catch {
-    validationErrors.push("Model creation failed during validation");
-  }
+  validationErrors.push(
+    ...(await checkModelCreation({
+      script:
+        'import sys; sys.path.append("src"); from model import create_model; create_model()',
+      debugLog: true,
+    }))
+  );
 
   // Categorize validation errors
   const { critical, nonCritical } =
