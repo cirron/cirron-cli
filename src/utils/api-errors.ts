@@ -78,7 +78,10 @@ export class PlatformRateLimitError extends PlatformError {
   readonly exitCode = 1;
   readonly status = 429;
   readonly retryAfterSeconds: number | undefined;
-  readonly userMessage = "Rate limited by the platform. Retrying shortly.";
+  // The transport does not retry 429s, so for any caller that isn't polling
+  // this is terminal. Don't promise a retry that won't happen.
+  readonly userMessage =
+    "Rate limited by the platform. Wait a moment and try again.";
 
   constructor(
     serverMessage: string,

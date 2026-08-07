@@ -100,6 +100,12 @@ async function deviceFlowLogin(
     // 1. Request device code
     const deviceAuth = await api.requestDeviceCode();
 
+    // The server's window starts now, not when polling does, so the time the
+    // user spends reading the code and opening the browser counts against it.
+    const authorizationDeadline =
+      Date.now() +
+      (deviceAuth.expiresIn || DEFAULT_AUTHORIZATION_WINDOW_SECONDS) * 1000;
+
     spinner.succeed("Device code received");
 
     // 2. Display user code and instructions
@@ -138,7 +144,8 @@ async function deviceFlowLogin(
     const result = await pollForAuthorization(
       api,
       deviceAuth.deviceCode,
-      deviceAuth.interval
+      deviceAuth.interval,
+      authorizationDeadline
     );
 
     // 5. Store tokens and verify
@@ -160,8 +167,8 @@ async function deviceFlowLogin(
   }
 }
 
-/** How long the server keeps a device code alive (RFC 8628 `expires_in`). */
-const AUTHORIZATION_WINDOW_MS = 600_000;
+/** Fallback window if the server omits `expiresIn` (RFC 8628 `expires_in`). */
+const DEFAULT_AUTHORIZATION_WINDOW_SECONDS = 600;
 
 /** Consecutive transport failures tolerated before giving up. */
 const MAX_CONSECUTIVE_TRANSPORT_ERRORS = 5;
@@ -187,13 +194,17 @@ const sleep = (ms: number) =>
 async function pollForAuthorization(
   api: CirronApi,
   deviceCode: string,
-  interval: number
+  interval: number,
+  deadline: number
 ): Promise<DeviceTokenResponse> {
-  const deadline = Date.now() + AUTHORIZATION_WINDOW_MS;
   let consecutiveTransportErrors = 0;
+  // Reset to `interval` each iteration; a 429 replaces it for one round so the
+  // Retry-After delay isn't added on top of the normal poll interval.
+  let delaySeconds = interval;
 
   while (Date.now() < deadline) {
-    await sleep(interval * 1000);
+    await sleep(delaySeconds * 1000);
+    delaySeconds = interval;
 
     try {
       const response = await api.pollDeviceAuthorization(deviceCode);
@@ -212,11 +223,10 @@ async function pollForAuthorization(
       consecutiveTransportErrors = 0;
     } catch (error) {
       if (error instanceof PlatformRateLimitError) {
-        const backoff = Math.min(
+        delaySeconds = Math.min(
           Math.max(error.retryAfterSeconds ?? interval, interval),
           MAX_RATE_LIMIT_BACKOFF_SECONDS
         );
-        await sleep(backoff * 1000);
         continue;
       }
 

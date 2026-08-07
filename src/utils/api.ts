@@ -1131,9 +1131,14 @@ export class CirronApi {
             (errorData as any)?.error ||
             `HTTP ${response.status}: ${response.statusText}`;
           const retryAfterHeader = response.headers.get("retry-after");
-          const retryAfterSeconds = retryAfterHeader
-            ? Number.parseInt(retryAfterHeader, 10) || undefined
-            : undefined;
+          const parsedRetryAfter = retryAfterHeader
+            ? Number.parseInt(retryAfterHeader, 10)
+            : Number.NaN;
+          // A Retry-After of 0 is valid ("retry immediately"), so test for NaN
+          // rather than falsiness.
+          const retryAfterSeconds = Number.isNaN(parsedRetryAfter)
+            ? undefined
+            : parsedRetryAfter;
           throw classifyHttpError(
             response.status,
             errorMessage,
