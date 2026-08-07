@@ -232,9 +232,12 @@ describe("pushCommand", () => {
       writeFileAt(tmp.dir, "bundle/a.bin", "aaa");
       writeFileAt(tmp.dir, "outside/target.bin", "ttt");
       writeFileAt(tmp.dir, "outside-dir/nested.bin", "nnn");
-      // A symlinked file and a symlinked directory. readdir's Dirents do not
-      // follow symlinks, so the walk needs an explicit stat for these; without
-      // it both would silently drop out of the push.
+      // A symlinked file and a symlinked directory. Dirents do not follow
+      // symlinks, so `isDirectory()` is false for both. The symlinked FILE is
+      // unaffected: it falls through to the file branch either way. The
+      // symlinked DIRECTORY is the case that needs the explicit stat, and
+      // without it the walk treats it as a file and the push fails when
+      // hashing tries to read a directory (EISDIR) rather than skipping it.
       fs.symlinkSync(
         path.join(tmp.dir, "outside/target.bin"),
         path.join(tmp.dir, "bundle/link.bin")
