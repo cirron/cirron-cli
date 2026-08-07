@@ -3,7 +3,11 @@ import open from "open";
 import ora from "ora";
 import type { CirronConfig, DeviceTokenResponse } from "../types";
 import { CirronApi } from "../utils/api";
-import { handlePlatformError } from "../utils/api-errors";
+import {
+  handlePlatformError,
+  PlatformBadRequestError,
+  PlatformRateLimitError,
+} from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 
@@ -96,6 +100,12 @@ async function deviceFlowLogin(
     // 1. Request device code
     const deviceAuth = await api.requestDeviceCode();
 
+    // The server's window starts now, not when polling does, so the time the
+    // user spends reading the code and opening the browser counts against it.
+    const authorizationDeadline =
+      Date.now() +
+      (deviceAuth.expiresIn || DEFAULT_AUTHORIZATION_WINDOW_SECONDS) * 1000;
+
     spinner.succeed("Device code received");
 
     // 2. Display user code and instructions
@@ -134,7 +144,8 @@ async function deviceFlowLogin(
     const result = await pollForAuthorization(
       api,
       deviceAuth.deviceCode,
-      deviceAuth.interval
+      deviceAuth.interval,
+      authorizationDeadline
     );
 
     // 5. Store tokens and verify
@@ -156,42 +167,90 @@ async function deviceFlowLogin(
   }
 }
 
+/** Fallback window if the server omits `expiresIn` (RFC 8628 `expires_in`). */
+const DEFAULT_AUTHORIZATION_WINDOW_SECONDS = 600;
+
+/** Consecutive transport failures tolerated before giving up. */
+const MAX_CONSECUTIVE_TRANSPORT_ERRORS = 5;
+
+/** Upper bound on how long we honor a server's Retry-After, in seconds. */
+const MAX_RATE_LIMIT_BACKOFF_SECONDS = 30;
+
+const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/**
+ * Poll the device endpoint until the user authorizes, the code expires, or the
+ * window closes.
+ *
+ * The platform implements RFC 8628: while the user hasn't approved yet it
+ * answers HTTP 400 with `{ error: "authorization_pending" }`, which the
+ * transport turns into a PlatformBadRequestError whose message is the bare
+ * error code. Pending is the normal case for most of the window, so it must
+ * not consume any error budget. Only genuine transport failures do.
+ */
 async function pollForAuthorization(
   api: CirronApi,
   deviceCode: string,
-  interval: number
+  interval: number,
+  deadline: number
 ): Promise<DeviceTokenResponse> {
-  const maxAttempts = 120; // 10 minutes max
-  let attempts = 0;
+  let consecutiveTransportErrors = 0;
+  // Reset to `interval` each iteration; a 429 replaces it for one round so the
+  // Retry-After delay isn't added on top of the normal poll interval.
+  let delaySeconds = interval;
 
-  while (attempts < maxAttempts) {
-    await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+  while (Date.now() < deadline) {
+    await sleep(delaySeconds * 1000);
+    delaySeconds = interval;
 
     try {
       const response = await api.pollDeviceAuthorization(deviceCode);
 
-      // Check if we got tokens (success case)
       if (response.accessToken && response.refreshToken) {
         return {
           access_token: response.accessToken,
           refresh_token: response.refreshToken,
           expires_in: response.expiresIn || 604_800,
-          token_type: "bearer",
+          token_type: response.tokenType || "bearer",
         };
       }
 
-      // Check for explicit status responses
-      if (response.status === "expired" || response.status === "denied") {
-        throw new Error(`Authorization ${response.status}`);
+      // A 200 without tokens isn't a shape the platform sends; treat it the
+      // same as pending rather than failing the login over it.
+      consecutiveTransportErrors = 0;
+    } catch (error) {
+      if (error instanceof PlatformRateLimitError) {
+        delaySeconds = Math.min(
+          Math.max(error.retryAfterSeconds ?? interval, interval),
+          MAX_RATE_LIMIT_BACKOFF_SECONDS
+        );
+        continue;
       }
 
-      // Continue polling for 'pending' status or no tokens yet
-      attempts++;
-    } catch (error) {
-      if (attempts > 5) {
+      if (error instanceof PlatformBadRequestError) {
+        if (error.message === "authorization_pending") {
+          consecutiveTransportErrors = 0;
+          continue;
+        }
+
+        if (error.message === "access_denied") {
+          throw new Error("Authorization was denied.");
+        }
+
+        // expired_token, or invalid_request once the server has dropped the
+        // record (which is also what a denial looks like from here).
+        throw new Error(
+          "Authorization expired. Run cirron auth login to start again."
+        );
+      }
+
+      consecutiveTransportErrors++;
+      if (consecutiveTransportErrors > MAX_CONSECUTIVE_TRANSPORT_ERRORS) {
         throw error;
       }
-      attempts++;
     }
   }
 

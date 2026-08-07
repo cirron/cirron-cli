@@ -6,6 +6,7 @@ const fetchMock = vi.mocked(fetch);
 
 import type { CirronConfig } from "../../../src/types";
 import { CirronApi } from "../../../src/utils/api";
+import { PlatformRateLimitError } from "../../../src/utils/api-errors";
 
 /**
  * Cover the retry/timeout lifecycle in requestRaw, the transport under every
@@ -25,19 +26,29 @@ describe("CirronApi requestRaw", () => {
 
   let api: CirronApi;
 
+  /** Header bag matching what node-fetch hands back. */
+  const noHeaders = { get: () => null };
+
   /** A minimal successful JSON response. */
   function okResponse() {
     return {
       ok: true,
       status: 200,
       statusText: "OK",
+      headers: noHeaders,
       json: async () => ({ valid: true }),
     };
   }
 
   /** A minimal error response with the given status. */
   function errorResponse(status: number, statusText: string) {
-    return { ok: false, status, statusText, json: async () => ({}) };
+    return {
+      ok: false,
+      status,
+      statusText,
+      headers: noHeaders,
+      json: async () => ({}),
+    };
   }
 
   beforeEach(() => {
@@ -106,6 +117,29 @@ describe("CirronApi requestRaw", () => {
     );
 
     await expect(api.refreshToken("rt")).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["7", 7],
+    // "retry immediately" is a real instruction, not a missing header.
+    ["0", 0],
+    ["", undefined],
+    ["later", undefined],
+  ])("surfaces Retry-After %j on a 429 as %j", async (header, expected) => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+      headers: { get: () => (header === "" ? null : header) },
+      json: async () => ({ error: "Rate limit exceeded" }),
+    } as never);
+
+    const caught = await api.verifyAuth().catch((err: unknown) => err);
+
+    expect(caught).toBeInstanceOf(PlatformRateLimitError);
+    expect((caught as PlatformRateLimitError).retryAfterSeconds).toBe(expected);
+    // 429 is never retried by the transport; the caller decides.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

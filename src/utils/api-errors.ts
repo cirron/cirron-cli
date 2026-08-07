@@ -68,6 +68,32 @@ export class PlatformBadRequestError extends PlatformError {
 }
 
 /**
+ * The server rate-limited the request (429). Exit code 1.
+ *
+ * `retryAfterSeconds` carries the `Retry-After` header when the server sent
+ * one. Callers that poll (device-flow login) should wait that long and carry
+ * on rather than treating this as fatal.
+ */
+export class PlatformRateLimitError extends PlatformError {
+  readonly exitCode = 1;
+  readonly status = 429;
+  readonly retryAfterSeconds: number | undefined;
+  // The transport does not retry 429s, so for any caller that isn't polling
+  // this is terminal. Don't promise a retry that won't happen.
+  readonly userMessage =
+    "Rate limited by the platform. Wait a moment and try again.";
+
+  constructor(
+    serverMessage: string,
+    retryAfterSeconds?: number,
+    options?: { cause?: unknown }
+  ) {
+    super(serverMessage, options);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
  * Server-side failure (5xx). Exit code 1. The user can retry; on their side
  * nothing is actionable.
  */
@@ -129,15 +155,20 @@ export function classifyFetchError(error: unknown): PlatformError | unknown {
 /**
  * Map an HTTP status + server body into a typed PlatformError.
  * 401/403 → NotAuthenticatedError
+ * 429     → PlatformRateLimitError (carrying Retry-After, when sent)
  * 4xx     → PlatformBadRequestError
  * 5xx     → PlatformServerError
  */
 export function classifyHttpError(
   status: number,
-  serverMessage: string
+  serverMessage: string,
+  retryAfterSeconds?: number
 ): PlatformError {
   if (status === 401 || status === 403) {
     return new NotAuthenticatedError(serverMessage);
+  }
+  if (status === 429) {
+    return new PlatformRateLimitError(serverMessage, retryAfterSeconds);
   }
   if (status >= 500) {
     return new PlatformServerError(status, serverMessage);
