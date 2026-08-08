@@ -1,5 +1,3 @@
-import crypto from "node:crypto";
-import os from "node:os";
 import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
@@ -11,27 +9,42 @@ import type {
   PushOptions,
   PushResourceType,
   PushResult,
-  PushSessionInfo,
   PushSummary,
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import {
+  collectFiles,
+  collectProjectFiles,
+  isResourceTyped,
+  KNOWN_RESOURCE_TYPES,
+  parseNameTag,
+} from "../utils/artifacts";
+import { computeFileChecksum } from "../utils/checksum";
+import { mapWithConcurrency } from "../utils/concurrency";
 import { ConfigManager } from "../utils/config";
+import { formatSize } from "../utils/format";
 import { getShortCommitHash } from "../utils/git";
-import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
-import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 
 // --- Constants ---
 
-const KNOWN_RESOURCE_TYPES: PushResourceType[] = [
-  "model",
-  "image",
-  "build",
-  "runtime",
-];
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB
-const UPLOAD_SESSIONS_DIR = path.join(os.homedir(), ".cirron", "uploads");
+/**
+ * The client has to choose an upload path before it has talked to the server,
+ * so this cannot be read from the API. `init` echoes the authoritative value
+ * back and the driver logs a debug line when the two disagree.
+ */
+const MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
+
+/** Parts in flight at once. Bounded to stay well inside registry rate limits. */
+const PART_UPLOAD_CONCURRENCY = 4;
+
+/**
+ * Files hashed at once. Hashing is disk-and-CPU bound rather than
+ * network-bound, so this is higher than the upload concurrency.
+ */
+const CHECKSUM_CONCURRENCY = 8;
 
 // --- Helpers ---
 
@@ -48,50 +61,97 @@ function checkAuth(): { api: CirronApi } | null {
   return { api: new CirronApi(currentConfig) };
 }
 
-function isResourceTyped(resource: string): boolean {
-  return KNOWN_RESOURCE_TYPES.includes(resource as PushResourceType);
+/** The narrowed option bag `uploadSingleFile` accepts. */
+interface UploadOpts {
+  force?: boolean;
+  gitHash?: string;
+  message?: string;
+  name?: string;
+  platform?: string;
+  registry?: string;
+  resource?: string;
+  tag?: string;
 }
 
-function parseNameTag(nameArg: string): { name: string; tag?: string } {
-  const colonIndex = nameArg.lastIndexOf(":");
-  if (colonIndex > 0) {
-    return {
-      name: nameArg.slice(0, colonIndex),
-      tag: nameArg.slice(colonIndex + 1),
-    };
+/**
+ * Drop the unset fields from a set of upload options.
+ *
+ * `exactOptionalPropertyTypes` rejects `{ tag: undefined }` where the target
+ * declares `tag?: string`, so every caller was hand-writing the same
+ * conditional assignment block. The input type accepts explicit `undefined`;
+ * the output type does not.
+ */
+function buildUploadOpts(values: {
+  force?: boolean | undefined;
+  gitHash?: string | undefined;
+  message?: string | undefined;
+  name?: string | undefined;
+  platform?: string | undefined;
+  registry?: string | undefined;
+  resource?: string | undefined;
+  tag?: string | undefined;
+}): UploadOpts {
+  const opts: UploadOpts = {};
+  if (values.resource) {
+    opts.resource = values.resource;
   }
-  return { name: nameArg };
+  if (values.name) {
+    opts.name = values.name;
+  }
+  if (values.tag) {
+    opts.tag = values.tag;
+  }
+  if (values.message) {
+    opts.message = values.message;
+  }
+  if (values.registry) {
+    opts.registry = values.registry;
+  }
+  if (values.force) {
+    opts.force = values.force;
+  }
+  if (values.gitHash) {
+    opts.gitHash = values.gitHash;
+  }
+  if (values.platform) {
+    opts.platform = values.platform;
+  }
+  return opts;
 }
 
-function loadProjectConfig(): ProjectConfig | null {
-  const result = loadProjectConfigUtil();
-  if (!result) {
-    return null;
-  }
-  return result.config;
+/**
+ * The Platform slug to send with an upload, if any.
+ *
+ * `--platform` beats the `platform` key in the project config; with neither
+ * set the CLI sends nothing and the server resolves the Platform from the
+ * artifact name or the organization default. The CLI never interprets the
+ * slug beyond passing it along.
+ */
+function resolvePlatformHint(flag: string | undefined): string | undefined {
+  return flag ?? loadProjectConfig()?.platform;
 }
 
-export function formatSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
+/**
+ * Follow a 404 with a hint at what to fix.
+ *
+ * A rejected `--platform` slug also comes back as "not found", so the generic
+ * "register your project" advice would send the user to fix something
+ * unrelated. Match the more specific case first.
+ */
+function logNotFoundHint(message: string): void {
+  const lower = message.toLowerCase();
+  if (!(lower.includes("not found") || message.includes("404"))) {
+    return;
   }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
+  if (lower.includes("platform")) {
+    logger.info(
+      `Check the platform slug, or omit ${chalk.cyan("--platform")} to use your default`
+    );
+    return;
   }
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-export async function computeFileChecksum(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256");
-    const stream = fs.createReadStream(filePath);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
-    stream.on("error", reject);
-  });
+  logger.info(
+    `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
+  );
 }
 
 function resolveTag(
@@ -105,81 +165,6 @@ function resolveTag(
     return parsedTag;
   }
   return;
-}
-
-// --- File Collection ---
-
-async function collectFiles(targetPath: string): Promise<string[]> {
-  const resolved = path.resolve(targetPath);
-  const stat = await fs.stat(resolved);
-
-  if (stat.isFile()) {
-    return [resolved];
-  }
-
-  const files: string[] = [];
-  const walk = async (dir: string): Promise<void> => {
-    const entries = await fs.readdir(dir);
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry);
-      const entryStat = await fs.stat(fullPath);
-      if (entryStat.isDirectory()) {
-        await walk(fullPath);
-      } else {
-        files.push(fullPath);
-      }
-    }
-  };
-  await walk(resolved);
-  return files;
-}
-
-async function collectProjectFiles(
-  projectConfig: ProjectConfig,
-  ignorePatterns: string | undefined
-): Promise<string[]> {
-  const cwd = process.cwd();
-  const pathsToScan: string[] = [];
-
-  if (projectConfig.artifacts) {
-    if (projectConfig.artifacts.modelPath) {
-      pathsToScan.push(path.join(cwd, projectConfig.artifacts.modelPath));
-    }
-    if (projectConfig.artifacts.checkpointPath) {
-      pathsToScan.push(path.join(cwd, projectConfig.artifacts.checkpointPath));
-    }
-  }
-
-  const commonDirs = ["models", "artifacts", "build"];
-  for (const dir of commonDirs) {
-    const dirPath = path.join(cwd, dir);
-    if (await fs.pathExists(dirPath)) {
-      pathsToScan.push(dirPath);
-    }
-  }
-
-  let allFiles: string[] = [];
-  for (const scanPath of pathsToScan) {
-    if (await fs.pathExists(scanPath)) {
-      const files = await collectFiles(scanPath);
-      allFiles.push(...files);
-    }
-  }
-
-  // Deduplicate
-  allFiles = [...new Set(allFiles)];
-
-  // Apply .cirronignore + --ignore patterns
-  const ignore = new CirronIgnore();
-  if (ignorePatterns) {
-    const patterns = ignorePatterns.split(",").map((p) => p.trim());
-    for (const pattern of patterns) {
-      ignore.addPattern(pattern);
-    }
-  }
-  allFiles = allFiles.filter((f) => !ignore.isIgnored(path.relative(cwd, f)));
-
-  return allFiles;
 }
 
 async function prepareFileInfo(filePath: string): Promise<PushFileInfo> {
@@ -241,38 +226,6 @@ async function resolveResourceFile(
   return null;
 }
 
-// --- Upload Session Management ---
-
-async function loadUploadSession(
-  checksum: string
-): Promise<PushSessionInfo | null> {
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${checksum}.json`);
-  if (await fs.pathExists(sessionFile)) {
-    try {
-      return await fs.readJSON(sessionFile);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-async function saveUploadSession(session: PushSessionInfo): Promise<void> {
-  await fs.ensureDir(UPLOAD_SESSIONS_DIR);
-  const sessionFile = path.join(
-    UPLOAD_SESSIONS_DIR,
-    `${session.checksum}.json`
-  );
-  await fs.writeJSON(sessionFile, session, { spaces: 2 });
-}
-
-async function removeUploadSession(checksum: string): Promise<void> {
-  const sessionFile = path.join(UPLOAD_SESSIONS_DIR, `${checksum}.json`);
-  if (await fs.pathExists(sessionFile)) {
-    await fs.remove(sessionFile);
-  }
-}
-
 // --- Core Upload Flow ---
 
 export async function uploadSingleFile(
@@ -286,6 +239,7 @@ export async function uploadSingleFile(
     registry?: string;
     force?: boolean;
     gitHash?: string;
+    platform?: string;
   },
   spinner: ReturnType<typeof ora>
 ): Promise<PushResult> {
@@ -325,48 +279,64 @@ export async function uploadSingleFile(
     }
   }
 
-  // Step 2: Get signed upload URL
-  spinner.text = `Requesting upload URL for ${displayName}...`;
+  // Steps 2-3: Upload the bytes.
+  //
+  // Above the platform's multipart threshold, `init` opens its own upload
+  // session, so requesting a single-PUT upload URL first would orphan a
+  // second one. Both paths yield the session id that `confirm` resolves.
+  let uploadId: string;
 
-  const uploadUrlOpts: {
-    filename: string;
-    size: number;
-    checksum: string;
-    resource?: string;
-    name?: string;
-    tag?: string;
-    registry?: string;
-  } = {
-    filename: path.basename(fileInfo.filePath),
-    size: fileInfo.size,
-    checksum: fileInfo.checksum,
-  };
-  if (options.resource) {
-    uploadUrlOpts.resource = options.resource;
-  }
-  if (options.name) {
-    uploadUrlOpts.name = options.name;
-  }
-  if (options.tag) {
-    uploadUrlOpts.tag = options.tag;
-  }
-  if (options.registry) {
-    uploadUrlOpts.registry = options.registry;
-  }
-
-  const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
-
-  // Step 3: Upload file
-  if (fileInfo.size > CHUNK_SIZE) {
-    await uploadChunked(
+  if (fileInfo.size > MULTIPART_THRESHOLD_BYTES) {
+    const multipartOpts: { name?: string; platform?: string } = {};
+    if (options.name) {
+      multipartOpts.name = options.name;
+    }
+    if (options.platform) {
+      multipartOpts.platform = options.platform;
+    }
+    uploadId = await uploadMultipart(
       api,
       fileInfo,
-      uploadInfo.uploadUrl,
-      uploadInfo.chunkSize || CHUNK_SIZE,
       spinner,
-      displayName
+      displayName,
+      multipartOpts
     );
   } else {
+    spinner.text = `Requesting upload URL for ${displayName}...`;
+
+    const uploadUrlOpts: {
+      filename: string;
+      size: number;
+      checksum: string;
+      resource?: string;
+      name?: string;
+      tag?: string;
+      registry?: string;
+      platform?: string;
+    } = {
+      filename: path.basename(fileInfo.filePath),
+      size: fileInfo.size,
+      checksum: fileInfo.checksum,
+    };
+    if (options.resource) {
+      uploadUrlOpts.resource = options.resource;
+    }
+    if (options.name) {
+      uploadUrlOpts.name = options.name;
+    }
+    if (options.tag) {
+      uploadUrlOpts.tag = options.tag;
+    }
+    if (options.registry) {
+      uploadUrlOpts.registry = options.registry;
+    }
+    if (options.platform) {
+      uploadUrlOpts.platform = options.platform;
+    }
+
+    const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
+    uploadId = uploadInfo.uploadId;
+
     spinner.text = `Uploading ${displayName} (${formatSize(fileInfo.size)})...`;
     await api.uploadFile(
       uploadInfo.uploadUrl,
@@ -391,7 +361,7 @@ export async function uploadSingleFile(
     message?: string;
     gitHash?: string;
   } = {
-    uploadId: uploadInfo.uploadId,
+    uploadId,
     checksum: fileInfo.checksum,
     size: fileInfo.size,
   };
@@ -430,100 +400,141 @@ export async function uploadSingleFile(
   };
 }
 
-// --- Chunked Upload with Resume ---
+// --- Multipart Upload ---
 
-async function uploadChunked(
+/**
+ * Upload an artifact as provider-native multipart parts.
+ *
+ * Returns the upload session id, which is what `confirmUpload` resolves (the
+ * provider's own upload id is internal to the platform).
+ *
+ * Parts are presigned one at a time immediately before their PUT because a
+ * presigned part URL expires well before a very large upload finishes.
+ */
+async function uploadMultipart(
   api: CirronApi,
   fileInfo: PushFileInfo,
-  uploadUrl: string,
-  chunkSize: number,
   spinner: ReturnType<typeof ora>,
-  displayName: string
-): Promise<void> {
-  const totalChunks = Math.ceil(fileInfo.size / chunkSize);
+  displayName: string,
+  options: { name?: string; platform?: string }
+): Promise<string> {
+  spinner.text = `Starting multipart upload for ${displayName}...`;
 
-  // Check for existing session (resume)
-  let session = await loadUploadSession(fileInfo.checksum);
+  const initOpts: {
+    filename: string;
+    size: number;
+    checksum: string;
+    name?: string;
+    platform?: string;
+  } = {
+    filename: path.basename(fileInfo.filePath),
+    size: fileInfo.size,
+    checksum: fileInfo.checksum,
+  };
+  if (options.name) {
+    initOpts.name = options.name;
+  }
+  if (options.platform) {
+    initOpts.platform = options.platform;
+  }
 
-  // Discard stale session if chunk parameters no longer match
-  if (
-    session &&
-    (session.chunkSize !== chunkSize || session.totalChunks !== totalChunks)
-  ) {
-    logger.info(
-      `Discarding stale upload session for ${displayName} (chunk parameters changed)`
+  const init = await api.initMultipartUpload(initOpts);
+
+  if (init.multipartThreshold !== MULTIPART_THRESHOLD_BYTES) {
+    logger.debug(
+      `Server multipart threshold is ${init.multipartThreshold} but this CLI uses ${MULTIPART_THRESHOLD_BYTES}`
     );
-    await removeUploadSession(fileInfo.checksum);
-    session = null;
   }
 
-  const completedChunks = new Set<number>(session?.completedChunks || []);
+  // Every part, every time.
+  //
+  // Resuming an interrupted upload is not possible against the current
+  // platform contract: `init` unconditionally opens a NEW provider-side
+  // multipart upload before it decides whether to reuse a session row, so a
+  // re-run can never adopt the parts a previous run uploaded. Reading
+  // `session/{id}` for prior progress would always come back empty. If init
+  // ever becomes idempotent, this is the place that changes.
+  const pending: number[] = [];
+  for (let partNumber = 1; partNumber <= init.partCount; partNumber++) {
+    pending.push(partNumber);
+  }
 
-  if (session && completedChunks.size > 0) {
-    logger.info(
-      `Resuming upload for ${displayName}: ${completedChunks.size}/${totalChunks} chunks already uploaded`
+  let uploadedBytes = 0;
+  let done = 0;
+
+  const updateProgress = (): void => {
+    const pct = Math.min(
+      100,
+      Math.round((uploadedBytes / fileInfo.size) * 100)
     );
-  }
+    spinner.text = `Uploading ${displayName}: ${pct}% (${done}/${init.partCount} parts)`;
+  };
+  updateProgress();
 
-  if (!session) {
-    const serverSession = await api.createUploadSession({
-      filePath: fileInfo.relativePath,
-      totalSize: fileInfo.size,
-      chunkSize,
-      totalChunks,
-      checksum: fileInfo.checksum,
-    });
+  try {
+    await mapWithConcurrency(
+      pending,
+      PART_UPLOAD_CONCURRENCY,
+      async (partNumber) => {
+        const { url } = await api.getMultipartPartUrl({
+          sessionId: init.sessionId,
+          partNumber,
+        });
 
-    session = {
-      sessionId: serverSession.sessionId,
-      filePath: fileInfo.filePath,
-      checksum: fileInfo.checksum,
-      totalSize: fileInfo.size,
-      chunkSize,
-      totalChunks,
-      completedChunks: [],
-      chunkChecksums: {},
-      uploadUrl,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await saveUploadSession(session);
-  }
+        const start = (partNumber - 1) * init.partSize;
+        const length = Math.min(init.partSize, fileInfo.size - start);
 
-  // Upload remaining chunks
-  for (let i = 0; i < totalChunks; i++) {
-    if (completedChunks.has(i)) {
-      continue;
-    }
-
-    const chunkNum = i + 1;
-    spinner.text = `Uploading ${displayName}: chunk ${chunkNum}/${totalChunks} (${formatSize(fileInfo.size)})`;
-
-    const etag = await api.uploadFileChunk(
-      uploadUrl,
-      fileInfo.filePath,
-      i,
-      chunkSize,
-      fileInfo.size,
-      (uploaded, _chunkTotal) => {
-        const overallUploaded = Math.min(
-          completedChunks.size * chunkSize + uploaded,
-          fileInfo.size
+        // `uploadFilePart` retries internally, and each attempt re-streams the
+        // part from byte zero. Counting raw deltas would therefore add a
+        // retried part's bytes twice and run the percentage ahead of reality.
+        // Cap each part's contribution at its own length instead, which keeps
+        // per-byte granularity without double-counting.
+        let partCounted = 0;
+        const etag = await api.uploadFilePart(
+          url,
+          fileInfo.filePath,
+          start,
+          length,
+          (delta) => {
+            const counted = Math.min(delta, length - partCounted);
+            if (counted > 0) {
+              partCounted += counted;
+              uploadedBytes += counted;
+              updateProgress();
+            }
+          }
         );
-        const pct = Math.round((overallUploaded / fileInfo.size) * 100);
-        spinner.text = `Uploading ${displayName}: ${pct}% (chunk ${chunkNum}/${totalChunks})`;
+
+        await api.recordMultipartPart({
+          sessionId: init.sessionId,
+          partNumber,
+          etag,
+          sizeBytes: length,
+        });
+
+        done++;
+        updateProgress();
       }
     );
 
-    completedChunks.add(i);
-    session.completedChunks = [...completedChunks];
-    session.chunkChecksums[i] = etag;
-    session.updatedAt = new Date().toISOString();
-    await saveUploadSession(session);
+    spinner.text = `Assembling ${displayName} (${init.partCount} parts)...`;
+    await api.completeMultipartUpload({ sessionId: init.sessionId });
+  } catch (error) {
+    // Abort so the provider stops billing for the orphaned parts. A failed
+    // abort must not mask the failure that got us here.
+    try {
+      await api.abortMultipartUpload({ sessionId: init.sessionId });
+    } catch (abortError) {
+      const msg =
+        abortError instanceof Error ? abortError.message : "Unknown error";
+      logger.debug(
+        `Failed to abort multipart upload ${init.sessionId}: ${msg}`
+      );
+    }
+    throw error;
   }
 
-  // Clean up session on success
-  await removeUploadSession(session.checksum);
+  return init.sessionId;
 }
 
 // --- Dry Run ---
@@ -626,6 +637,7 @@ export async function pushArtifact(
     registry?: string;
     force?: boolean;
     json?: boolean;
+    platform?: string;
   }
 ): Promise<PushResult> {
   const auth = checkAuth();
@@ -640,36 +652,16 @@ export async function pushArtifact(
   const spinner = ora(`Pushing ${path.basename(filePath)}...`).start();
 
   try {
-    const uploadOpts: {
-      resource?: string;
-      name?: string;
-      tag?: string;
-      message?: string;
-      registry?: string;
-      force?: boolean;
-      gitHash?: string;
-    } = {};
-    if (options.resource) {
-      uploadOpts.resource = options.resource;
-    }
-    if (options.name) {
-      uploadOpts.name = options.name;
-    }
-    if (options.tag) {
-      uploadOpts.tag = options.tag;
-    }
-    if (options.message) {
-      uploadOpts.message = options.message;
-    }
-    if (options.registry) {
-      uploadOpts.registry = options.registry;
-    }
-    if (options.force) {
-      uploadOpts.force = options.force;
-    }
-    if (gitHash) {
-      uploadOpts.gitHash = gitHash;
-    }
+    const uploadOpts = buildUploadOpts({
+      resource: options.resource,
+      name: options.name,
+      tag: options.tag,
+      message: options.message,
+      registry: options.registry,
+      force: options.force,
+      gitHash,
+      platform: resolvePlatformHint(options.platform),
+    });
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -740,33 +732,16 @@ async function pushResourceTyped(
       return;
     }
 
-    const uploadOpts: {
-      resource?: string;
-      name?: string;
-      tag?: string;
-      message?: string;
-      registry?: string;
-      force?: boolean;
-      gitHash?: string;
-    } = {
+    const uploadOpts = buildUploadOpts({
       resource,
       name: resolvedName,
-    };
-    if (resolvedTag) {
-      uploadOpts.tag = resolvedTag;
-    }
-    if (options.message) {
-      uploadOpts.message = options.message;
-    }
-    if (options.registry) {
-      uploadOpts.registry = options.registry;
-    }
-    if (options.force) {
-      uploadOpts.force = options.force;
-    }
-    if (gitHash) {
-      uploadOpts.gitHash = gitHash;
-    }
+      tag: resolvedTag,
+      message: options.message,
+      registry: options.registry,
+      force: options.force,
+      gitHash,
+      platform: resolvePlatformHint(options.platform),
+    });
 
     const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -788,14 +763,7 @@ async function pushResourceTyped(
     handlePlatformError(error);
     if (error instanceof Error) {
       logger.error(error.message);
-      if (
-        error.message.toLowerCase().includes("not found") ||
-        error.message.includes("404")
-      ) {
-        logger.info(
-          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
-        );
-      }
+      logNotFoundHint(error.message);
     } else {
       logger.error("Unknown error occurred");
     }
@@ -829,10 +797,11 @@ async function pushPathBased(
     }
 
     spinner.text = `Computing checksums for ${filePaths.length} file(s)...`;
-    const fileInfos: PushFileInfo[] = [];
-    for (const fp of filePaths) {
-      fileInfos.push(await prepareFileInfo(fp));
-    }
+    const fileInfos = await mapWithConcurrency(
+      filePaths,
+      CHECKSUM_CONCURRENCY,
+      (fp) => prepareFileInfo(fp)
+    );
 
     if (options.dryRun) {
       spinner.stop();
@@ -843,28 +812,14 @@ async function pushPathBased(
     if (fileInfos.length === 1) {
       const fileInfo = fileInfos[0]!;
 
-      const uploadOpts: {
-        tag?: string;
-        message?: string;
-        registry?: string;
-        force?: boolean;
-        gitHash?: string;
-      } = {};
-      if (resolvedTag) {
-        uploadOpts.tag = resolvedTag;
-      }
-      if (options.message) {
-        uploadOpts.message = options.message;
-      }
-      if (options.registry) {
-        uploadOpts.registry = options.registry;
-      }
-      if (options.force) {
-        uploadOpts.force = options.force;
-      }
-      if (gitHash) {
-        uploadOpts.gitHash = gitHash;
-      }
+      const uploadOpts = buildUploadOpts({
+        tag: resolvedTag,
+        message: options.message,
+        registry: options.registry,
+        force: options.force,
+        gitHash,
+        platform: resolvePlatformHint(options.platform),
+      });
 
       const result = await uploadSingleFile(api, fileInfo, uploadOpts, spinner);
 
@@ -893,6 +848,7 @@ async function pushPathBased(
         force?: boolean;
         json?: boolean;
         gitHash?: string;
+        platform?: string;
       } = {};
       if (resolvedTag) {
         multiOpts.tag = resolvedTag;
@@ -912,6 +868,10 @@ async function pushPathBased(
       if (gitHash) {
         multiOpts.gitHash = gitHash;
       }
+      const multiPlatform = resolvePlatformHint(options.platform);
+      if (multiPlatform) {
+        multiOpts.platform = multiPlatform;
+      }
 
       await pushMultipleFiles(api, fileInfos, multiOpts);
     }
@@ -919,14 +879,7 @@ async function pushPathBased(
     spinner.fail(`Failed to push ${resourcePath}`);
     if (error instanceof Error) {
       logger.error(error.message);
-      if (
-        error.message.toLowerCase().includes("not found") ||
-        error.message.includes("404")
-      ) {
-        logger.info(
-          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
-        );
-      }
+      logNotFoundHint(error.message);
     } else {
       logger.error("Unknown error occurred");
     }
@@ -964,10 +917,11 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     }
 
     spinner.text = `Computing checksums for ${filePaths.length} file(s)...`;
-    const fileInfos: PushFileInfo[] = [];
-    for (const fp of filePaths) {
-      fileInfos.push(await prepareFileInfo(fp));
-    }
+    const fileInfos = await mapWithConcurrency(
+      filePaths,
+      CHECKSUM_CONCURRENCY,
+      (fp) => prepareFileInfo(fp)
+    );
 
     const resolvedTag = resolveTag(options.tag, undefined);
     const gitHash = getShortCommitHash() || undefined;
@@ -990,6 +944,7 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
       json?: boolean;
       gitHash?: string;
       projectName?: string;
+      platform?: string;
     } = {
       projectName: projectConfig.name,
     };
@@ -1011,20 +966,17 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     if (gitHash) {
       allOpts.gitHash = gitHash;
     }
+    const allPlatform = resolvePlatformHint(options.platform);
+    if (allPlatform) {
+      allOpts.platform = allPlatform;
+    }
 
     await pushMultipleFiles(api, fileInfos, allOpts);
   } catch (error) {
     spinner.fail("Failed to push project artifacts");
     if (error instanceof Error) {
       logger.error(error.message);
-      if (
-        error.message.toLowerCase().includes("not found") ||
-        error.message.includes("404")
-      ) {
-        logger.info(
-          `If this project is not yet registered, run: ${chalk.cyan("cirron register")}`
-        );
-      }
+      logNotFoundHint(error.message);
     } else {
       logger.error("Unknown error occurred");
     }
@@ -1045,6 +997,7 @@ async function pushMultipleFiles(
     json?: boolean;
     gitHash?: string;
     projectName?: string;
+    platform?: string;
   }
 ): Promise<void> {
   const results: PushResult[] = [];
@@ -1059,28 +1012,14 @@ async function pushMultipleFiles(
     ).start();
 
     try {
-      const uploadOpts: {
-        tag?: string;
-        message?: string;
-        registry?: string;
-        force?: boolean;
-        gitHash?: string;
-      } = {};
-      if (options.tag) {
-        uploadOpts.tag = options.tag;
-      }
-      if (options.message) {
-        uploadOpts.message = options.message;
-      }
-      if (options.registry) {
-        uploadOpts.registry = options.registry;
-      }
-      if (options.force) {
-        uploadOpts.force = options.force;
-      }
-      if (options.gitHash) {
-        uploadOpts.gitHash = options.gitHash;
-      }
+      const uploadOpts = buildUploadOpts({
+        tag: options.tag,
+        message: options.message,
+        registry: options.registry,
+        force: options.force,
+        gitHash: options.gitHash,
+        platform: options.platform,
+      });
 
       const result = await uploadSingleFile(
         api,
