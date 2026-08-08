@@ -928,11 +928,18 @@ export class CirronApi {
         controller.abort();
       }, this.config.timeout * 10);
 
+      // Hoisted so the finally can close it. A request that fails BEFORE the
+      // body is consumed (connection refused, bad URL) never cancels the web
+      // stream, so nothing would destroy the fd. Abort and socket errors do
+      // propagate through Readable.toWeb and are already handled.
+      let fileStream: ReturnType<typeof createReadStream> | undefined;
+
       try {
-        const fileStream = createReadStream(filePath);
+        const stream = createReadStream(filePath);
+        fileStream = stream;
         let uploaded = 0;
 
-        fileStream.on("data", (chunk: string | Buffer) => {
+        stream.on("data", (chunk: string | Buffer) => {
           uploaded +=
             typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
           if (onProgress && totalSize > 0) {
@@ -940,8 +947,8 @@ export class CirronApi {
           }
         });
 
-        fileStream.on("error", () => {
-          fileStream.destroy();
+        stream.on("error", () => {
+          stream.destroy();
           controller.abort();
         });
 
@@ -951,7 +958,7 @@ export class CirronApi {
           // Native fetch needs a web stream and duplex; the explicit
           // Content-Length above is still honored, so presigned PUTs keep
           // getting a sized request rather than chunked encoding.
-          body: Readable.toWeb(fileStream) as never,
+          body: Readable.toWeb(stream) as never,
           duplex: "half",
           signal: controller.signal,
         } as RequestInit);
@@ -980,6 +987,7 @@ export class CirronApi {
         }
       } finally {
         clearTimeout(timeoutId);
+        fileStream?.destroy();
       }
     }
 
@@ -1025,15 +1033,20 @@ export class CirronApi {
         controller.abort();
       }, this.config.timeout * 10);
 
+      // Hoisted so the finally can close it. See uploadFile: a request that
+      // fails before the body is consumed never cancels the web stream.
+      let fileStream: ReturnType<typeof createReadStream> | undefined;
+
       try {
         // Recreated per attempt: a consumed stream cannot be replayed.
         // createReadStream's `end` is inclusive.
-        const fileStream = createReadStream(filePath, {
+        const stream = createReadStream(filePath, {
           start,
           end: start + length - 1,
         });
+        fileStream = stream;
 
-        fileStream.on("data", (chunk: string | Buffer) => {
+        stream.on("data", (chunk: string | Buffer) => {
           if (onProgress) {
             onProgress(
               typeof chunk === "string"
@@ -1043,15 +1056,15 @@ export class CirronApi {
           }
         });
 
-        fileStream.on("error", () => {
-          fileStream.destroy();
+        stream.on("error", () => {
+          stream.destroy();
           controller.abort();
         });
 
         const response = await fetch(url, {
           method: "PUT",
           headers,
-          body: Readable.toWeb(fileStream) as never,
+          body: Readable.toWeb(stream) as never,
           duplex: "half",
           signal: controller.signal,
         } as RequestInit);
@@ -1091,6 +1104,7 @@ export class CirronApi {
         }
       } finally {
         clearTimeout(timeoutId);
+        fileStream?.destroy();
       }
     }
 
