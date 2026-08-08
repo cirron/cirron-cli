@@ -8,6 +8,7 @@ interface ProjectConfigOverrides {
   environments?: Record<string, Record<string, unknown>>;
   framework?: string;
   name?: string;
+  platform?: string;
   pythonVersion?: string;
   type?: string;
   version?: string;
@@ -31,6 +32,7 @@ export function writeProjectConfig(
     ...(overrides.environments ? { environments: overrides.environments } : {}),
     ...(overrides.build ? { build: overrides.build } : {}),
     ...(overrides.deploy ? { deploy: overrides.deploy } : {}),
+    ...(overrides.platform ? { platform: overrides.platform } : {}),
   };
   fs.writeFileSync(
     path.join(dir, "cirron.json"),

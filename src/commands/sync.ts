@@ -19,12 +19,17 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import { collectFiles, collectProjectFiles } from "../utils/artifacts";
+import { computeFileChecksum } from "../utils/checksum";
+import { mapWithConcurrency } from "../utils/concurrency";
 import { ConfigManager } from "../utils/config";
+import { formatSize } from "../utils/format";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
-import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
+import { resolveWithin } from "../utils/safe-path";
 import { downloadArtifact } from "./pull";
-import { computeFileChecksum, formatSize, uploadSingleFile } from "./push";
+import { uploadSingleFile } from "./push";
 
 // --- Constants ---
 
@@ -34,6 +39,12 @@ const VALID_CONFLICT_STRATEGIES: SyncConflictStrategy[] = [
   "remote-wins",
   "prompt",
 ];
+
+/**
+ * Files hashed at once while building the local manifest. Disk-and-CPU bound
+ * rather than network-bound, so higher than the upload concurrency.
+ */
+const CHECKSUM_CONCURRENCY = 8;
 
 // --- Helpers ---
 
@@ -48,87 +59,6 @@ function checkAuth(): { api: CirronApi } | null {
   }
 
   return { api: new CirronApi(currentConfig) };
-}
-
-function loadProjectConfig(): ProjectConfig | null {
-  const result = loadProjectConfigUtil();
-  if (!result) {
-    return null;
-  }
-  return result.config;
-}
-
-async function collectFiles(targetPath: string): Promise<string[]> {
-  const resolved = path.resolve(targetPath);
-  const stat = await fs.stat(resolved);
-
-  if (stat.isFile()) {
-    return [resolved];
-  }
-
-  const files: string[] = [];
-  const walk = async (dir: string): Promise<void> => {
-    const entries = await fs.readdir(dir);
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry);
-      const entryStat = await fs.stat(fullPath);
-      if (entryStat.isDirectory()) {
-        await walk(fullPath);
-      } else {
-        files.push(fullPath);
-      }
-    }
-  };
-  await walk(resolved);
-  return files;
-}
-
-async function collectProjectFiles(
-  projectConfig: ProjectConfig,
-  excludePatterns: string | undefined
-): Promise<string[]> {
-  const cwd = process.cwd();
-  const pathsToScan: string[] = [];
-
-  if (projectConfig.artifacts) {
-    if (projectConfig.artifacts.modelPath) {
-      pathsToScan.push(path.join(cwd, projectConfig.artifacts.modelPath));
-    }
-    if (projectConfig.artifacts.checkpointPath) {
-      pathsToScan.push(path.join(cwd, projectConfig.artifacts.checkpointPath));
-    }
-  }
-
-  const commonDirs = ["models", "artifacts", "build"];
-  for (const dir of commonDirs) {
-    const dirPath = path.join(cwd, dir);
-    if (await fs.pathExists(dirPath)) {
-      pathsToScan.push(dirPath);
-    }
-  }
-
-  let allFiles: string[] = [];
-  for (const scanPath of pathsToScan) {
-    if (await fs.pathExists(scanPath)) {
-      const files = await collectFiles(scanPath);
-      allFiles.push(...files);
-    }
-  }
-
-  // Deduplicate
-  allFiles = [...new Set(allFiles)];
-
-  // Apply .cirronignore + --exclude patterns
-  const ignore = new CirronIgnore();
-  if (excludePatterns) {
-    const patterns = excludePatterns.split(",").map((p) => p.trim());
-    for (const pattern of patterns) {
-      ignore.addPattern(pattern);
-    }
-  }
-  allFiles = allFiles.filter((f) => !ignore.isIgnored(path.relative(cwd, f)));
-
-  return allFiles;
 }
 
 // --- Type Adapters ---
@@ -244,18 +174,19 @@ async function buildLocalManifest(
     return [];
   }
 
-  const manifest: SyncFileManifestEntry[] = [];
-  for (const fp of filePaths) {
-    const stat = await fs.stat(fp);
-    const checksum = await computeFileChecksum(fp);
-    manifest.push({
-      path: path.relative(process.cwd(), fp),
-      checksum,
-      size: stat.size,
-    });
-  }
-
-  return manifest;
+  return await mapWithConcurrency(
+    filePaths,
+    CHECKSUM_CONCURRENCY,
+    async (fp): Promise<SyncFileManifestEntry> => {
+      const stat = await fs.stat(fp);
+      const checksum = await computeFileChecksum(fp);
+      return {
+        path: path.relative(process.cwd(), fp),
+        checksum,
+        size: stat.size,
+      };
+    }
+  );
 }
 
 // --- Filtering ---
@@ -641,12 +572,11 @@ async function pullSyncFiles(
 
   for (const file of files) {
     const artifactInfo = toArtifactInfo(file);
-    const destPath = path.resolve(cwd, file.path);
     const itemSpinner = ora(`${label}: ${file.path}...`).start();
 
     // Validate the resolved path stays within the project directory
-    const relPath = path.relative(cwd, destPath);
-    if (relPath.startsWith("..") || path.isAbsolute(relPath)) {
+    const destPath = resolveWithin(cwd, file.path);
+    if (!destPath) {
       itemSpinner.fail(`Rejected ${file.path}: path traversal detected`);
       failed++;
       continue;
@@ -675,6 +605,146 @@ async function pullSyncFiles(
   return { succeeded, failed, pulled };
 }
 
+interface ConflictEntryRecord {
+  artifactId: string;
+  checksum: string;
+  path: string;
+}
+
+interface ConflictOutcome {
+  ok: boolean;
+  pulled?: ConflictEntryRecord;
+  pushed?: ConflictEntryRecord;
+}
+
+/**
+ * The three conflict resolutions, each written once.
+ *
+ * Both the batch-strategy loop and the interactive loop call these; only the
+ * spinner's starting label differs between them, so it is a parameter. The
+ * success and failure strings are identical in both and stay here.
+ *
+ * A rejected path and a thrown error both report `ok: false`, which the
+ * callers count as a failure exactly as the inlined copies did.
+ */
+async function resolveByPush(
+  api: CirronApi,
+  conflict: SyncConflictEntry,
+  startLabel: string
+): Promise<ConflictOutcome> {
+  const itemSpinner = ora(startLabel).start();
+
+  // Guarded even though this action only READS locally and uploads: the path
+  // is server-supplied, so an unguarded resolve lets a hostile response name
+  // any readable file and have the CLI upload it.
+  if (!resolveWithin(process.cwd(), conflict.path)) {
+    itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+    return { ok: false };
+  }
+
+  try {
+    const fileInfo = toFileInfo(conflict);
+    const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
+    itemSpinner.succeed(
+      `Resolved ${chalk.cyan(conflict.path)} -> pushed local version`
+    );
+    return {
+      ok: true,
+      pushed: {
+        path: conflict.path,
+        checksum: fileInfo.checksum,
+        artifactId: result.artifact.id,
+      },
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
+    return { ok: false };
+  }
+}
+
+async function resolveByPull(
+  api: CirronApi,
+  conflict: SyncConflictEntry,
+  startLabel: string
+): Promise<ConflictOutcome> {
+  const itemSpinner = ora(startLabel).start();
+
+  const destPath = resolveWithin(process.cwd(), conflict.path);
+  if (!destPath) {
+    itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+    return { ok: false };
+  }
+
+  try {
+    const artifactInfo = toArtifactInfo(conflict);
+    await fs.ensureDir(path.dirname(destPath));
+    await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
+    itemSpinner.succeed(
+      `Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`
+    );
+    return {
+      ok: true,
+      pulled: {
+        path: conflict.path,
+        checksum: artifactInfo.checksum,
+        artifactId: artifactInfo.id,
+      },
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
+    return { ok: false };
+  }
+}
+
+async function resolveByKeepBoth(
+  api: CirronApi,
+  conflict: SyncConflictEntry,
+  startLabel: string
+): Promise<ConflictOutcome> {
+  const itemSpinner = ora(startLabel).start();
+
+  // buildKeepBothPaths only appends suffixes, so guarding the original
+  // covers the .local/.remote destinations too.
+  const originalPath = resolveWithin(process.cwd(), conflict.path);
+  if (!originalPath) {
+    itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
+    return { ok: false };
+  }
+
+  try {
+    const { localPath, remotePath } = buildKeepBothPaths(originalPath);
+
+    await fs.copy(originalPath, localPath);
+
+    const artifactInfo = toArtifactInfo(conflict);
+    await downloadArtifact(api, artifactInfo, remotePath, itemSpinner);
+
+    const relLocal = path.relative(process.cwd(), localPath);
+    const relRemote = path.relative(process.cwd(), remotePath);
+    itemSpinner.succeed(
+      `Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`
+    );
+    return {
+      ok: true,
+      // NOTE (backlog SYNC-02): this records the REMOTE checksum as the
+      // baseline for the untouched local file, so the next sync reports a
+      // spurious changedLocally. Preserved verbatim by the extraction; the
+      // fix is now a one-site change.
+      pulled: {
+        path: conflict.path,
+        checksum: artifactInfo.checksum,
+        artifactId: artifactInfo.id,
+      },
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
+    return { ok: false };
+  }
+}
+
 async function resolveConflicts(
   api: CirronApi,
   conflicts: SyncConflictEntry[],
@@ -694,6 +764,20 @@ async function resolveConflicts(
   const pulled: Array<{ path: string; checksum: string; artifactId: string }> =
     [];
 
+  const record = (outcome: ConflictOutcome): void => {
+    if (outcome.ok) {
+      resolved++;
+      if (outcome.pushed) {
+        pushed.push(outcome.pushed);
+      }
+      if (outcome.pulled) {
+        pulled.push(outcome.pulled);
+      }
+    } else {
+      failed++;
+    }
+  };
+
   if (conflicts.length === 0) {
     return { resolved, skipped, failed, pushed, pulled };
   }
@@ -701,90 +785,39 @@ async function resolveConflicts(
   // Non-interactive strategies
   if (strategy === "local-wins") {
     for (const conflict of conflicts) {
-      const itemSpinner = ora(
-        `Resolving conflict (local-wins): ${conflict.path}...`
-      ).start();
-      try {
-        const fileInfo = toFileInfo(conflict);
-        const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
-        itemSpinner.succeed(
-          `Resolved ${chalk.cyan(conflict.path)} -> pushed local version`
-        );
-        resolved++;
-        pushed.push({
-          path: conflict.path,
-          checksum: fileInfo.checksum,
-          artifactId: result.artifact.id,
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
-        failed++;
-      }
+      record(
+        await resolveByPush(
+          api,
+          conflict,
+          `Resolving conflict (local-wins): ${conflict.path}...`
+        )
+      );
     }
     return { resolved, skipped, failed, pushed, pulled };
   }
 
   if (strategy === "remote-wins") {
     for (const conflict of conflicts) {
-      const itemSpinner = ora(
-        `Resolving conflict (remote-wins): ${conflict.path}...`
-      ).start();
-      try {
-        const artifactInfo = toArtifactInfo(conflict);
-        const destPath = path.resolve(process.cwd(), conflict.path);
-        await fs.ensureDir(path.dirname(destPath));
-        await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
-        itemSpinner.succeed(
-          `Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`
-        );
-        resolved++;
-        pulled.push({
-          path: conflict.path,
-          checksum: artifactInfo.checksum,
-          artifactId: artifactInfo.id,
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
-        failed++;
-      }
+      record(
+        await resolveByPull(
+          api,
+          conflict,
+          `Resolving conflict (remote-wins): ${conflict.path}...`
+        )
+      );
     }
     return { resolved, skipped, failed, pushed, pulled };
   }
 
   if (strategy === "keep-both") {
     for (const conflict of conflicts) {
-      const itemSpinner = ora(
-        `Resolving conflict (keep-both): ${conflict.path}...`
-      ).start();
-      try {
-        const originalPath = path.resolve(process.cwd(), conflict.path);
-        const { localPath, remotePath } = buildKeepBothPaths(originalPath);
-
-        // Copy local file to .local suffix
-        await fs.copy(originalPath, localPath);
-
-        // Download remote to .remote suffix
-        const artifactInfo = toArtifactInfo(conflict);
-        await downloadArtifact(api, artifactInfo, remotePath, itemSpinner);
-
-        const relLocal = path.relative(process.cwd(), localPath);
-        const relRemote = path.relative(process.cwd(), remotePath);
-        itemSpinner.succeed(
-          `Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`
-        );
-        resolved++;
-        pulled.push({
-          path: conflict.path,
-          checksum: artifactInfo.checksum,
-          artifactId: artifactInfo.id,
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
-        failed++;
-      }
+      record(
+        await resolveByKeepBoth(
+          api,
+          conflict,
+          `Resolving conflict (keep-both): ${conflict.path}...`
+        )
+      );
     }
     return { resolved, skipped, failed, pushed, pulled };
   }
@@ -822,80 +855,23 @@ async function resolveConflicts(
     }
 
     if (resolution === "overwrite-remote") {
-      const itemSpinner = ora(`Pushing ${conflict.path}...`).start();
-      try {
-        const fileInfo = toFileInfo(conflict);
-        const result = await uploadSingleFile(api, fileInfo, {}, itemSpinner);
-        itemSpinner.succeed(
-          `Resolved ${chalk.cyan(conflict.path)} -> pushed local version`
-        );
-        resolved++;
-        pushed.push({
-          path: conflict.path,
-          checksum: fileInfo.checksum,
-          artifactId: result.artifact.id,
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
-        failed++;
-      }
+      record(await resolveByPush(api, conflict, `Pushing ${conflict.path}...`));
       continue;
     }
 
     if (resolution === "overwrite-local") {
-      const itemSpinner = ora(`Pulling ${conflict.path}...`).start();
-      try {
-        const artifactInfo = toArtifactInfo(conflict);
-        const destPath = path.resolve(process.cwd(), conflict.path);
-        await fs.ensureDir(path.dirname(destPath));
-        await downloadArtifact(api, artifactInfo, destPath, itemSpinner);
-        itemSpinner.succeed(
-          `Resolved ${chalk.cyan(conflict.path)} -> pulled remote version`
-        );
-        resolved++;
-        pulled.push({
-          path: conflict.path,
-          checksum: artifactInfo.checksum,
-          artifactId: artifactInfo.id,
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
-        failed++;
-      }
+      record(await resolveByPull(api, conflict, `Pulling ${conflict.path}...`));
       continue;
     }
 
     if (resolution === "keep-both") {
-      const itemSpinner = ora(
-        `Keeping both versions of ${conflict.path}...`
-      ).start();
-      try {
-        const originalPath = path.resolve(process.cwd(), conflict.path);
-        const { localPath, remotePath } = buildKeepBothPaths(originalPath);
-
-        await fs.copy(originalPath, localPath);
-
-        const artifactInfo = toArtifactInfo(conflict);
-        await downloadArtifact(api, artifactInfo, remotePath, itemSpinner);
-
-        const relLocal = path.relative(process.cwd(), localPath);
-        const relRemote = path.relative(process.cwd(), remotePath);
-        itemSpinner.succeed(
-          `Resolved ${chalk.cyan(conflict.path)} -> kept both (${relLocal}, ${relRemote})`
-        );
-        resolved++;
-        pulled.push({
-          path: conflict.path,
-          checksum: artifactInfo.checksum,
-          artifactId: artifactInfo.id,
-        });
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        itemSpinner.fail(`Failed to resolve ${conflict.path}: ${msg}`);
-        failed++;
-      }
+      record(
+        await resolveByKeepBoth(
+          api,
+          conflict,
+          `Keeping both versions of ${conflict.path}...`
+        )
+      );
     }
   }
 
