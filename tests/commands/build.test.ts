@@ -344,6 +344,52 @@ describe("buildCommand", () => {
       );
     });
 
+    /** A pytorch project whose declared hardware can't satisfy a cuda build. */
+    function incompatibleHardwareProject() {
+      writeProjectConfig(tmp.dir, { framework: "pytorch" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+      const fs2 = require("fs-extra");
+      const path2 = require("node:path");
+      const cfgPath = path2.join(tmp.dir, "cirron.json");
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, "utf-8"));
+      cfg.hardware = {
+        type: "cpu",
+        architecture: "x86_64",
+        specifications: {
+          cpu: { cores: 4, model: "x", architecture: "x86_64" },
+        },
+        compatibility: { pytorch: true, tensorflow: true, sklearn: true },
+      };
+      fs2.writeFileSync(cfgPath, JSON.stringify(cfg));
+    }
+
+    it("fails the build when hardware validation fails without --force", async () => {
+      incompatibleHardwareProject();
+      await buildCommand({ env: "production", arch: "cuda" });
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it("--force runs hardware validation and warns instead of failing", async () => {
+      incompatibleHardwareProject();
+      const warnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+
+      await buildCommand({ env: "production", arch: "cuda", force: true });
+
+      // --force used to skip validation entirely, leaving the warn branch dead.
+      expect(warnSpy.mock.calls.flat().join(" ")).toContain(
+        "continuing with --force"
+      );
+      expect(exitSpy).not.toHaveBeenCalledWith(1);
+    });
+
     it("--analyze on an ML build", async () => {
       pytorchProject();
       await buildCommand({ env: "production", arch: "cpu", analyze: true });

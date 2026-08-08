@@ -303,8 +303,9 @@ async function handleMLBuild(
     }
   }
 
-  // Validate hardware compatibility if hardware config exists
-  if (projectConfig.hardware && !options.force) {
+  // Validate hardware compatibility if hardware config exists.
+  // --force downgrades a failure to a warning rather than skipping the check.
+  if (projectConfig.hardware) {
     spinner.text = "Validating hardware compatibility...";
     try {
       await validateHardwareCompatibility(
