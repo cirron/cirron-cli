@@ -1,3 +1,43 @@
+# v0.1.2 (Fri Aug 07 2026)
+
+#### 🔩 Dependency Updates
+
+- Release v0.1.2: device-flow auth fixes, HTTP transport hardening, and wire-contract tests [#107](https://github.com/cirron/cirron-cli/pull/107) ([@dlynch42](https://github.com/dlynch42) [@dependabot[bot]](https://github.com/dependabot[bot]))
+- Drop node-fetch for native fetch and clean up dependencies [#104](https://github.com/cirron/cirron-cli/pull/104) ([@dlynch42](https://github.com/dlynch42))
+- Bump vitest from 4.1.6 to 4.1.10 [#75](https://github.com/cirron/cirron-cli/pull/75) ([@dlynch42](https://github.com/dlynch42) [@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump inquirer from 13.4.3 to 14.0.2 [#72](https://github.com/cirron/cirron-cli/pull/72) ([@dlynch42](https://github.com/dlynch42) [@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump commander from 14.0.3 to 15.0.0 [#74](https://github.com/cirron/cirron-cli/pull/74) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump actions/setup-node from 4 to 7 [#79](https://github.com/cirron/cirron-cli/pull/79) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump actions/checkout from 4 to 7 [#78](https://github.com/cirron/cirron-cli/pull/78) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump vite from 8.0.12 to 8.0.16 in the npm_and_yarn group across 1 directory [#77](https://github.com/cirron/cirron-cli/pull/77) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump semver from 7.8.0 to 7.8.1 [#76](https://github.com/cirron/cirron-cli/pull/76) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump ultracite from 7.7.0 to 7.8.1 [#73](https://github.com/cirron/cirron-cli/pull/73) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump @types/node from 25.7.0 to 25.9.1 [#71](https://github.com/cirron/cirron-cli/pull/71) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump @vitest/coverage-v8 from 4.1.6 to 4.1.8 [#70](https://github.com/cirron/cirron-cli/pull/70) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump js-yaml from 4.1.1 to 4.2.0 [#69](https://github.com/cirron/cirron-cli/pull/69) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump @biomejs/biome from 2.4.15 to 2.4.16 [#68](https://github.com/cirron/cirron-cli/pull/68) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+
+#### 🐛 Bug Fix
+
+- Fix the device-flow auth path and harden the HTTP transport [#105](https://github.com/cirron/cirron-cli/pull/105) ([@dlynch42](https://github.com/dlynch42))
+- Add a shared wire-contract fixture set and sync gate [#103](https://github.com/cirron/cirron-cli/pull/103) ([@dlynch42](https://github.com/dlynch42))
+- Cover the api.ts auth, refresh and streaming paths with tests [#102](https://github.com/cirron/cirron-cli/pull/102) ([@dlynch42](https://github.com/dlynch42))
+- Make device-flow login survive the full authorization window [#101](https://github.com/cirron/cirron-cli/pull/101) ([@dlynch42](https://github.com/dlynch42))
+- Give every requestRaw retry its own AbortController and timeout [#99](https://github.com/cirron/cirron-cli/pull/99) ([@dlynch42](https://github.com/dlynch42))
+- Fix the device-flow auth gate in six commands [#98](https://github.com/cirron/cirron-cli/pull/98) ([@dlynch42](https://github.com/dlynch42))
+- Normalize API responses and add CirronApi contract tests [#80](https://github.com/cirron/cirron-cli/pull/80) ([@dlynch42](https://github.com/dlynch42))
+
+#### 📝 Documentation
+
+- Document contracts:check and fix the template path in the README [#106](https://github.com/cirron/cirron-cli/pull/106) ([@dlynch42](https://github.com/dlynch42))
+
+#### Authors: 2
+
+- [@dependabot[bot]](https://github.com/dependabot[bot])
+- Devin Lynch ([@dlynch42](https://github.com/dlynch42))
+
+---
+
 # v0.1.1 (Mon Aug 03 2026)
 
 #### 🐛 Bug Fix

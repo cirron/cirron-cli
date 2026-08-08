@@ -249,6 +249,33 @@ describe("pullCommand", () => {
     expect(fs.existsSync(path.join(tmp.dir, "weights.bin"))).toBe(true);
   });
 
+  it("rejects a server-supplied filename that escapes the output directory", async () => {
+    createAuthenticatedSession(tmp.dir);
+    vi.spyOn(CirronApi.prototype, "getPullArtifacts").mockResolvedValue([
+      pullArtifact({
+        filename: "../escape.txt",
+        checksum: HELLO_CHECKSUM,
+        size: 11,
+      }),
+    ]);
+    vi.spyOn(CirronApi.prototype, "getPullDownloadUrl").mockResolvedValue(
+      pullDownload()
+    );
+    const downloadSpy = vi.spyOn(CirronApi.prototype, "downloadFile");
+
+    let caught: unknown;
+    try {
+      await pullCommand("model", "evil", {});
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(exitCodeFromError(caught)).toBe(1);
+    expect(downloadSpy).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(tmp.dir, "..", "escape.txt"))).toBe(false);
+    expect(errorSpy.mock.calls.flat().join(" ")).toMatch(/unsafe filename/);
+  });
+
   it("path-based pull surfaces 'no artifact found'", async () => {
     createAuthenticatedSession(tmp.dir);
     vi.spyOn(CirronApi.prototype, "getPullArtifacts").mockResolvedValue([]);
@@ -294,6 +321,43 @@ describe("pullCommand", () => {
       vi.spyOn(CirronApi.prototype, "getPullArtifacts").mockResolvedValue([]);
       await pullCommand(undefined, undefined, { all: true });
       expect(exitStub.spy).not.toHaveBeenCalled();
+    });
+
+    it("counts an unsafe filename as one failure and still pulls the rest", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir);
+      vi.spyOn(CirronApi.prototype, "getPullArtifacts").mockResolvedValue([
+        pullArtifact({
+          id: "evil",
+          name: "evil",
+          filename: "../escape.txt",
+          checksum: HELLO_CHECKSUM,
+          size: 11,
+        }),
+        pullArtifact({
+          id: "good",
+          name: "good",
+          filename: "good.pth",
+          checksum: HELLO_CHECKSUM,
+          size: 11,
+        }),
+      ]);
+      vi.spyOn(CirronApi.prototype, "getPullDownloadUrl").mockResolvedValue(
+        pullDownload()
+      );
+      stubDownload();
+
+      let caught: unknown;
+      try {
+        await pullCommand(undefined, undefined, { all: true });
+      } catch (err) {
+        caught = err;
+      }
+
+      // The safe artifact still lands; the hostile one is counted failed.
+      expect(fs.existsSync(path.join(tmp.dir, "good.pth"))).toBe(true);
+      expect(fs.existsSync(path.join(tmp.dir, "..", "escape.txt"))).toBe(false);
+      expect(exitCodeFromError(caught)).toBe(1);
     });
 
     it("filters artifacts by --ignore patterns", async () => {

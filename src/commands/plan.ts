@@ -11,7 +11,6 @@ import type {
   ProjectConfig,
 } from "../types";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
-import { executePythonScript, handleExecutionResult } from "../utils/execution";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
 import { PlanGenerator } from "../utils/plan";
@@ -19,6 +18,7 @@ import { PlanDiffAnalyzer } from "../utils/plan-diff";
 import { PlanFormatter } from "../utils/plan-formatter";
 import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
+import { checkCudaPytorch, checkRequiredFiles } from "../utils/validation";
 
 // Plan compile subcommand
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
@@ -613,31 +613,19 @@ async function runValidationChecks(
   architecture: string,
   strictMode: boolean
 ): Promise<void> {
-  const validationErrors: string[] = [];
-
-  // Check required files
-  const requiredFiles = ["src/model.py", "requirements.txt"];
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(file)) {
-      validationErrors.push(`Required file missing: ${file}`);
-    }
-  }
+  // Note: plan deliberately runs fewer checks than build and compile. It has
+  // never probed the Python version, and only checks CUDA. Preserved as-is by
+  // plan 010's refactor; whether that is intentional is a maintainer question.
+  const validationErrors: string[] = [...checkRequiredFiles()];
 
   // Architecture-specific validation
   if (
     (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
   ) {
-    try {
-      const testScript = "import torch; assert torch.cuda.is_available()";
-      const result = await executePythonScript(testScript, { strictMode });
-      handleExecutionResult(result, strictMode);
-      if (!result.success) {
-        validationErrors.push("CUDA not available for PyTorch");
-      }
-    } catch {
-      validationErrors.push("CUDA not available for PyTorch");
-    }
+    validationErrors.push(
+      ...(await checkCudaPytorch({ strictMode, handleResult: true }))
+    );
   }
 
   if (validationErrors.length > 0) {

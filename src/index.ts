@@ -509,6 +509,10 @@ program
   .option("--all", "Push all files defined in cirron.json")
   .option("--ignore <patterns>", "Glob patterns to exclude")
   .option("--registry <url>", "Override registry URL")
+  .option(
+    "--platform <slug>",
+    "Platform to push to (overrides the project config)"
+  )
   .option("-f, --force", "Overwrite existing version / skip dedupe")
   .option("--dry-run", "Show what would be pushed")
   .option("--json", "Output in JSON format")

@@ -48,6 +48,17 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
 }
 
 /**
+ * Convenience: the parsed config only, or null when no project config exists.
+ *
+ * Most commands only ever want the config body and discard the path/filename,
+ * and each was carrying its own identical wrapper for it.
+ */
+export function loadProjectConfigOrNull(dir?: string): ProjectConfig | null {
+  const result = loadProjectConfig(dir);
+  return result ? result.config : null;
+}
+
+/**
  * Finds the project config path without loading it.
  * Returns the path to the first config file found, or null.
  */

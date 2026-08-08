@@ -20,7 +20,7 @@
     "@biomejs/biome": "^2.4.16",
     "@types/fs-extra": "^11.0.4",
     "@types/iarna__toml": "^2.0.5",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.8",
     "auto": "^11.3.6",
     "ts-node": "^10.9.2",
@@ -42,7 +42,7 @@
     "lint:fix": "ultracite fix",
     "contracts:check": "node scripts/contracts-check.mjs"
   },
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Official CLI for Cirron, providing streamlined commands for building, deploying, and managing ML models on and off the platform.",
   "main": "dist/index.js",
   "bin": {

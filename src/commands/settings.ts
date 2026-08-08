@@ -3,6 +3,11 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import type { SettingsOptions } from "../types";
 import { logger } from "../utils/logger";
+import {
+  deleteNestedValue,
+  getNestedValue,
+  setNestedValue,
+} from "../utils/nested";
 import { settingsManager } from "../utils/settings";
 
 export async function settingsCommand(options: SettingsOptions): Promise<void> {
@@ -898,33 +903,6 @@ async function interactiveSettings(
 }
 
 // Utility functions
-function getNestedValue(obj: any, path: string): any {
-  return path.split(".").reduce((current, key) => current?.[key], obj);
-}
-
-function setNestedValue(obj: any, path: string, value: any): void {
-  const keys = path.split(".");
-  const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
-    if (!(key in current)) {
-      current[key] = {};
-    }
-    return current[key];
-  }, obj);
-  target[lastKey] = value;
-}
-
-function deleteNestedValue(obj: any, path: string): boolean {
-  const keys = path.split(".");
-  const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => current?.[key], obj);
-
-  if (target && lastKey in target) {
-    delete target[lastKey];
-    return true;
-  }
-  return false;
-}
 
 function parseValue(value: string): any {
   // Try to parse as JSON first

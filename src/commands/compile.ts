@@ -5,16 +5,20 @@ import fs from "fs-extra";
 import ora from "ora";
 import type { HardwareConfig, ProjectConfig } from "../types";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
-import {
-  executePythonScript,
-  formatExecutionError,
-  handleExecutionResult,
-} from "../utils/execution";
+import { executePythonScript, formatExecutionError } from "../utils/execution";
 import { HardwareDetector } from "../utils/hardware";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
 import { loadProjectConfig } from "../utils/project-config";
+import {
+  checkCudaPytorch,
+  checkIndexConfig,
+  checkModelCreation,
+  checkPythonVersion,
+  checkRequiredFiles,
+  checkTensorflowGpu,
+} from "../utils/validation";
 
 interface CompileOptions {
   arch?: string;
@@ -351,44 +355,10 @@ async function runValidationChecks(
   architecture: string,
   strictMode: boolean
 ): Promise<void> {
-  const validationErrors: string[] = [];
-
-  // Check required files
-  const requiredFiles = ["src/model.py", "requirements.txt"];
-
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(file)) {
-      validationErrors.push(`Required file missing: ${file}`);
-    }
-  }
-
-  // Validate Python environment
-  try {
-    const pythonVersion = execSync("python3 --version", {
-      encoding: "utf8",
-    }).trim();
-    const versionMatch = pythonVersion.match(/Python (\d+\.\d+\.\d+)/);
-
-    if (versionMatch && versionMatch[1]) {
-      const versionParts = versionMatch[1].split(".");
-      const major = Number.parseInt(versionParts[0] || "0", 10);
-      const minor = Number.parseInt(versionParts[1] || "0", 10);
-      const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
-      const requiredMajor = Number.parseInt(requiredParts[0] || "3", 10);
-      const requiredMinor = Number.parseInt(requiredParts[1] || "9", 10);
-
-      if (
-        major < requiredMajor ||
-        (major === requiredMajor && minor < requiredMinor)
-      ) {
-        validationErrors.push(
-          `Python ${projectConfig.pythonVersion || "3.9"}+ required, found ${major}.${minor}`
-        );
-      }
-    }
-  } catch {
-    validationErrors.push("Python3 not available");
-  }
+  const validationErrors: string[] = [
+    ...checkRequiredFiles(),
+    ...checkPythonVersion(projectConfig.pythonVersion),
+  ];
 
   // Architecture-specific validation
   if (architecture === "cuda" || architecture === "gpu") {
@@ -396,70 +366,34 @@ async function runValidationChecks(
       logger.warn("GPU architecture selected but project does not require GPU");
     }
 
-    // Check CUDA availability for PyTorch
     if (projectConfig.framework === "pytorch") {
-      try {
-        const testScript = "import torch; assert torch.cuda.is_available()";
-        const result = await executePythonScript(testScript, { strictMode });
-        handleExecutionResult(result, strictMode);
-        if (!result.success) {
-          validationErrors.push("CUDA not available for PyTorch");
-          if (
-            result.parsedErrors &&
-            result.parsedErrors.length > 0 &&
-            result.parsedErrors[0]
-          ) {
-            logger.debug(
-              "CUDA validation details:",
-              result.parsedErrors[0].message
-            );
-          }
-        }
-      } catch {
-        validationErrors.push("CUDA not available for PyTorch");
-      }
+      validationErrors.push(
+        ...(await checkCudaPytorch({
+          strictMode,
+          handleResult: true,
+          debugLog: true,
+        }))
+      );
     }
 
-    // Check GPU availability for TensorFlow
     if (projectConfig.framework === "tensorflow") {
-      try {
-        const testScript =
-          'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0';
-        const result = await executePythonScript(testScript, { strictMode });
-        handleExecutionResult(result, strictMode);
-        if (!result.success) {
-          validationErrors.push("GPU not available for TensorFlow");
-          if (
-            result.parsedErrors &&
-            result.parsedErrors.length > 0 &&
-            result.parsedErrors[0]
-          ) {
-            logger.debug(
-              "TensorFlow GPU validation details:",
-              result.parsedErrors[0].message
-            );
-          }
-        }
-      } catch {
-        validationErrors.push("GPU not available for TensorFlow");
-      }
+      validationErrors.push(
+        ...(await checkTensorflowGpu({
+          strictMode,
+          handleResult: true,
+          debugLog: true,
+        }))
+      );
     }
   }
 
-  // Validate index configuration if provided
-  if (indexConfig) {
-    if (!(indexConfig.features && Array.isArray(indexConfig.features))) {
-      validationErrors.push("Index file missing or invalid features array");
-    }
+  validationErrors.push(
+    ...checkIndexConfig(indexConfig, { requireDataTypes: true })
+  );
 
-    if (!indexConfig.dataTypes || typeof indexConfig.dataTypes !== "object") {
-      validationErrors.push("Index file missing or invalid dataTypes object");
-    }
-  }
-
-  // Model validation
-  try {
-    const testScript = `
+  validationErrors.push(
+    ...(await checkModelCreation({
+      script: `
 import sys
 sys.path.append('src')
 from model import create_model
@@ -467,29 +401,13 @@ from model import create_model
 # Test model creation
 model = create_model()
 print('Model validation passed')
-`;
-    const result = await executePythonScript(testScript, {
+`,
       strictMode,
       baseErrorCode: CLIErrorCode.MODEL_CREATION_FAILED,
-    });
-    handleExecutionResult(result, strictMode);
-    if (!result.success) {
-      validationErrors.push("Model creation failed during validation");
-      if (result.parsedErrors && result.parsedErrors.length > 0) {
-        const firstError = result.parsedErrors[0];
-        if (firstError) {
-          logger.debug("Model validation error:", firstError.message);
-          if (firstError.file && firstError.line) {
-            logger.debug(
-              `Error location: ${firstError.file}:${firstError.line}`
-            );
-          }
-        }
-      }
-    }
-  } catch {
-    validationErrors.push("Model creation failed during validation");
-  }
+      handleResult: true,
+      debugLog: true,
+    }))
+  );
 
   if (validationErrors.length > 0) {
     const validationError = new CLIError({
