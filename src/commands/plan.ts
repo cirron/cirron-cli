@@ -1187,6 +1187,7 @@ export async function planSaveCommand(
               "plans",
               filename
             );
+            await fs.ensureDir(path.dirname(filePath));
             await fs.writeJson(filePath, plan, { spaces: 2 });
             savedPaths.push(filePath);
           }
