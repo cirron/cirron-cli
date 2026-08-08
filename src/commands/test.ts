@@ -636,7 +636,7 @@ else:
     try {
       const result = await executePythonFile(tempScriptPath);
       if (!result.success) {
-        throw new Error(`Model test failed: ${formatExecutionError(result)}`);
+        throw new Error(`Data test failed: ${formatExecutionError(result)}`);
       }
     } finally {
       // Clean up temporary file
