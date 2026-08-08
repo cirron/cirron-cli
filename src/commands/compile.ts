@@ -96,7 +96,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     }
 
     // Determine architecture from options, model config, or hardware detection
-    const architecture =
+    let architecture =
       options.arch ||
       modelConfig?.inference?.device ||
       (await determineArchitectureFromHardware(projectConfig));
@@ -121,6 +121,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
         logger.info(
           `Architecture changed from ${architecture} to ${confirmedArch}`
         );
+        architecture = confirmedArch;
       }
       spinner.start();
     }

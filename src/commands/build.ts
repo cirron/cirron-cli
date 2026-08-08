@@ -254,7 +254,7 @@ async function handleMLBuild(
   }
 
   // Determine architecture from options, model config, or hardware detection
-  const architecture =
+  let architecture =
     options.arch ||
     modelConfig?.inference?.device ||
     (await determineArchitectureFromHardware(projectConfig));
@@ -279,6 +279,7 @@ async function handleMLBuild(
       logger.info(
         `Architecture changed from ${architecture} to ${confirmedArch}`
       );
+      architecture = confirmedArch;
     }
     spinner.start();
   }
