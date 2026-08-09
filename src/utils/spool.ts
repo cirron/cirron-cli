@@ -1,8 +1,8 @@
 // src/utils/spool.ts
 //
-// Shared spool-directory helpers consumed by both `cirron spool` (SDK-18)
-// and `cirron traces` (SDK-51). The spool format is documented public API
-// — see `cirron_sdk/docs/spool-format.md`.
+// Shared spool-directory helpers consumed by both `cirron spool` and
+// `cirron traces`. The spool format is documented public API — see the SDK's
+// spool-format documentation.
 
 import path from "node:path";
 import fs from "fs-extra";

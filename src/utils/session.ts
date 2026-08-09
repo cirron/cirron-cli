@@ -4,7 +4,7 @@
 // the spool, dedupes spans/marks/snapshots across batches, and groups them
 // into logical sessions rooted at each `cirron.session` span.
 //
-// Shape mirrors cirron_sdk/docs/spool-format.md (schema_version 1). Unknown
+// Shape mirrors the SDK's documented spool format (schema_version 1). Unknown
 // fields are preserved per the forward-compat rule so minor SDK bumps don't
 // break the CLI.
 

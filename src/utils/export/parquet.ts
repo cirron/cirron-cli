@@ -1,10 +1,18 @@
 // src/utils/export/parquet.ts
 //
 // Parquet writer for `cirron traces export --format parquet`. Emits three
-// files (spans.parquet, marks.parquet, snapshots.parquet) into the output
-// directory. Schemas mirror the platform Prisma models (TraceSpan,
-// TraceMark, TraceSnapshot) so DuckDB / pandas / Polars users can query
-// them with the same mental model as the platform.
+// files into the output directory, each with stable snake_case column names
+// so DuckDB / pandas / Polars users can query them directly:
+//
+//   spans.parquet     — id, session_id, parent_id, name, timing (start_ns,
+//                       end_ns, duration_ns, cpu_ns, gpu_ns), placement
+//                       (thread_id, pid, rank), memory_peak_bytes, attrs_json
+//   marks.parquet     — id, span_id, session_id, name, kind, ts_ns and the
+//                       value_* column matching value_type
+//   snapshots.parquet — id, span_id, session_id, tensor_name, dtype,
+//                       shape_json, mode, stats_json, blob_uri, ts_ns
+//
+// Nested values are carried as JSON strings in the *_json columns.
 //
 // Uses `@dsnp/parquetjs` (pure JS) so the `pkg`-built binaries keep
 // working without native modules.

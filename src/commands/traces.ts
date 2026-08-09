@@ -1,11 +1,10 @@
 // src/commands/traces.ts
 //
-// SDK-51: `cirron traces {view,list,export,clear}`.
+// `cirron traces {view,list,export,clear}`.
 //
 // Reads the local spool (`.cirron/spool/*.json`) + snapshots
 // (`.cirron/snapshots/<span_id>/*.safetensors`). Never talks to the
-// platform. Remote/run-scoped reads are a follow-on ticket (see
-// features/sdk-traces-platform-read.md in the platform monorepo).
+// platform. Remote/run-scoped reads are not yet supported.
 
 import path from "node:path";
 import chalk, { Chalk } from "chalk";

@@ -1,7 +1,7 @@
 // src/utils/render.ts
 //
-// Text flamegraph rendering for `cirron traces view`. Produces the output
-// format demonstrated in the SDK-51 story:
+// Text flamegraph rendering for `cirron traces view`. Produces output in this
+// format:
 //
 //   cirron.session — 561.7ms pid=1797 rank=0
 //     epoch[0] — 42.1ms
