@@ -375,7 +375,13 @@ describe("plan commands", () => {
           true
         );
       } finally {
-        process.env.HOME = origHome;
+        // Assigning undefined would set HOME to the string "undefined", which
+        // os.homedir() would then hand to later tests as a real path.
+        if (origHome === undefined) {
+          delete process.env.HOME;
+        } else {
+          process.env.HOME = origHome;
+        }
       }
     });
   });

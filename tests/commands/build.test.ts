@@ -47,6 +47,7 @@ describe("buildCommand", () => {
   let exitSpy: ReturnType<typeof vi.spyOn>;
   let errorSpy: ReturnType<typeof vi.spyOn>;
   let infoSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     tmp = makeTmpDir("cirron-build-");
@@ -57,7 +58,7 @@ describe("buildCommand", () => {
       .mockImplementation(() => undefined as never);
     infoSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     execSyncMock.mockReset();
     execSyncMock.mockReturnValue("Python 3.10.0\n");
     spawnMock.mockReset();
@@ -377,9 +378,6 @@ describe("buildCommand", () => {
 
     it("--force runs hardware validation and warns instead of failing", async () => {
       incompatibleHardwareProject();
-      const warnSpy = vi
-        .spyOn(console, "warn")
-        .mockImplementation(() => undefined);
 
       await buildCommand({ env: "production", arch: "cuda", force: true });
 
