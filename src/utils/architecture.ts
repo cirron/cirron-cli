@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
+import { load as loadYaml } from "js-yaml";
 import type { HardwareConfig, ProjectConfig } from "../types";
 import { HardwareDetector } from "./hardware";
 import { logger } from "./logger";
@@ -91,13 +92,15 @@ export async function loadIndexFile(indexPath: string): Promise<any> {
       return await fs.readJSON(indexPath);
     }
     if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
       const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
+      return loadYaml(content);
     }
     throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
   } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
+    // `${error}` on an Error renders "Error: ...", so the wrapped message
+    // would carry the prefix twice.
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to load index file: ${detail}`);
   }
 }
 
