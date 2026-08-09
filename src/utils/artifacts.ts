@@ -20,6 +20,12 @@ export const KNOWN_RESOURCE_TYPES: ResourceType[] = [
   "runtime",
 ];
 
+/**
+ * Whether a token names a known resource type rather than a path or name.
+ *
+ * @param resource - The first positional argument to push or pull.
+ * @returns True when it is one of the known resource types.
+ */
 export function isResourceTyped(resource: string): boolean {
   return KNOWN_RESOURCE_TYPES.includes(resource as ResourceType);
 }
@@ -53,9 +59,8 @@ export async function collectFiles(targetPath: string): Promise<string[]> {
 
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
-    // withFileTypes avoids one stat syscall per entry. Dirents do NOT follow
-    // symlinks, though, and the previous fs.stat did, so symlinks keep their
-    // own branch to preserve which files get collected.
+    // withFileTypes saves a stat per entry, but Dirents do not follow
+    // symlinks, so those keep their own branch below to stay collected.
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);

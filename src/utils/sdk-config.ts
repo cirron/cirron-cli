@@ -28,7 +28,7 @@ export interface ResolvedSdkConfig {
   workspaceId: ResolvedField<string | null>;
 }
 
-// Mirrors cirron_sdk/src/cirron/core/config.py:_DEFAULTS (2026-04-23).
+// Mirrors the SDK's own config defaults; keep the two in step.
 const DEFAULTS = {
   api_endpoint: "https://app.cirron.com",
   workspace_id: null as string | null,

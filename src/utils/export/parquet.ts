@@ -168,6 +168,15 @@ function snapshotRow(
   };
 }
 
+/**
+ * Write sessions as three Parquet files: spans, marks and snapshots.
+ *
+ * Records appearing in more than one session are written once.
+ *
+ * @param sessions - Sessions to export.
+ * @param outputDir - Directory to write into; created if missing.
+ * @returns Row counts per file.
+ */
 export async function exportParquet(
   sessions: Session[],
   outputDir: string

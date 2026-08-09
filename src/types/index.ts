@@ -117,7 +117,7 @@ export interface ProjectConfig {
   version: string;
 }
 
-// --- Monorepo / workspace configuration ---
+// Monorepo / workspace configuration
 
 export interface WorkspaceModelEntry {
   path: string;

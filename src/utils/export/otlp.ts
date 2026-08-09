@@ -146,6 +146,12 @@ function encodeSpan(
   return result;
 }
 
+/**
+ * Write sessions as OTLP JSON, one resource span per session.
+ *
+ * @param sessions - Sessions to export.
+ * @param outputPath - Destination file.
+ */
 export async function exportOtlp(
   sessions: Session[],
   outputPath: string

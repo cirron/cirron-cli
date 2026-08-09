@@ -21,7 +21,7 @@ import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { getLevelColor } from "./logs";
 
-// --- Helpers ---
+// Helpers
 
 function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
@@ -151,7 +151,7 @@ function getStatusColor(status: string): (text: string) => string {
   }
 }
 
-// --- Command Handlers ---
+// Command Handlers
 
 /** Entry point for `cirron run pipeline`: trigger a pipeline run and optionally follow it. */
 export async function runPipelineCommand(
@@ -396,7 +396,7 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
   }
 }
 
-// --- Enhanced Stubs ---
+// Enhanced Stubs
 
 /** Entry point for `cirron run job`. Not implemented — prints a placeholder and returns. */
 export async function runJobCommand(options: RunJobOptions): Promise<void> {

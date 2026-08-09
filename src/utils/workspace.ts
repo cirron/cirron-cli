@@ -56,6 +56,14 @@ function parseConfigFile(configPath: string, filename: string): unknown {
   }
 }
 
+/**
+ * Whether a parsed config carries a top-level `workspace` key.
+ *
+ * This is the test that puts the CLI in monorepo mode.
+ *
+ * @param value - A parsed config object.
+ * @returns True when the shape is a workspace config.
+ */
 export function isWorkspaceConfig(value: unknown): value is WorkspaceConfig {
   return (
     typeof value === "object" &&

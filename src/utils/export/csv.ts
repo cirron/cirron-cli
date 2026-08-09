@@ -48,6 +48,12 @@ function cell(v: unknown): string {
   return escapeCsv(JSON.stringify(v));
 }
 
+/**
+ * Write sessions to a single CSV file, streamed rather than buffered.
+ *
+ * @param sessions - Sessions to export.
+ * @param outputPath - Destination file; its directory is created if missing.
+ */
 export async function exportCsv(
   sessions: Session[],
   outputPath: string

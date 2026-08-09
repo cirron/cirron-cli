@@ -213,7 +213,7 @@ function determineScope(
   return options.scope;
 }
 
-// --- CLI config handler (previously configCommand) ---
+// CLI config handler (previously configCommand)
 // Handles CLI-scoped configuration: API URL, timeout, retries
 
 async function cliConfigHandler(options: CliConfigOptions): Promise<void> {

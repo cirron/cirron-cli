@@ -660,7 +660,7 @@ function prettyOsName(system: string): string {
   }
 }
 
-// -------------------- rendering --------------------
+// Rendering
 
 function renderHuman(report: DoctorReport): void {
   console.log();

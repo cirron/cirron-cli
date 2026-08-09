@@ -122,6 +122,12 @@ function displayLogs(logs: LogEntry[]): void {
   }
 }
 
+/**
+ * Pick the chalk colour for a log level.
+ *
+ * @param level - The level string from the platform.
+ * @returns A chalk styling function; identity for unknown levels.
+ */
 export function getLevelColor(level: string): (text: string) => string {
   switch (level.toLowerCase()) {
     case "error":

@@ -26,9 +26,8 @@ export function resolveWithin(
   if (rel === "") {
     return null;
   }
-  // `rel === ".."` / `"../…"` means the candidate climbed out of the base.
-  // Compare against the separator rather than a bare `startsWith("..")` so a
-  // legitimate file named `..weights.bin` is not mistaken for an escape.
+  // Compare against the separator, not a bare startsWith(".."), so a real
+  // file named `..weights.bin` is not mistaken for climbing out of the base.
   if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     return null;
   }

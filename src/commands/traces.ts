@@ -501,9 +501,7 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
   );
 }
 
-// ---------------------------------------------------------------------------
 // snapshots (list) + snapshot (detail)
-// ---------------------------------------------------------------------------
 
 const HISTOGRAM_BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
 

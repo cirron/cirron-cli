@@ -1058,9 +1058,8 @@ export class CirronApi {
     if (options.contentType) {
       body["contentType"] = options.contentType;
     }
-    // Forwarded here as well as on getUploadUrl: artifacts above the
-    // multipart threshold never touch upload-url, and those are exactly the
-    // large model weights most likely to need an explicit Platform.
+    // Also sent on getUploadUrl: multipart artifacts never touch that route,
+    // and those are the large weights most likely to name a Platform.
     if (options.platform) {
       body["platform"] = options.platform;
     }
@@ -1176,10 +1175,8 @@ export class CirronApi {
         controller.abort();
       }, this.config.timeout * 10);
 
-      // Hoisted so the finally can close it. A request that fails BEFORE the
-      // body is consumed (connection refused, bad URL) never cancels the web
-      // stream, so nothing would destroy the fd. Abort and socket errors do
-      // propagate through Readable.toWeb and are already handled.
+      // Hoisted so the finally can close it: a request failing before the
+      // body is consumed never cancels the web stream, leaking the fd.
       let fileStream: ReturnType<typeof createReadStream> | undefined;
 
       try {
@@ -1203,9 +1200,8 @@ export class CirronApi {
         const response = await fetch(url, {
           method: "PUT",
           headers,
-          // Native fetch needs a web stream and duplex; the explicit
-          // Content-Length above is still honored, so presigned PUTs keep
-          // getting a sized request rather than chunked encoding.
+          // Native fetch needs a web stream and duplex; the Content-Length
+          // above still applies, so the PUT stays sized rather than chunked.
           body: Readable.toWeb(stream) as never,
           duplex: "half",
           signal: controller.signal,
@@ -1327,9 +1323,8 @@ export class CirronApi {
         // back to the provider's complete call, which expects that form.
         const etag = response.headers.get("etag");
         if (!etag) {
-          // Recording an empty etag would fail later and further away: the
-          // platform's part-complete requires a non-empty string, so the user
-          // would see "Invalid request body" instead of the real cause.
+          // Fail here rather than at part-complete, which rejects an empty
+          // etag as "Invalid request body" — far from the real cause.
           throw new Error(
             `Part upload succeeded but the storage provider returned no ETag (part at byte ${start}). Multipart completion cannot proceed without it.`
           );
@@ -1645,9 +1640,8 @@ export class CirronApi {
     let lastError: Error = new Error("Request failed after retries");
 
     while (attempt <= this.config.retries) {
-      // Per attempt, matching downloadFile/uploadFile: a controller shared
-      // across retries latches aborted after the first timeout, so every
-      // remaining retry would reject instantly instead of being tried.
+      // Per attempt: a shared controller latches aborted after the first
+      // timeout, so every remaining retry would reject instantly.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
@@ -1691,9 +1685,8 @@ export class CirronApi {
           error instanceof PlatformError ? error : classifyFetchError(error);
         lastError = classified as Error;
 
-        // Don't retry on auth errors or other client-side (4xx) failures —
-        // the request is wrong, retrying won't fix it. 429 is also left to the
-        // caller, which knows whether to honor Retry-After and carry on.
+        // 4xx means the request is wrong, so retrying cannot help. 429 goes
+        // to the caller, which knows whether to honor Retry-After.
         if (
           classified instanceof NotAuthenticatedError ||
           classified instanceof PlatformBadRequestError ||

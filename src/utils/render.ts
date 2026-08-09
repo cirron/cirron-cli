@@ -34,6 +34,13 @@ const NOISY_ATTR_KEYS = new Set<string>([
   "tid",
 ]);
 
+/**
+ * Whether to emit ANSI colour for a stream.
+ *
+ * @param stream - Usually `process.stdout`.
+ * @param noColorFlag - The `--no-color` flag, which always wins.
+ * @returns True when the stream is a TTY and colour was not suppressed.
+ */
 export function shouldColor(
   stream: NodeJS.WriteStream,
   noColorFlag: boolean | undefined
@@ -248,6 +255,15 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
   }
 }
 
+/**
+ * Render one session as a text flamegraph.
+ *
+ * @param session - The session to draw.
+ * @param opts - `maxDepth` collapses deeper subtrees into an aggregate line,
+ * `minWallNs` hides fast spans, `nameFilter` limits which spans show, and
+ * `useColor` toggles ANSI.
+ * @returns The rendered block, without a trailing newline.
+ */
 export function renderSessionTree(
   session: Session,
   opts: RenderOptions = {}

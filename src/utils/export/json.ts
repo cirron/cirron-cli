@@ -62,6 +62,12 @@ function snapshotToWire(snap: SpoolSnapshot): Record<string, unknown> {
   };
 }
 
+/**
+ * Write sessions as a single merged, deduped JSON document.
+ *
+ * @param sessions - Sessions to export.
+ * @param outputPath - Destination file.
+ */
 export async function exportJson(
   sessions: Session[],
   outputPath: string
