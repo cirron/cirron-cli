@@ -1366,9 +1366,12 @@ export class CirronApi {
    *
    * @param url - Presigned URL for the chunk.
    * @param filePath - Local file to read the chunk from.
-   * @param start - Byte offset of the chunk.
-   * @param end - Exclusive end offset.
-   * @param onProgress - Called with bytes uploaded and total.
+   * @param chunkIndex - Zero-based index of the chunk; with `chunkSize` this
+   * gives the byte range read from the file.
+   * @param chunkSize - Bytes per chunk.
+   * @param totalSize - Size of the whole file, for the Content-Range header.
+   * @param onProgress - Called with bytes uploaded and this chunk's total.
+   * @returns The chunk's ETag.
    */
   async uploadFileChunk(
     url: string,

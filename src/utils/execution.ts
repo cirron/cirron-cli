@@ -629,7 +629,9 @@ function formatTracebackLine(line: string, useColors = true): string {
  * Render a result as JSON for machine consumers.
  *
  * @param result - The execution to serialize.
- * @returns A JSON string.
+ * @param includeRaw - Also emit the captured stdout and stderr, and each
+ * parsed error's traceback. Off by default because the payloads are large.
+ * @returns Pretty-printed JSON.
  */
 export function formatExecutionResultAsJSON(
   result: ExecutionResult,
@@ -670,10 +672,12 @@ export function formatExecutionResultAsJSON(
 }
 
 /**
- * Log a result at the level its outcome warrants.
+ * Print a result to stdout, as JSON or as formatted text.
  *
  * @param result - The execution to report.
- * @param showOutput - Also log captured stdout/stderr.
+ * @param options - `jsonMode` selects the JSON rendering; `includeRaw` is
+ * forwarded to it. `showDetails` expands the text rendering instead, and is
+ * ignored under `jsonMode`.
  */
 export function logExecutionResult(
   result: ExecutionResult,

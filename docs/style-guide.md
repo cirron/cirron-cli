@@ -50,9 +50,20 @@ constraint. Delete anything that merely renames the next line.
 
 JSDoc describes structure and may run as long as it needs to.
 
-- Every exported function and method gets a summary, plus `@param <name> -
-  <description>` and `@returns`. This is what puts text in editor hover and
+- Every exported function and method gets a summary.
+- **Library-style exports also get `@param <name> - <description>` and
+  `@returns`** — the utilities under `src/utils/`, and anything callers invoke
+  with meaningful arguments. This is what puts text in editor hover and
   signature help.
+- **Command entry points get the summary alone.** Every `*Command` in
+  `src/commands/` takes one Commander-built options object and returns
+  `Promise<void>`; `@param options - Command options.` on fifty-two of them
+  restates the signature and nothing else, which the Comments rules above
+  already say to delete. Document a specific option only where its behavior is
+  surprising.
+- A `@param` name must match the parameter it documents. A doc that names an
+  argument the function does not take is worse than no doc — it survives
+  refactors and misleads.
 - **Never annotate types in tags.** The braces are a pre-TypeScript holdover
   from when the comment was the only place a type could live:
 
