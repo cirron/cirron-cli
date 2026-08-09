@@ -1,3 +1,4 @@
+/** The CLI's global config, persisted at `~/.cirron/config.json`. `auth` holds device-flow credentials; `token` is the fallback the transport also accepts. */
 export interface CirronConfig {
   apiUrl: string;
   auth?: {
@@ -72,6 +73,7 @@ export interface ProjectSettings {
   version: number;
 }
 
+/** The platform's standard `{ success, data }` envelope. Several routes return a flat body instead — those have their own response types. */
 export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
@@ -79,6 +81,7 @@ export interface ApiResponse<T = any> {
   success: boolean;
 }
 
+/** A project's `cirron.yaml` / `cirron.yml` / `cirron.json`, as loaded from disk. */
 export interface ProjectConfig {
   artifacts?: ArtifactsConfig;
   build?: BuildConfig;
@@ -126,6 +129,7 @@ export interface WorkspaceDefaults {
   [key: string]: unknown;
 }
 
+/** A root config carrying a `workspace` key, which is what puts the CLI in monorepo mode. */
 export interface WorkspaceConfig {
   workspace: {
     defaults?: WorkspaceDefaults;
@@ -221,6 +225,7 @@ export interface InitOptions {
   template: string;
 }
 
+/** `GET /api/cli/status` response: whether the stored credentials are valid, and who they belong to. */
 export interface AuthInfo {
   organization?: {
     id: string;
@@ -336,6 +341,7 @@ export interface CreateModelResponse {
   success: boolean;
 }
 
+/** Local project state, plus remote deployments when `status --remote` can reach the platform. */
 export interface ProjectStatus {
   buildStatus?: "success" | "failed" | "pending";
   currentBranch?: string;
@@ -366,6 +372,7 @@ export interface TemplateFile {
   path: string;
 }
 
+/** Provenance recorded at init or build time — git commit, framework versions — used to detect drift later. */
 export interface ModelMetadata {
   architecture?: string;
   detectedPatterns?: string[];
@@ -447,6 +454,7 @@ export interface PlanDiff {
   type: "added" | "removed" | "changed";
 }
 
+/** The result of diffing two plans: what changed, and the impact of each change. */
 export interface PlanComparison {
   differences: PlanDiff[];
   planA: {
@@ -466,6 +474,7 @@ export interface PlanComparison {
   };
 }
 
+/** A stored plan plus the metadata under which it was saved. */
 export interface SavedPlan {
   filePath: string;
   metadata: {
@@ -503,6 +512,7 @@ export interface PlanSaveOptions {
 }
 
 // Hardware configuration interfaces
+/** A detected or declared hardware profile, as persisted in the project config. */
 export interface HardwareConfig {
   architecture: string;
   compatibility: FrameworkCompatibility;
