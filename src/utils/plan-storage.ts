@@ -1,3 +1,11 @@
+/**
+ * On-disk storage for saved plans.
+ *
+ * Plans live under `~/.cirron/plans/` as JSON, one file per plan, with the
+ * directory created on demand. Names come from the caller or are generated
+ * from the plan type and a timestamp.
+ */
+
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";

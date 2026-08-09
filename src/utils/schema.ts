@@ -1,3 +1,12 @@
+/**
+ * JSON Schema validation for the settings files.
+ *
+ * Validates global and project settings against the schemas in `src/schemas/`
+ * using Ajv, returning structured errors rather than throwing. Also owns the
+ * version-stamping entry points that a future schema change would grow into
+ * real migrations.
+ */
+
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import globalSettingsSchema from "../schemas/global-settings.json";

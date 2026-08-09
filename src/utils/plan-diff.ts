@@ -1,3 +1,11 @@
+/**
+ * Comparison between two saved plans.
+ *
+ * Reports what changed between them — architecture, dependencies, artifacts
+ * and resource estimates — so a plan can be reviewed against a previous run
+ * before anything executes.
+ */
+
 import chalk from "chalk";
 import type { PlanComparison, PlanDiff } from "../types";
 import type { PlanFile } from "./plan";
