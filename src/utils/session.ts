@@ -1,10 +1,8 @@
-// src/utils/session.ts
-//
 // Session reconstruction for `cirron traces`. Reads JSON batch files from
 // the spool, dedupes spans/marks/snapshots across batches, and groups them
 // into logical sessions rooted at each `cirron.session` span.
 //
-// Shape mirrors cirron_sdk/docs/spool-format.md (schema_version 1). Unknown
+// Shape mirrors the SDK's documented spool format (schema_version 1). Unknown
 // fields are preserved per the forward-compat rule so minor SDK bumps don't
 // break the CLI.
 
@@ -37,7 +35,7 @@ export interface SpoolMark {
   id: string;
   kind: SpoolValueKind;
   name: string;
-  spanId: string; // may be "root" legacy sentinel
+  spanId: string; // may be the "root" sentinel
   tsNs: bigint;
   value: unknown;
   valueType: string;
@@ -387,6 +385,19 @@ async function scanSnapshotSizes(
   return sizes;
 }
 
+/**
+ * Reconstruct trace sessions from the spool.
+ *
+ * Reads every batch file, dedupes spans, marks and snapshots that appear in
+ * more than one batch, and groups them into sessions rooted at each
+ * `cirron.session` span. Spans with no such root land in a single orphan
+ * session, emitted only when there are no real ones.
+ *
+ * @param spoolDir - Directory to read batches from.
+ * @param opts - `onError` selects whether a malformed batch warns, throws or
+ * is skipped.
+ * @returns The sessions, newest first.
+ */
 export async function loadSessions(
   spoolDir: string,
   opts: LoadOptions = {}
@@ -543,9 +554,8 @@ export async function loadSessions(
     });
   }
 
-  // Orphan bucket — only emit if there are no real sessions. Keeps the
-  // common case clean; lets us still render something when a spool was
-  // produced before `ci.profile()` opened a root.
+  // Orphan bucket, emitted only when there are no real sessions: renders
+  // something for a spool produced before `ci.profile()` opened a root.
   if (sessions.length === 0 && orphanSpanIds.length > 0) {
     const spans = new Map<string, SpoolSpan>();
     const childrenOf = new Map<string, string[]>();
@@ -633,6 +643,12 @@ export async function loadSessions(
   return sessions;
 }
 
+/**
+ * Wall-clock duration of a span.
+ *
+ * @param span - The span to measure.
+ * @returns Nanoseconds elapsed, or null while the span is still open.
+ */
 export function spanDurationNs(span: SpoolSpan): bigint | null {
   if (span.endNs === null) {
     return null;

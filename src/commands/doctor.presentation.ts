@@ -90,6 +90,12 @@ export const SECTION_ORDER: Section[] = [
   "other",
 ];
 
+/**
+ * Which report section an unrecognized check belongs under.
+ *
+ * @param extra - The SDK extra the check belongs to, or null for core.
+ * @returns The section heading to file it beneath.
+ */
 export function sectionForExtra(extra: string | null): Section {
   if (extra === null) {
     return "core";
@@ -97,6 +103,12 @@ export function sectionForExtra(extra: string | null): Section {
   return EXTRA_DISPLAY[extra]?.section ?? "other";
 }
 
+/**
+ * The pip command that installs a missing SDK extra.
+ *
+ * @param extra - The extra to install, or null for the base package.
+ * @returns A copy-pasteable `pip install` command.
+ */
 export function installHintFor(extra: string | null): string {
   if (extra === null) {
     return "pip install 'cirron-sdk'";
@@ -104,6 +116,13 @@ export function installHintFor(extra: string | null): string {
   return `pip install 'cirron-sdk[${extra}]'`;
 }
 
+/**
+ * An extra note to show beside a detected package.
+ *
+ * @param distNameNormalized - Normalized distribution name.
+ * @param extra - The extra it came in under, or null.
+ * @returns The note, or undefined when nothing is worth saying.
+ */
 export function noteForPackage(
   distNameNormalized: string,
   extra: string | null

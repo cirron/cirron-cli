@@ -107,6 +107,7 @@ async function promptExistingProjectAction(
   return action;
 }
 
+/** Entry point for `cirron init`: scaffold a project from a framework template. */
 export async function initCommand(
   projectName?: string,
   options: InitOptions = { template: "pytorch" }
@@ -401,7 +402,7 @@ function deriveFramework(template: string): ProjectConfig["framework"] {
 }
 
 function deriveType(modelType: string): string {
-  // The picker uses kebab-case keys already; normalize anything legacy.
+  // The picker already emits kebab-case; normalize anything else.
   return modelType.replace(/_/g, "-");
 }
 

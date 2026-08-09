@@ -26,6 +26,8 @@ export function normalizeDistName(name: string): string {
 /**
  * Find an installed package's dist-info in site-packages. Matches any
  * dist-info whose prefix normalizes to the requested dist name.
+ * @returns The installed package, or null when it is not present in the
+ * environment.
  */
 export function findInstalledPackage(
   sitePackages: string,
@@ -63,6 +65,8 @@ export function findInstalledPackage(
 /**
  * Parse a METADATA file's header block (RFC 822). Stops at the first blank
  * line — everything after is the long description.
+ * @returns The parsed METADATA, or null when the file is missing or
+ * unreadable.
  */
 function readMetadata(metadataPath: string): InstalledPackage | null {
   let text: string;
@@ -86,6 +90,7 @@ function readMetadata(metadataPath: string): InstalledPackage | null {
  * `extra == "group"`, that group name is captured in `extra`. Other PEP 508
  * markers (`python_version`, `sys_platform`, etc.) are discarded because
  * doctor only consumes `distName` + `extra` — the version spec isn't used.
+ * @returns One entry per `Requires-Dist` line; empty when there are none.
  */
 export function readRequiresDist(metadataPath: string): RequiresDistEntry[] {
   let text: string;

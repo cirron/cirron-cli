@@ -10,6 +10,7 @@ import {
   saveProjectConfig,
 } from "../utils/project-config";
 
+/** Entry point for `cirron hardware`: detect local hardware and persist a profile. */
 export async function hardwareCommand(options: HardwareOptions): Promise<void> {
   try {
     if (options.detect) {

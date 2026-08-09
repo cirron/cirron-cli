@@ -1,9 +1,7 @@
-// src/utils/export/json.ts
-//
 // Merged + deduped spool JSON. One object containing the union of all
 // spans/marks/snapshots across the provided sessions. Output mirrors the
-// single-batch spool shape (§spool-format.md) so downstream tools can
-// read it with their existing spool parsers.
+// single-batch spool shape so downstream tools can read it with their
+// existing spool parsers.
 
 import path from "node:path";
 import fs from "fs-extra";
@@ -64,6 +62,12 @@ function snapshotToWire(snap: SpoolSnapshot): Record<string, unknown> {
   };
 }
 
+/**
+ * Write sessions as a single merged, deduped JSON document.
+ *
+ * @param sessions - Sessions to export.
+ * @param outputPath - Destination file.
+ */
 export async function exportJson(
   sessions: Session[],
   outputPath: string

@@ -1,3 +1,12 @@
+/**
+ * The optional per-model config that sits beside the project config.
+ *
+ * Looks for `model.yaml`, `model.yml` or `model.json`, in that order, and
+ * treats its absence as normal rather than an error — most projects do not
+ * have one. It carries inference settings such as the target device, which
+ * build and compile prefer over their own detection.
+ */
+
 import path from "node:path";
 import fs from "fs-extra";
 import { dump as dumpYaml, load as loadYaml } from "js-yaml";

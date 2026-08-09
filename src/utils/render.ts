@@ -1,7 +1,5 @@
-// src/utils/render.ts
-//
-// Text flamegraph rendering for `cirron traces view`. Produces the output
-// format demonstrated in the SDK-51 story:
+// Text flamegraph rendering for `cirron traces view`. Produces output in this
+// format:
 //
 //   cirron.session — 561.7ms pid=1797 rank=0
 //     epoch[0] — 42.1ms
@@ -36,6 +34,13 @@ const NOISY_ATTR_KEYS = new Set<string>([
   "tid",
 ]);
 
+/**
+ * Whether to emit ANSI colour for a stream.
+ *
+ * @param stream - Usually `process.stdout`.
+ * @param noColorFlag - The `--no-color` flag, which always wins.
+ * @returns True when the stream is a TTY and colour was not suppressed.
+ */
 export function shouldColor(
   stream: NodeJS.WriteStream,
   noColorFlag: boolean | undefined
@@ -225,9 +230,8 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
   const nextDepth = depth + 1;
 
   if (nextDepth > ctx.opts.maxDepth && children.length > 0) {
-    // Aggregate only the descendant subtrees — the current span's own
-    // duration is already rendered on the line above, so including it
-    // here would double-count and produce a total exceeding the parent.
+    // Descendant subtrees only: this span's own duration is already on the
+    // line above, so including it would exceed the parent's total.
     let totalNs = 0n;
     let spanCount = 0;
     for (const childId of children) {
@@ -251,6 +255,15 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
   }
 }
 
+/**
+ * Render one session as a text flamegraph.
+ *
+ * @param session - The session to draw.
+ * @param opts - `maxDepth` collapses deeper subtrees into an aggregate line,
+ * `minWallNs` hides fast spans, `nameFilter` limits which spans show, and
+ * `useColor` toggles ANSI.
+ * @returns The rendered block, without a trailing newline.
+ */
 export function renderSessionTree(
   session: Session,
   opts: RenderOptions = {}

@@ -31,7 +31,7 @@ import { resolveWithin } from "../utils/safe-path";
 import { downloadArtifact } from "./pull";
 import { uploadSingleFile } from "./push";
 
-// --- Constants ---
+// Constants
 
 const VALID_CONFLICT_STRATEGIES: SyncConflictStrategy[] = [
   "keep-both",
@@ -46,7 +46,7 @@ const VALID_CONFLICT_STRATEGIES: SyncConflictStrategy[] = [
  */
 const CHECKSUM_CONCURRENCY = 8;
 
-// --- Helpers ---
+// Helpers
 
 function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
@@ -61,7 +61,7 @@ function checkAuth(): { api: CirronApi } | null {
   return { api: new CirronApi(currentConfig) };
 }
 
-// --- Type Adapters ---
+// Type Adapters
 
 function toArtifactInfo(
   entry: SyncRemoteFileEntry | SyncChangedFileEntry
@@ -121,7 +121,7 @@ function buildKeepBothPaths(filePath: string): {
   };
 }
 
-// --- Validation ---
+// Validation
 
 function validateSyncOptions(options: SyncOptions): SyncConflictStrategy {
   if (options.pushOnly && options.pullOnly) {
@@ -150,7 +150,7 @@ function validateSyncOptions(options: SyncOptions): SyncConflictStrategy {
   return conflictStrategy;
 }
 
-// --- Local Manifest ---
+// Local Manifest
 
 async function buildLocalManifest(
   syncPath: string | undefined,
@@ -189,7 +189,7 @@ async function buildLocalManifest(
   );
 }
 
-// --- Filtering ---
+// Filtering
 
 function applySyncFilters(
   diff: SyncDiffResult,
@@ -275,7 +275,7 @@ function applySyncFilters(
   return result;
 }
 
-// --- Dry Run ---
+// Dry Run
 
 function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
   if (options.json) {
@@ -442,7 +442,7 @@ function printSyncDryRun(diff: SyncDiffResult, options: SyncOptions): void {
   );
 }
 
-// --- Conflict Resolution ---
+// Conflict Resolution
 
 async function promptConflictResolution(
   conflict: SyncConflictEntry,
@@ -499,7 +499,7 @@ async function promptConflictResolution(
   return resolution;
 }
 
-// --- Sync Execution ---
+// Sync Execution
 
 async function pushSyncFiles(
   api: CirronApi,
@@ -634,9 +634,8 @@ async function resolveByPush(
 ): Promise<ConflictOutcome> {
   const itemSpinner = ora(startLabel).start();
 
-  // Guarded even though this action only READS locally and uploads: the path
-  // is server-supplied, so an unguarded resolve lets a hostile response name
-  // any readable file and have the CLI upload it.
+  // Guarded despite only reading locally: the path is server-supplied, so an
+  // unguarded resolve lets a hostile response name any file and have it sent.
   if (!resolveWithin(process.cwd(), conflict.path)) {
     itemSpinner.fail(`Rejected ${conflict.path}: path traversal detected`);
     return { ok: false };
@@ -728,10 +727,8 @@ async function resolveByKeepBoth(
     );
     return {
       ok: true,
-      // NOTE (backlog SYNC-02): this records the REMOTE checksum as the
-      // baseline for the untouched local file, so the next sync reports a
-      // spurious changedLocally. Preserved verbatim by the extraction; the
-      // fix is now a one-site change.
+      // Known bug: records the REMOTE checksum as the baseline for the
+      // untouched local file, so the next sync reports a spurious change.
       pulled: {
         path: conflict.path,
         checksum: artifactInfo.checksum,
@@ -991,7 +988,7 @@ async function executeSyncPlan(
   return { summary, pushed: allPushed, pulled: allPulled };
 }
 
-// --- Summary ---
+// Summary
 
 function printSyncSummary(summary: SyncSummary, options: SyncOptions): void {
   if (options.json) {
@@ -1035,8 +1032,9 @@ function printSyncSummary(summary: SyncSummary, options: SyncOptions): void {
   logger.info(`  Unchanged: ${chalk.gray(String(summary.unchanged))}`);
 }
 
-// --- Main Entry Point ---
+// Main Entry Point
 
+/** Entry point for `cirron sync`: reconcile local files against the registry, resolving conflicts. */
 export async function syncCommand(
   syncPath: string | undefined,
   options: SyncOptions

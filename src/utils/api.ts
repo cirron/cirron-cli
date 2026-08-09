@@ -60,6 +60,25 @@ const DEPLOYMENT_STATUS_MAP: Record<string, DeploymentInfo["status"]> = {
   RUNNING: "success",
 };
 
+/**
+ * HTTP client for the Cirron platform's `/api/cli/*` surface.
+ *
+ * Everything comes from the `CirronConfig` handed to the constructor — base
+ * URL, timeout, retry count and credentials — so a caller that wants different
+ * settings constructs a different instance rather than mutating this one.
+ *
+ * Two behaviors are worth knowing before calling anything:
+ *
+ * - **Credential precedence.** The device-flow JWT (`auth.accessToken`) wins,
+ *   falling back to `config.token`.
+ * - **Requests can rewrite your config file.** A token near expiry, or a 401
+ *   on a retryable request, triggers a refresh that persists new tokens to
+ *   `~/.cirron/config.json` mid-request. A long-running command can therefore
+ *   see the on-disk config change underneath it.
+ *
+ * Several methods call platform routes that do not exist yet and can only
+ * 404 — the three `env` methods and `getRegistryArtifacts`. Each says so.
+ */
 export class CirronApi {
   private config: CirronConfig;
 
@@ -67,12 +86,24 @@ export class CirronApi {
     this.config = config;
   }
 
+  /**
+   * Validate the stored credentials against the platform.
+   *
+   * @returns The authenticated user and organization.
+   * @throws NotAuthenticatedError when the credentials are missing or rejected.
+   */
   async verifyAuth(): Promise<AuthInfo> {
     const response = await this.request("/api/cli/status");
     return response as any;
   }
 
   // Device Flow Authentication Methods
+  /**
+   * Begin the RFC 8628 device authorization flow.
+   *
+   * @returns The device code, user code, verification URL, poll interval and
+   * expiry window.
+   */
   async requestDeviceCode(): Promise<DeviceCodeResponse> {
     const response = await this.request("/api/cli/auth/device", {
       method: "POST",
@@ -80,6 +111,15 @@ export class CirronApi {
     return response as any;
   }
 
+  /**
+   * Poll once for the outcome of a device authorization.
+   *
+   * A pending authorization is a normal, non-error result — callers poll until
+   * the window closes rather than treating the first non-success as failure.
+   *
+   * @param deviceCode - The device code issued by `requestDeviceCode`.
+   * @returns The current status, carrying tokens once approved.
+   */
   async pollDeviceAuthorization(deviceCode: string): Promise<DeviceAuthStatus> {
     const response = await this.request(
       `/api/cli/auth/device?device_code=${deviceCode}`
@@ -160,6 +200,12 @@ export class CirronApi {
     return this.normalizeDeployment(response.data);
   }
 
+  /**
+   * Fetch a single deployment by id.
+   *
+   * @param deploymentId - Platform deployment id.
+   * @returns The deployment, with its status normalized to the CLI's union.
+   */
   async getDeployment(deploymentId: string): Promise<DeploymentInfo> {
     const response = await this.request<DeploymentResponse>(
       `/api/cli/deployments/${deploymentId}`
@@ -167,6 +213,13 @@ export class CirronApi {
     return this.normalizeDeployment(response.data);
   }
 
+  /**
+   * List a model's deployments, most recent first.
+   *
+   * @param projectName - Model name to scope the listing to.
+   * @param options - Optional `environment`, `status` and `limit` filters.
+   * @returns The matching deployments, statuses normalized.
+   */
   async getDeployments(
     projectName: string,
     options: {
@@ -253,6 +306,15 @@ export class CirronApi {
     };
   }
 
+  /**
+   * Fetch logs for one environment of a model.
+   *
+   * @param projectName - Model name.
+   * @param environment - Environment name, e.g. `production`.
+   * @param options - `lines` caps how many entries return; `since` is an
+   * ISO timestamp lower bound.
+   * @returns The log entries.
+   */
   async getLogs(
     projectName: string,
     environment: string,
@@ -275,6 +337,14 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. `cirron env list` cannot work until it lands. Do not build on this.
+   *
+   * @param projectName - Model name to scope the lookup to.
+   * @param environment - Environment name, e.g. `production`.
+   * @returns The environment's variables, keyed by name.
+   */
   async getEnvironmentVariables(
     projectName: string,
     environment: string
@@ -285,6 +355,15 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. `cirron env set` cannot work until it lands. Do not build on this.
+   *
+   * @param projectName - Model name to scope the write to.
+   * @param environment - Environment name, e.g. `production`.
+   * @param key - Variable name.
+   * @param value - Variable value.
+   */
   async setEnvironmentVariable(
     projectName: string,
     environment: string,
@@ -297,6 +376,14 @@ export class CirronApi {
     });
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. `cirron env delete` cannot work until it lands. Do not build on this.
+   *
+   * @param projectName - Model name to scope the delete to.
+   * @param environment - Environment name, e.g. `production`.
+   * @param key - Variable name to remove.
+   */
   async deleteEnvironmentVariable(
     projectName: string,
     environment: string,
@@ -311,6 +398,13 @@ export class CirronApi {
   }
 
   // List command methods
+  /**
+   * List build reports.
+   *
+   * @param options - `limit` and `status` filter server-side. `projectId` is
+   * sent but the platform ignores it, so results are not scoped by model.
+   * @returns The build reports, or an empty array.
+   */
   async getBuilds(
     options: { limit?: number; status?: string; projectId?: string } = {}
   ): Promise<any[]> {
@@ -329,6 +423,13 @@ export class CirronApi {
     return response.data || [];
   }
 
+  /**
+   * List model instances.
+   *
+   * @param options - `limit` filters server-side. `modelId` is sent but the
+   * platform ignores it, so results are not scoped to one model.
+   * @returns The instances, or an empty array.
+   */
   async getModelInstances(
     options: { limit?: number; modelId?: string } = {}
   ): Promise<any[]> {
@@ -344,6 +445,13 @@ export class CirronApi {
     return response.data || response || [];
   }
 
+  /**
+   * List built container images for models.
+   *
+   * @param options - `limit` filters server-side. `modelId` is sent but the
+   * platform ignores it.
+   * @returns The images, or an empty array.
+   */
   async getModelImages(
     options: { limit?: number; modelId?: string } = {}
   ): Promise<any[]> {
@@ -359,6 +467,14 @@ export class CirronApi {
     return response.data || [];
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. The registry exposes push, pull and sync but no artifact listing, so
+   * `cirron list registry` cannot work until it lands. Do not build on this.
+   *
+   * @param options - Filters forwarded as query parameters.
+   * @returns The matching registry artifacts.
+   */
   async getRegistryArtifacts(
     options: {
       limit?: number;
@@ -391,6 +507,13 @@ export class CirronApi {
     return response.data?.artifacts || response.data || [];
   }
 
+  /**
+   * List deployment versions (executions).
+   *
+   * @param options - `limit` filters server-side. `modelInstanceId` and
+   * `modelId` are sent but the platform ignores both.
+   * @returns The executions, or an empty array.
+   */
   async getDeploymentExecutions(
     options: { limit?: number; modelInstanceId?: string; modelId?: string } = {}
   ): Promise<any[]> {
@@ -413,6 +536,14 @@ export class CirronApi {
 
   // Run command methods
 
+  /**
+   * Start a pipeline run.
+   *
+   * @param pipelineNameOrId - Pipeline name or id; URL-encoded before sending.
+   * @param options - Run overrides: `gpu`, `priority`, `tags` and a free-form
+   * `config` object.
+   * @returns The created run.
+   */
   async triggerPipelineRun(
     pipelineNameOrId: string,
     options: {
@@ -437,6 +568,12 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Fetch a single run by id.
+   *
+   * @param runId - Platform run id.
+   * @returns The run.
+   */
   async getRun(runId: string): Promise<RunInfo> {
     const response = await this.request(
       `/api/cli/runs/${encodeURIComponent(runId)}`
@@ -444,6 +581,12 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * List runs.
+   *
+   * @param options - Optional `status`, `limit` and `pipeline` filters.
+   * @returns The matching runs, or an empty array.
+   */
   async getRuns(
     options: { status?: string; limit?: number; pipeline?: string } = {}
   ): Promise<RunInfo[]> {
@@ -462,6 +605,13 @@ export class CirronApi {
     return response.data || [];
   }
 
+  /**
+   * Cancel a run.
+   *
+   * @param runId - Platform run id.
+   * @param options - `force` skips the platform's graceful-shutdown path.
+   * @returns The run in its post-cancellation state.
+   */
   async cancelRun(
     runId: string,
     options: {
@@ -478,6 +628,14 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Fetch a run's logs.
+   *
+   * @param runId - Platform run id.
+   * @param options - `lines` caps how many entries return; `since` is an ISO
+   * timestamp lower bound.
+   * @returns The log entries, or an empty array.
+   */
   async getRunLogs(
     runId: string,
     options: {
@@ -501,6 +659,13 @@ export class CirronApi {
 
   // Pull command methods
 
+  /**
+   * List registry artifacts matching a pull selector.
+   *
+   * @param options - Selector fields forwarded as query parameters: `resource`,
+   * `name`, `tag`, `projectName`, `type` and `path`.
+   * @returns The matching artifacts, or an empty array.
+   */
   async getPullArtifacts(
     options: {
       resource?: string;
@@ -535,6 +700,12 @@ export class CirronApi {
     return response.data?.artifacts || response.data || [];
   }
 
+  /**
+   * Get a presigned download URL for one artifact.
+   *
+   * @param artifactId - Registry artifact id.
+   * @returns The download URL and its metadata.
+   */
   async getPullDownloadUrl(artifactId: string): Promise<PullDownloadInfo> {
     const params = new URLSearchParams();
     params.append("artifactId", artifactId);
@@ -545,6 +716,19 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Stream a URL to a local path, with retries.
+   *
+   * Sends no Authorization header: these are presigned URLs that already carry
+   * their own credentials, and forwarding a bearer token to S3 or GCS would leak
+   * it to a third party. Each retry gets its own AbortController, so one timeout
+   * cannot latch and cancel every remaining attempt.
+   *
+   * @param url - Presigned download URL.
+   * @param destPath - Local destination path.
+   * @param onProgress - Called with bytes downloaded and total.
+   * @throws If every attempt fails.
+   */
   async downloadFile(
     url: string,
     destPath: string,
@@ -646,6 +830,15 @@ export class CirronApi {
 
   // Push command methods
 
+  /**
+   * Ask whether the registry already holds an artifact with this checksum.
+   *
+   * A hit lets push skip the upload entirely.
+   *
+   * @param checksum - SHA-256 of the file, lowercase hex.
+   * @param options - Optional `resource` and `name` to scope the lookup.
+   * @returns Whether the content exists, and its artifact id if so.
+   */
   async checkDedupe(
     checksum: string,
     options: {
@@ -668,6 +861,17 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Request a presigned URL for a single-PUT upload.
+   *
+   * The URL is signature-bound to the declared `size`, so the whole file must go
+   * in one request. Artifacts above the multipart threshold use
+   * `initMultipartUpload` instead.
+   *
+   * @param options - `filename`, `size` and `checksum` are required; `resource`,
+   * `name`, `tag`, `registry` and `platform` route the artifact.
+   * @returns The upload URL and the session id that `confirmUpload` resolves.
+   */
   async getUploadUrl(options: {
     filename: string;
     size: number;
@@ -706,6 +910,13 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Tell the registry an upload finished, turning the session into an artifact.
+   *
+   * @param options - `uploadId`, `checksum` and `size` identify the upload;
+   * `resource`, `name`, `tag`, `message` and `gitHash` become artifact metadata.
+   * @returns The confirmed artifact.
+   */
   async confirmUpload(options: {
     uploadId: string;
     checksum: string;
@@ -744,6 +955,13 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Group already-uploaded artifacts into a tagged version.
+   *
+   * @param options - `projectName` and the `artifacts` list are required; `tag`,
+   * `message` and `gitHash` are omitted from the body when absent.
+   * @returns The created version's id, tag and creation time.
+   */
   async createVersion(options: {
     projectName: string;
     tag?: string;
@@ -770,6 +988,16 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Look up an upload session's server-side state.
+   *
+   * Returns null rather than throwing when the session is missing or the request
+   * fails, so callers can treat "no session" and "cannot reach the platform" the
+   * same way.
+   *
+   * @param sessionId - Upload session id.
+   * @returns The session, or null.
+   */
   async getUploadSession(sessionId: string): Promise<PushSessionInfo | null> {
     try {
       const response = await this.request(
@@ -781,6 +1009,14 @@ export class CirronApi {
     }
   }
 
+  /**
+   * Open a chunked upload session.
+   *
+   * Unused: large artifacts go through `initMultipartUpload` instead.
+   *
+   * @param options - File path, total size, chunk size, chunk count and checksum.
+   * @returns The new session's id.
+   */
   async createUploadSession(options: {
     filePath: string;
     totalSize: number;
@@ -822,9 +1058,8 @@ export class CirronApi {
     if (options.contentType) {
       body["contentType"] = options.contentType;
     }
-    // Forwarded here as well as on getUploadUrl: artifacts above the
-    // multipart threshold never touch upload-url, and those are exactly the
-    // large model weights most likely to need an explicit Platform.
+    // Also sent on getUploadUrl: multipart artifacts never touch that route,
+    // and those are the large weights most likely to name a Platform.
     if (options.platform) {
       body["platform"] = options.platform;
     }
@@ -903,6 +1138,18 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Stream a local file to a presigned URL in one request, with retries.
+   *
+   * Sets an explicit Content-Length so the PUT is sized rather than chunked,
+   * which presigned URLs require. Each retry gets its own AbortController and
+   * re-streams from byte zero.
+   *
+   * @param url - Presigned upload URL.
+   * @param filePath - Local file to send.
+   * @param onProgress - Called with bytes uploaded and total.
+   * @throws If every attempt fails.
+   */
   async uploadFile(
     url: string,
     filePath: string,
@@ -928,10 +1175,8 @@ export class CirronApi {
         controller.abort();
       }, this.config.timeout * 10);
 
-      // Hoisted so the finally can close it. A request that fails BEFORE the
-      // body is consumed (connection refused, bad URL) never cancels the web
-      // stream, so nothing would destroy the fd. Abort and socket errors do
-      // propagate through Readable.toWeb and are already handled.
+      // Hoisted so the finally can close it: a request failing before the
+      // body is consumed never cancels the web stream, leaking the fd.
       let fileStream: ReturnType<typeof createReadStream> | undefined;
 
       try {
@@ -955,9 +1200,8 @@ export class CirronApi {
         const response = await fetch(url, {
           method: "PUT",
           headers,
-          // Native fetch needs a web stream and duplex; the explicit
-          // Content-Length above is still honored, so presigned PUTs keep
-          // getting a sized request rather than chunked encoding.
+          // Native fetch needs a web stream and duplex; the Content-Length
+          // above still applies, so the PUT stays sized rather than chunked.
           body: Readable.toWeb(stream) as never,
           duplex: "half",
           signal: controller.signal,
@@ -1079,9 +1323,8 @@ export class CirronApi {
         // back to the provider's complete call, which expects that form.
         const etag = response.headers.get("etag");
         if (!etag) {
-          // Recording an empty etag would fail later and further away: the
-          // platform's part-complete requires a non-empty string, so the user
-          // would see "Invalid request body" instead of the real cause.
+          // Fail here rather than at part-complete, which rejects an empty
+          // etag as "Invalid request body" — far from the real cause.
           throw new Error(
             `Part upload succeeded but the storage provider returned no ETag (part at byte ${start}). Multipart completion cannot proceed without it.`
           );
@@ -1111,6 +1354,20 @@ export class CirronApi {
     throw lastError;
   }
 
+  /**
+   * Upload one chunk of a chunked upload.
+   *
+   * Unused: parts go through `uploadFilePart`, which carries no Content-Range.
+   *
+   * @param url - Presigned URL for the chunk.
+   * @param filePath - Local file to read the chunk from.
+   * @param chunkIndex - Zero-based index of the chunk; with `chunkSize` this
+   * gives the byte range read from the file.
+   * @param chunkSize - Bytes per chunk.
+   * @param totalSize - Size of the whole file, for the Content-Range header.
+   * @param onProgress - Called with bytes uploaded and this chunk's total.
+   * @returns The chunk's ETag.
+   */
   async uploadFileChunk(
     url: string,
     filePath: string,
@@ -1175,6 +1432,13 @@ export class CirronApi {
 
   // Sync command methods
 
+  /**
+   * Compare a local manifest against the registry.
+   *
+   * @param options - `projectName` and a `manifest` of path, checksum and size
+   * for every local file.
+   * @returns What to push, what to pull, and what conflicts.
+   */
   async getSyncDiff(options: {
     projectName: string;
     manifest: Array<{ path: string; checksum: string; size: number }>;
@@ -1189,6 +1453,11 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * Record the outcome of a sync so the next diff has a baseline.
+   *
+   * @param options - `projectName` plus the `pushed` and `pulled` file lists.
+   */
   async completeSyncMetadata(options: {
     projectName: string;
     pushed: Array<{ path: string; checksum: string; artifactId: string }>;
@@ -1204,18 +1473,32 @@ export class CirronApi {
     });
   }
 
+  /**
+   * Build the Authorization header from stored credentials.
+   *
+   * Prefers the device-flow JWT and falls back to `config.token`.
+   *
+   * @returns The header value, or undefined when no credentials are stored.
+   */
   private getAuthHeader(): string | undefined {
     // Try JWT token first
     if (this.config.auth?.accessToken) {
       return `Bearer ${this.config.auth.accessToken}`;
     }
-    // Fallback to legacy sk-* token
     if (this.config.token) {
       return `Bearer ${this.config.token}`;
     }
     return;
   }
 
+  /**
+   * Refresh the access token when it is close to expiring.
+   *
+   * Refreshes within five minutes of expiry and **rewrites
+   * `~/.cirron/config.json`** as a side effect, so a long-running command can see
+   * the on-disk config change underneath it. No-op without both an expiry and a
+   * refresh token.
+   */
   private async ensureValidToken(): Promise<void> {
     if (!(this.config.auth?.expiresAt && this.config.auth?.refreshToken)) {
       return; // No JWT auth or refresh token available
@@ -1337,7 +1620,6 @@ export class CirronApi {
       ...options.headers,
     };
 
-    // Support both JWT and legacy token authentication
     const authHeader = this.getAuthHeader();
     if (authHeader) {
       headers["Authorization"] = authHeader;
@@ -1358,9 +1640,8 @@ export class CirronApi {
     let lastError: Error = new Error("Request failed after retries");
 
     while (attempt <= this.config.retries) {
-      // Per attempt, matching downloadFile/uploadFile: a controller shared
-      // across retries latches aborted after the first timeout, so every
-      // remaining retry would reject instantly instead of being tried.
+      // Per attempt: a shared controller latches aborted after the first
+      // timeout, so every remaining retry would reject instantly.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
@@ -1404,9 +1685,8 @@ export class CirronApi {
           error instanceof PlatformError ? error : classifyFetchError(error);
         lastError = classified as Error;
 
-        // Don't retry on auth errors or other client-side (4xx) failures —
-        // the request is wrong, retrying won't fix it. 429 is also left to the
-        // caller, which knows whether to honor Retry-After and carry on.
+        // 4xx means the request is wrong, so retrying cannot help. 429 goes
+        // to the caller, which knows whether to honor Retry-After.
         if (
           classified instanceof NotAuthenticatedError ||
           classified instanceof PlatformBadRequestError ||

@@ -10,6 +10,10 @@ import type {
   PlanSaveOptions,
   ProjectConfig,
 } from "../types";
+import {
+  determineDefaultArchitecture,
+  loadIndexFile,
+} from "../utils/architecture";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
@@ -20,14 +24,13 @@ import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
 import { checkCudaPytorch, checkRequiredFiles } from "../utils/validation";
 
-// Plan compile subcommand
+/** Entry point for `cirron plan compile`: preview a compilation without running it. */
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating compilation plan...").start();
   const strictMode = false; // Plans don't use strict mode
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -233,13 +236,12 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan build subcommand
+/** Entry point for `cirron plan build`: preview a build without running it. */
 export async function planBuildCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating build plan...").start();
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -419,12 +421,11 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan lint subcommand
+/** Entry point for `cirron plan lint`: preview what lint would check. */
 export async function planLintCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing linting scope...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -465,12 +466,11 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan test subcommand
+/** Entry point for `cirron plan test`: preview which tests would run. */
 export async function planTestCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing test suite...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -511,7 +511,7 @@ export async function planTestCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan diff subcommand
+/** Entry point for `cirron plan diff`: compare two saved plans. */
 export async function planDiffCommand(
   planFileA: string,
   planFileB: string,
@@ -573,49 +573,27 @@ export async function planDiffCommand(
   }
 }
 
-// Helper functions (moved from compile.ts and build.ts)
-async function determineDefaultArchitecture(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  if (projectConfig.framework === "pytorch") {
-    return projectConfig.gpuRequired ? "cuda" : "cpu";
-  }
-  if (projectConfig.framework === "tensorflow") {
-    return projectConfig.gpuRequired ? "gpu" : "cpu";
-  }
-  if (projectConfig.framework === "sklearn") {
-    return "cpu";
-  }
-  return "cpu";
-}
-
-async function loadIndexFile(indexPath: string): Promise<any> {
-  try {
-    const ext = path.extname(indexPath).toLowerCase();
-
-    if (ext === ".json") {
-      return await fs.readJSON(indexPath);
-    }
-    if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
-      const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
-    }
-    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
-  } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
-  }
-}
-
+/**
+ * Run the pre-flight checks for plan generation.
+ *
+ * This runs a narrower set than `build` and `compile`: required files plus a
+ * CUDA check, with no Python-version probe. That gap is long-standing rather
+ * than considered — it was preserved through the extraction of the shared
+ * validation primitives instead of being quietly widened, so the behavior is
+ * unchanged and the divergence stays visible.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param _indexConfig - Accepted for signature parity; not inspected.
+ * @param architecture - Target architecture, which selects the CUDA check.
+ * @param strictMode - Raise a CLIError rather than a plain Error on failure.
+ * @throws If any check fails.
+ */
 async function runValidationChecks(
   projectConfig: ProjectConfig,
   _indexConfig: any,
   architecture: string,
   strictMode: boolean
 ): Promise<void> {
-  // Note: plan deliberately runs fewer checks than build and compile. It has
-  // never probed the Python version, and only checks CUDA. Preserved as-is by
-  // plan 010's refactor; whether that is intentional is a maintainer question.
   const validationErrors: string[] = [...checkRequiredFiles()];
 
   // Architecture-specific validation
@@ -928,7 +906,12 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   }
 }
 
-// Plan compare command (interactive)
+/**
+ * Entry point for `cirron plan compare`: compare two saved plans side by side.
+ *
+ * Prompts for the pair interactively when they are not named. Exits when fewer
+ * than two saved plans exist.
+ */
 export async function planCompareCommand(
   planA?: string,
   planB?: string,
@@ -1027,7 +1010,7 @@ export async function planCompareCommand(
   }
 }
 
-// Plan save command
+/** Entry point for `cirron plan save`: generate and store plans, or list and clean up stored ones. */
 export async function planSaveCommand(
   type?: string,
   options: PlanSaveOptions = {}
@@ -1091,7 +1074,6 @@ export async function planSaveCommand(
     }
   }
 
-  // Load project configuration
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {
@@ -1187,6 +1169,7 @@ export async function planSaveCommand(
               "plans",
               filename
             );
+            await fs.ensureDir(path.dirname(filePath));
             await fs.writeJson(filePath, plan, { spaces: 2 });
             savedPaths.push(filePath);
           }

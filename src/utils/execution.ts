@@ -1,3 +1,14 @@
+/**
+ * Subprocess execution for the CLI's Python and shell steps.
+ *
+ * Everything funnels through `executeScript`, which spawns without a shell —
+ * arguments are passed as an array, so no caller has to quote or escape.
+ * Results are returned rather than thrown: a failure comes back with
+ * `success: false`, a `CLIError` and any errors `parseErrors` recovered from
+ * stderr, and callers decide what to do. `handleExecutionResult` is the
+ * opt-in path to turn a failure into a throw under strict mode.
+ */
+
 import { spawn } from "node:child_process";
 import chalk from "chalk";
 import { CLIError, CLIErrorCode } from "./errors";
@@ -60,6 +71,23 @@ export class ExecutionError extends Error {
   }
 }
 
+/**
+ * Spawn a command and collect its result.
+ *
+ * Defaults: the current working directory, a 30s timeout, no retries, utf8
+ * output, the parent environment, and output captured rather than streamed.
+ * On failure the result carries a `CLIError` built from `baseErrorCode` plus
+ * whatever `parseErrors` recovered from stderr.
+ *
+ * Retries are opt-in via `retries`, and `retryCondition` decides which
+ * failures qualify — without one, every failure is retried.
+ *
+ * @param command - Executable to run.
+ * @param args - Arguments passed without shell interpretation.
+ * @param options - Overrides for cwd, timeout, retries, encoding, env, output
+ * streaming and the base error code.
+ * @returns The outcome, including stdout, stderr, exit code and duration.
+ */
 export async function executeScript(
   command: string,
   args: string[] = [],
@@ -227,6 +255,17 @@ async function executeOnce(
   });
 }
 
+/**
+ * Recover structured errors from a process's stderr.
+ *
+ * Understands Python tracebacks (pulling the failing file and line out of the
+ * `File "...", line N` frames), plain `SyntaxError`/`ImportError` lines, and
+ * generic `error:` text. Anything unrecognized is returned as a single
+ * message-only entry rather than being dropped.
+ *
+ * @param stderr - Raw stderr text.
+ * @returns One entry per error found; empty when stderr is blank.
+ */
 export function parseErrors(stderr: string): ParsedError[] {
   if (!stderr.trim()) {
     return [];
@@ -468,6 +507,14 @@ function generateSuggestions(
   return suggestions;
 }
 
+/**
+ * Render a failed result for a human.
+ *
+ * @param result - The failed execution.
+ * @param showDetails - Include raw stdout/stderr alongside the summary.
+ * @param useColors - Apply chalk styling; pass false for non-TTY output.
+ * @returns The formatted message.
+ */
 export function formatExecutionError(
   result: ExecutionResult,
   showDetails = false,
@@ -578,6 +625,14 @@ function formatTracebackLine(line: string, useColors = true): string {
   return `       ${colorize(line, chalk.gray)}`;
 }
 
+/**
+ * Render a result as JSON for machine consumers.
+ *
+ * @param result - The execution to serialize.
+ * @param includeRaw - Also emit the captured stdout and stderr, and each
+ * parsed error's traceback. Off by default because the payloads are large.
+ * @returns Pretty-printed JSON.
+ */
 export function formatExecutionResultAsJSON(
   result: ExecutionResult,
   includeRaw = false
@@ -616,6 +671,14 @@ export function formatExecutionResultAsJSON(
   return JSON.stringify(jsonResult, null, 2);
 }
 
+/**
+ * Print a result to stdout, as JSON or as formatted text.
+ *
+ * @param result - The execution to report.
+ * @param options - `jsonMode` selects the JSON rendering; `includeRaw` is
+ * forwarded to it. `showDetails` expands the text rendering instead, and is
+ * ignored under `jsonMode`.
+ */
 export function logExecutionResult(
   result: ExecutionResult,
   options: {
@@ -631,6 +694,18 @@ export function logExecutionResult(
   }
 }
 
+/**
+ * Run a Python snippet via `python3 -c`.
+ *
+ * The script is passed as an argument, not written to disk. Retries twice with
+ * a 2s delay, but only for CUDA setup noise, `RuntimeError` and device-side
+ * asserts — the failures that are plausibly transient. Anything in `options`
+ * overrides these defaults.
+ *
+ * @param script - Python source to execute.
+ * @param options - Execution overrides.
+ * @returns The outcome.
+ */
 export async function executePythonScript(
   script: string,
   options: ExecutionOptions = {}
@@ -676,6 +751,16 @@ export async function executeWithStrictMode(
   return handleExecutionResult(result, options.strictMode);
 }
 
+/**
+ * Run a Python file via `python3 <path>`.
+ *
+ * Same retry posture as `executePythonScript`, minus the device-side-assert
+ * case.
+ *
+ * @param filePath - Script to execute.
+ * @param options - Execution overrides.
+ * @returns The outcome.
+ */
 export async function executePythonFile(
   filePath: string,
   options: ExecutionOptions = {}
@@ -698,6 +783,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Fill a partial retry config out with the defaults.
+ *
+ * @param config - Fields to override.
+ * @returns A complete retry configuration.
+ */
 export function createRetryableOperation(
   config: Partial<RetryableOperation> = {}
 ): RetryableOperation {

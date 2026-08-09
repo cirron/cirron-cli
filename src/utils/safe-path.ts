@@ -14,6 +14,8 @@ import path from "node:path";
  * lives inside `baseDir` and points outside it still passes. Guarding that
  * needs `fs.realpath` at the call site, which is a different (and racy)
  * problem; this function bounds the path string only.
+ * @returns The resolved absolute path, or null when the candidate escapes the
+ * base.
  */
 export function resolveWithin(
   baseDir: string,
@@ -26,9 +28,8 @@ export function resolveWithin(
   if (rel === "") {
     return null;
   }
-  // `rel === ".."` / `"../…"` means the candidate climbed out of the base.
-  // Compare against the separator rather than a bare `startsWith("..")` so a
-  // legitimate file named `..weights.bin` is not mistaken for an escape.
+  // Compare against the separator, not a bare startsWith(".."), so a real
+  // file named `..weights.bin` is not mistaken for climbing out of the base.
   if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     return null;
   }

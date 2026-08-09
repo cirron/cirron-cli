@@ -1,5 +1,3 @@
-// src/utils/safetensors.ts
-//
 // Minimal pure-JS safetensors reader. Used by `cirron traces snapshot` to
 // inspect tensor contents written to `.cirron/snapshots/<span_id>/*.safetensors`
 // without pulling in a native dep.
@@ -70,6 +68,13 @@ const DTYPE_BYTES: Record<SafetensorsDtype, number> = {
   BOOL: 1,
 };
 
+/**
+ * Read a safetensors file's header without loading any tensor data.
+ *
+ * @param path - Path to the `.safetensors` file.
+ * @returns The tensor names, dtypes, shapes and byte offsets.
+ * @throws If the file is malformed or the header is not valid JSON.
+ */
 export async function readSafetensorsInfo(
   path: string
 ): Promise<SafetensorsFileInfo> {
@@ -149,6 +154,17 @@ interface SafetensorsTensorData {
     | Uint8Array;
 }
 
+/**
+ * Read one tensor's raw values out of a safetensors file.
+ *
+ * Only the requested tensor's byte range is read, so this stays cheap on a
+ * file holding many tensors.
+ *
+ * @param path - Path to the `.safetensors` file.
+ * @param tensorName - Tensor to read.
+ * @returns The tensor's dtype, shape and decoded values.
+ * @throws If the tensor is absent or its dtype is unsupported.
+ */
 export async function readSafetensorsTensor(
   path: string,
   tensorName: string
@@ -258,6 +274,14 @@ function bfloat16ToFloat32(h: number): number {
 
 // Copy the first (or last) N values from a decoded tensor and return them
 // as plain JS numbers. F16/BF16 get upcast to f32 so they print nicely.
+/**
+ * Take the first or last N values of a tensor for display.
+ *
+ * @param data - A tensor read by `readSafetensorsTensor`.
+ * @param n - How many values to take.
+ * @param from - Which end to take them from.
+ * @returns Up to `n` values.
+ */
 export function tensorPreview(
   data: SafetensorsTensorData,
   n: number,
@@ -282,6 +306,12 @@ export function tensorPreview(
   return out;
 }
 
+/**
+ * Whether a readable safetensors file exists at a path.
+ *
+ * @param path - Path to check.
+ * @returns True when the file exists and is readable.
+ */
 export function safetensorsFileExists(path: string): boolean {
   try {
     return fs.statSync(path).isFile();
@@ -294,6 +324,17 @@ export function safetensorsFileExists(path: string): boolean {
 // from an existing blob. Used by `cirron traces snapshot <span> <tensor>
 // --export <path>` so the user gets only what they asked for instead of
 // the entire span's weights.
+/**
+ * Copy one tensor out of a safetensors file into a new single-tensor file.
+ *
+ * Used by `traces snapshot --export` so the caller gets only the tensor asked
+ * for, rather than every tensor recorded for that span.
+ *
+ * @param sourcePath - File to read from.
+ * @param tensorName - Tensor to extract.
+ * @param destPath - File to write.
+ * @throws If the tensor is absent from the source.
+ */
 export async function writeSingleTensorSafetensors(
   sourcePath: string,
   tensorName: string,
@@ -317,10 +358,8 @@ export async function writeSingleTensorSafetensors(
       data_offsets: [0, tensor.byteSize],
     },
   };
-  // Safetensors requires the JSON payload's UTF-8 byte length to be a
-  // multiple of 8. Pad in BYTES, not JS string length — non-ASCII tensor
-  // names would otherwise produce a misaligned/invalid file (one code
-  // point can be 2–4 UTF-8 bytes).
+  // Pad in BYTES, not JS string length: one code point can be 2-4 UTF-8
+  // bytes, so a non-ASCII tensor name would otherwise misalign the header.
   const headerJson = JSON.stringify(newHeader);
   let headerBytes = Buffer.from(headerJson, "utf-8");
   const pad = (8 - (headerBytes.length % 8)) % 8;

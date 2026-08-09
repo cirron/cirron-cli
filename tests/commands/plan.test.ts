@@ -1,3 +1,5 @@
+import path from "node:path";
+import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   planBuildCommand,
@@ -350,6 +352,37 @@ describe("plan commands", () => {
         caught = err;
       }
       expect(typeof exitCodeFromError(caught)).toBe("number");
+    });
+
+    it("--all creates the plans directory when it does not exist yet", async () => {
+      writeProjectConfig(tmp.dir);
+      // os.homedir() reads $HOME on POSIX, so this points the save path at a
+      // home with no ~/.cirron/plans — the fresh-machine case. The --all branch
+      // wrote lint/test plans without ensureDir, so writeJson threw here.
+      const origHome = process.env.HOME;
+      process.env.HOME = tmp.dir;
+
+      try {
+        await planSaveCommand("all", { all: true });
+
+        const plansDir = path.join(tmp.dir, ".cirron", "plans");
+        expect(fs.existsSync(plansDir)).toBe(true);
+        const written = fs.readdirSync(plansDir);
+        expect(written.some((f: string) => f.startsWith("lint-plan-"))).toBe(
+          true
+        );
+        expect(written.some((f: string) => f.startsWith("test-plan-"))).toBe(
+          true
+        );
+      } finally {
+        // Assigning undefined would set HOME to the string "undefined", which
+        // os.homedir() would then hand to later tests as a real path.
+        if (origHome === undefined) {
+          delete process.env.HOME;
+        } else {
+          process.env.HOME = origHome;
+        }
+      }
     });
   });
 });

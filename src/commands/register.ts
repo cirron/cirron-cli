@@ -1,4 +1,3 @@
-// src/commands/register.ts
 import chalk from "chalk";
 import ora from "ora";
 import { CirronApi } from "../utils/api";
@@ -26,6 +25,7 @@ function deriveAppUrl(apiUrl: string, modelId: string): string {
   }
 }
 
+/** Entry point for `cirron register`: register the local project with the platform. */
 export async function registerCommand(
   options: RegisterOptions = {}
 ): Promise<void> {

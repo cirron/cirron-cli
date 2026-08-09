@@ -28,7 +28,7 @@ import { getShortCommitHash } from "../utils/git";
 import { logger } from "../utils/logger";
 import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 
-// --- Constants ---
+// Constants
 
 /**
  * The client has to choose an upload path before it has talked to the server,
@@ -46,7 +46,7 @@ const PART_UPLOAD_CONCURRENCY = 4;
  */
 const CHECKSUM_CONCURRENCY = 8;
 
-// --- Helpers ---
+// Helpers
 
 function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
@@ -226,8 +226,26 @@ async function resolveResourceFile(
   return null;
 }
 
-// --- Core Upload Flow ---
+// Core Upload Flow
 
+/**
+ * Push one artifact: dedupe check, upload, then confirm.
+ *
+ * The two size paths are mutually exclusive rather than layered. Above the
+ * platform's multipart threshold `init` opens its own upload session, so
+ * asking for a single-PUT upload URL first would orphan a second one. Both
+ * paths yield the session id that `confirmUpload` resolves.
+ *
+ * A dedupe hit short-circuits the upload entirely unless `force` is set.
+ *
+ * @param api - Authenticated platform client.
+ * @param fileInfo - Path, size and checksum of the artifact.
+ * @param options - Registry placement (`resource`, `name`, `tag`, `registry`,
+ * `platform`), commit metadata (`message`, `gitHash`), and `force` to upload
+ * even when the content already exists.
+ * @param spinner - Progress spinner, updated in place.
+ * @returns The push result, including whether it was deduped.
+ */
 export async function uploadSingleFile(
   api: CirronApi,
   fileInfo: PushFileInfo,
@@ -279,11 +297,8 @@ export async function uploadSingleFile(
     }
   }
 
-  // Steps 2-3: Upload the bytes.
-  //
-  // Above the platform's multipart threshold, `init` opens its own upload
-  // session, so requesting a single-PUT upload URL first would orphan a
-  // second one. Both paths yield the session id that `confirm` resolves.
+  // Steps 2-3: upload the bytes. See the note on this function for why the
+  // two size paths are mutually exclusive rather than layered.
   let uploadId: string;
 
   if (fileInfo.size > MULTIPART_THRESHOLD_BYTES) {
@@ -400,7 +415,7 @@ export async function uploadSingleFile(
   };
 }
 
-// --- Multipart Upload ---
+// Multipart Upload
 
 /**
  * Upload an artifact as provider-native multipart parts.
@@ -410,6 +425,12 @@ export async function uploadSingleFile(
  *
  * Parts are presigned one at a time immediately before their PUT because a
  * presigned part URL expires well before a very large upload finishes.
+ *
+ * **Every part is uploaded every time; an interrupted upload cannot resume.**
+ * `init` unconditionally opens a new provider-side multipart upload before it
+ * decides whether to reuse a session row, so a re-run can never adopt parts a
+ * previous run uploaded, and reading `session/{id}` for prior progress always
+ * comes back empty. If `init` ever becomes idempotent, this is what changes.
  */
 async function uploadMultipart(
   api: CirronApi,
@@ -446,14 +467,7 @@ async function uploadMultipart(
     );
   }
 
-  // Every part, every time.
-  //
-  // Resuming an interrupted upload is not possible against the current
-  // platform contract: `init` unconditionally opens a NEW provider-side
-  // multipart upload before it decides whether to reuse a session row, so a
-  // re-run can never adopt the parts a previous run uploaded. Reading
-  // `session/{id}` for prior progress would always come back empty. If init
-  // ever becomes idempotent, this is the place that changes.
+  // Every part, every time — resume is not possible; see the note above.
   const pending: number[] = [];
   for (let partNumber = 1; partNumber <= init.partCount; partNumber++) {
     pending.push(partNumber);
@@ -484,11 +498,8 @@ async function uploadMultipart(
         const start = (partNumber - 1) * init.partSize;
         const length = Math.min(init.partSize, fileInfo.size - start);
 
-        // `uploadFilePart` retries internally, and each attempt re-streams the
-        // part from byte zero. Counting raw deltas would therefore add a
-        // retried part's bytes twice and run the percentage ahead of reality.
-        // Cap each part's contribution at its own length instead, which keeps
-        // per-byte granularity without double-counting.
+        // Capped at the part's own length: uploadFilePart retries internally
+        // and re-streams from zero, so raw deltas would double-count.
         let partCounted = 0;
         const etag = await api.uploadFilePart(
           url,
@@ -537,7 +548,7 @@ async function uploadMultipart(
   return init.sessionId;
 }
 
-// --- Dry Run ---
+// Dry Run
 
 function printDryRun(
   files: PushFileInfo[],
@@ -584,8 +595,9 @@ function printDryRun(
   logger.info(chalk.gray("No files were uploaded. Remove --dry-run to push."));
 }
 
-// --- Main Command ---
+// Main Command
 
+/** Entry point for `cirron push`: upload artifacts to the registry, single-PUT or multipart by size. */
 export async function pushCommand(
   resource: string | undefined,
   name: string | undefined,
@@ -680,7 +692,7 @@ export async function pushArtifact(
   }
 }
 
-// --- Resource-typed push ---
+// Resource-typed push
 
 async function pushResourceTyped(
   api: CirronApi,
@@ -771,7 +783,7 @@ async function pushResourceTyped(
   }
 }
 
-// --- Path-based push ---
+// Path-based push
 
 async function pushPathBased(
   api: CirronApi,
@@ -887,7 +899,7 @@ async function pushPathBased(
   }
 }
 
-// --- Push all ---
+// Push all
 
 async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
   const projectConfig = loadProjectConfig();
@@ -984,7 +996,7 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
   }
 }
 
-// --- Multi-file push with summary ---
+// Multi-file push with summary
 
 async function pushMultipleFiles(
   api: CirronApi,

@@ -1,8 +1,6 @@
-// src/utils/spool.ts
-//
-// Shared spool-directory helpers consumed by both `cirron spool` (SDK-18)
-// and `cirron traces` (SDK-51). The spool format is documented public API
-// — see `cirron_sdk/docs/spool-format.md`.
+// Shared spool-directory helpers consumed by both `cirron spool` and
+// `cirron traces`. The spool format is documented public API — see the SDK's
+// spool-format documentation.
 
 import path from "node:path";
 import fs from "fs-extra";
@@ -18,15 +16,36 @@ export interface SpoolFile {
   size: number;
 }
 
+/**
+ * Resolve the spool directory, defaulting to `.cirron/spool` under the cwd.
+ *
+ * @param dir - Explicit override, usually from `--spool`.
+ * @returns An absolute path.
+ */
 export function resolveSpoolDir(dir: string | undefined): string {
   return path.resolve(dir ?? path.join(process.cwd(), DEFAULT_SPOOL_SUBPATH));
 }
 
+/**
+ * Resolve the snapshot directory that pairs with a spool directory.
+ *
+ * @param spoolDir - The resolved spool directory.
+ * @returns An absolute path to its sibling `snapshots` directory.
+ */
 export function resolveSnapshotDir(spoolDir: string): string {
   // Snapshot dir is a sibling of the spool dir under .cirron/
   return path.resolve(path.dirname(spoolDir), "snapshots");
 }
 
+/**
+ * List spool batch files, oldest first.
+ *
+ * A missing directory yields an empty list rather than an error, since not
+ * having profiled yet is normal.
+ *
+ * @param spoolDir - Directory to scan.
+ * @returns The batch files, sorted by creation timestamp.
+ */
 export async function listSpoolFiles(spoolDir: string): Promise<SpoolFile[]> {
   if (!(await fs.pathExists(spoolDir))) {
     return [];
@@ -59,6 +78,12 @@ export async function listSpoolFiles(spoolDir: string): Promise<SpoolFile[]> {
   return files;
 }
 
+/**
+ * Format a byte count for display, e.g. `1.50 MB`.
+ *
+ * @param n - Byte count.
+ * @returns The formatted string; exact bytes below 1 KB.
+ */
 export function humanBytes(n: number): string {
   if (n < 1024) {
     return `${n} B`;
@@ -73,6 +98,14 @@ export function humanBytes(n: number): string {
   return `${v.toFixed(2)} ${units[i]}`;
 }
 
+/**
+ * Convert a nanosecond timestamp to an ISO 8601 string.
+ *
+ * Precision drops to milliseconds, which is all `Date` carries.
+ *
+ * @param ns - Nanoseconds since the epoch.
+ * @returns The ISO timestamp.
+ */
 export function nsToIso(ns: bigint): string {
   const ms = Number(ns / 1_000_000n);
   return new Date(ms).toISOString();
@@ -88,8 +121,14 @@ const DURATION_UNITS: Record<string, bigint> = {
   h: 3_600_000_000_000n,
 };
 
-// Parse "1ms", "500us", "2.5s", "100ns" into nanoseconds. Returns null on
-// malformed input so callers can surface a usage error.
+/**
+ * Parse a duration such as `1ms`, `500us`, `2.5s` or `100ns` to nanoseconds.
+ *
+ * @param s - The duration string; `ns`, `us`/`µs`, `ms`, `s`, `m` and `h` are
+ * accepted, with an optional fractional part.
+ * @returns The duration in nanoseconds, or null when malformed or negative so
+ * the caller can surface a usage error.
+ */
 export function parseDurationNs(s: string): bigint | null {
   const m = s.match(/^\s*(\d+(?:\.\d+)?)\s*(ns|us|µs|ms|s|m|h)\s*$/);
   if (!m) {
@@ -107,7 +146,12 @@ export function parseDurationNs(s: string): bigint | null {
   return BigInt(Math.floor(num * Number(scale)));
 }
 
-// Format a nanosecond duration as a compact human string (e.g. "42.1ms").
+/**
+ * Format a nanosecond duration compactly, e.g. `42.1ms`.
+ *
+ * @param ns - The duration, or null/undefined for an unfinished span.
+ * @returns The formatted string, or an em dash when there is no duration.
+ */
 export function formatDurationNs(ns: bigint | null | undefined): string {
   if (ns === null || ns === undefined) {
     return "—";

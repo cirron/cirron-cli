@@ -14,7 +14,12 @@ interface CliConfigOptions {
   set?: string;
 }
 
-// Scope-based routing: delegates to cliConfigHandler or settingsCommand
+/**
+ * Entry point for `cirron config`: get, set, list or reset configuration.
+ *
+ * Routes on scope rather than on the operation — a project-scoped invocation
+ * delegates to `settingsCommand`, everything else to the CLI config handler.
+ */
 export async function configCommand(
   options: ConfigCommandOptions
 ): Promise<void> {
@@ -208,7 +213,7 @@ function determineScope(
   return options.scope;
 }
 
-// --- CLI config handler (previously configCommand) ---
+// CLI config handler (previously configCommand)
 // Handles CLI-scoped configuration: API URL, timeout, retries
 
 async function cliConfigHandler(options: CliConfigOptions): Promise<void> {

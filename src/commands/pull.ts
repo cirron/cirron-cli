@@ -24,7 +24,7 @@ import { logger } from "../utils/logger";
 import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
 import { resolveWithin } from "../utils/safe-path";
 
-// --- Helpers ---
+// Helpers
 
 function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
@@ -83,6 +83,17 @@ async function checkConflict(
   return overwrite;
 }
 
+/**
+ * Download one artifact to an already-resolved destination path.
+ *
+ * The caller is responsible for containing `destPath` within the project;
+ * this does not re-check it.
+ *
+ * @param api - Authenticated platform client.
+ * @param artifact - The artifact to fetch.
+ * @param destPath - Absolute path to write to.
+ * @param spinner - Progress spinner, updated in place.
+ */
 export async function downloadArtifact(
   api: CirronApi,
   artifact: PullArtifactInfo,
@@ -169,7 +180,7 @@ async function completePull(
   }
 }
 
-// --- Dry Run ---
+// Dry Run
 
 function printDryRun(
   artifacts: PullArtifactInfo[],
@@ -213,8 +224,9 @@ function printDryRun(
   );
 }
 
-// --- Main Command ---
+// Main Command
 
+/** Entry point for `cirron pull`: download registry artifacts into the project. */
 export async function pullCommand(
   resource: string | undefined,
   name: string | undefined,
@@ -273,7 +285,7 @@ export async function pullCommand(
   }
 }
 
-// --- Resource-typed pull ---
+// Resource-typed pull
 
 async function pullResourceTyped(
   api: CirronApi,
@@ -337,7 +349,7 @@ async function pullResourceTyped(
   }
 }
 
-// --- Path-based pull ---
+// Path-based pull
 
 async function pullPathBased(
   api: CirronApi,
@@ -381,7 +393,7 @@ async function pullPathBased(
   }
 }
 
-// --- Pull all ---
+// Pull all
 
 async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
   const projectConfig = loadProjectConfig();

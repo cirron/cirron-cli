@@ -1,4 +1,3 @@
-// src/commands/list.ts
 import chalk from "chalk";
 import Table from "cli-table3";
 import ora from "ora";
@@ -14,7 +13,7 @@ interface ListOptions {
   limit?: number;
 }
 
-// Main list command delegator
+/** Entry point for `cirron list`: list a platform resource, chosen by positional argument. */
 export async function listCommand(
   resource: string,
   options: ListOptions
@@ -34,7 +33,6 @@ export async function listCommand(
     return;
   }
 
-  // Check authentication
   const config = new ConfigManager();
   const currentConfig = config.load();
 

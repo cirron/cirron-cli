@@ -16,6 +16,7 @@ interface LoginOptions {
   url?: string;
 }
 
+/** Entry point for `cirron auth login`: device flow by default, or a direct token with `--token`. */
 export async function loginCommand(options: LoginOptions): Promise<void> {
   try {
     const config = new ConfigManager();
@@ -26,7 +27,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
       currentConfig.apiUrl = options.url;
     }
 
-    // Support legacy --token option for CI/CD workflows
+    // --token is the non-interactive path for CI/CD workflows.
     if (options.token) {
       return legacyTokenLogin(options, currentConfig, config);
     }
@@ -68,7 +69,6 @@ async function legacyTokenLogin(
       throw new Error("Invalid token");
     }
 
-    // Save configuration with legacy token
     currentConfig.token = options.token!;
     config.save(currentConfig);
 
@@ -280,6 +280,7 @@ async function saveTokens(
   config.save(currentConfig);
 }
 
+/** Entry point for `cirron auth logout`: clears stored credentials. */
 export async function logoutCommand(): Promise<void> {
   const spinner = ora("Logging out...").start();
 
@@ -292,7 +293,6 @@ export async function logoutCommand(): Promise<void> {
       return;
     }
 
-    // Clear both JWT and legacy tokens
     delete currentConfig.token;
     delete currentConfig.auth;
     config.save(currentConfig);
@@ -306,6 +306,7 @@ export async function logoutCommand(): Promise<void> {
   }
 }
 
+/** Entry point for `cirron auth status`: reports who the stored credentials belong to. */
 export async function authCommand(): Promise<void> {
   try {
     const config = new ConfigManager();
@@ -381,6 +382,7 @@ export async function authCommand(): Promise<void> {
   }
 }
 
+/** Entry point for `cirron auth refresh`: exchanges the refresh token for a new access token. */
 export async function refreshCommand(): Promise<void> {
   const spinner = ora("Refreshing authentication...").start();
 

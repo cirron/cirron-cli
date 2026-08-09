@@ -3,12 +3,16 @@ import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
-import type { BuildOptions, HardwareConfig, ProjectConfig } from "../types";
+import type { BuildOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
+import {
+  determineArchitectureFromHardware,
+  loadIndexFile,
+  validateHardwareCompatibility,
+} from "../utils/architecture";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { executePythonScript, formatExecutionError } from "../utils/execution";
-import { HardwareDetector } from "../utils/hardware";
 import { CirronIgnore } from "../utils/ignore";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
@@ -108,11 +112,20 @@ function displayForceWarnings(
   console.log();
 }
 
+/**
+ * Compare a project's recorded metadata against what can be detected now.
+ *
+ * Checks the git commit hash only, and only when `src/model.py` and a metadata
+ * block both exist. Deep model introspection — the fuller comparison behind
+ * `cirron info` — is out of scope here; a build should not pay for it. A
+ * missing git repository is not an error.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @returns Every mismatch found, empty when there are none or nothing to check.
+ */
 async function checkMetadataMismatches(
   projectConfig: ProjectConfig
 ): Promise<MetadataMismatch[]> {
-  // This is a simplified version of metadata checking
-  // In a full implementation, we would import and use the analysis from info.ts
   const mismatches: MetadataMismatch[] = [];
 
   try {
@@ -147,11 +160,11 @@ async function checkMetadataMismatches(
   return mismatches;
 }
 
+/** Entry point for `cirron build`: container or ML build from compiled artifacts. Exits 1 outside a project. */
 export async function buildCommand(options: BuildOptions): Promise<void> {
   const spinner = ora("Preparing build...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -211,7 +224,6 @@ async function handleMLBuild(
 ): Promise<void> {
   const interactive = createInteractiveManager(options.interactive ?? false);
 
-  // Load model configuration
   const modelConfigManager = new ModelConfigManager();
   const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -254,7 +266,7 @@ async function handleMLBuild(
   }
 
   // Determine architecture from options, model config, or hardware detection
-  const architecture =
+  let architecture =
     options.arch ||
     modelConfig?.inference?.device ||
     (await determineArchitectureFromHardware(projectConfig));
@@ -279,6 +291,7 @@ async function handleMLBuild(
       logger.info(
         `Architecture changed from ${architecture} to ${confirmedArch}`
       );
+      architecture = confirmedArch;
     }
     spinner.start();
   }
@@ -302,8 +315,9 @@ async function handleMLBuild(
     }
   }
 
-  // Validate hardware compatibility if hardware config exists
-  if (projectConfig.hardware && !options.force) {
+  // Validate hardware compatibility if hardware config exists.
+  // --force downgrades a failure to a warning rather than skipping the check.
+  if (projectConfig.hardware) {
     spinner.text = "Validating hardware compatibility...";
     try {
       await validateHardwareCompatibility(
@@ -1083,121 +1097,6 @@ function formatBytes(bytes: number): string {
   return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
 
-// ML-specific build functions
-async function determineArchitectureFromHardware(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  // First check if hardware configuration exists in project
-  if (projectConfig.hardware) {
-    const hardwareType = projectConfig.hardware.type;
-
-    // Map hardware type to architecture based on framework
-    if (projectConfig.framework === "pytorch") {
-      return hardwareType === "cuda"
-        ? "cuda"
-        : hardwareType === "gpu"
-          ? "cuda"
-          : "cpu";
-    }
-    if (projectConfig.framework === "tensorflow") {
-      return hardwareType === "cuda" || hardwareType === "gpu" ? "gpu" : "cpu";
-    }
-    return "cpu"; // sklearn and custom default to CPU
-  }
-
-  // Fallback to legacy logic
-  return await determineDefaultArchitecture(projectConfig);
-}
-
-async function determineDefaultArchitecture(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  if (projectConfig.framework === "pytorch") {
-    return projectConfig.gpuRequired ? "cuda" : "cpu";
-  }
-  if (projectConfig.framework === "tensorflow") {
-    return projectConfig.gpuRequired ? "gpu" : "cpu";
-  }
-  if (projectConfig.framework === "sklearn") {
-    return "cpu";
-  }
-  return "cpu";
-}
-
-async function validateHardwareCompatibility(
-  hardwareConfig: HardwareConfig,
-  targetArch: string,
-  framework?: string
-): Promise<void> {
-  const validationErrors: string[] = [];
-
-  // Validate hardware configuration
-  const validation = HardwareDetector.validateHardwareConfig(hardwareConfig);
-  if (!validation.valid) {
-    validationErrors.push(...validation.errors);
-  }
-
-  // Check architecture compatibility
-  if (targetArch === "cuda" && hardwareConfig.type !== "cuda") {
-    validationErrors.push(
-      "CUDA architecture selected but hardware configuration is not CUDA-capable"
-    );
-  }
-
-  if (targetArch === "gpu" && hardwareConfig.type === "cpu") {
-    validationErrors.push(
-      "GPU architecture selected but hardware configuration is CPU-only"
-    );
-  }
-
-  // Framework-specific validation
-  if (framework) {
-    const frameworkCompatible =
-      hardwareConfig.compatibility[
-        framework as keyof typeof hardwareConfig.compatibility
-      ];
-    if (typeof frameworkCompatible === "boolean" && !frameworkCompatible) {
-      validationErrors.push(
-        `Hardware not compatible with ${framework} framework`
-      );
-    }
-  }
-
-  // Check for compatibility warnings
-  if (
-    hardwareConfig.compatibility.warnings &&
-    hardwareConfig.compatibility.warnings.length > 0
-  ) {
-    for (const warning of hardwareConfig.compatibility.warnings) {
-      logger.warn(`Hardware warning: ${warning}`);
-    }
-  }
-
-  if (validationErrors.length > 0) {
-    throw new Error(
-      `Hardware compatibility validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
-    );
-  }
-}
-
-async function loadIndexFile(indexPath: string): Promise<any> {
-  try {
-    const ext = path.extname(indexPath).toLowerCase();
-
-    if (ext === ".json") {
-      return await fs.readJSON(indexPath);
-    }
-    if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
-      const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
-    }
-    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
-  } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
-  }
-}
-
 async function runValidationChecks(
   projectConfig: ProjectConfig,
   indexConfig: any,
@@ -1213,8 +1112,8 @@ async function runValidationChecks(
     (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
   ) {
-    // Note: build deliberately does not thread strict mode into this probe;
-    // compile and plan do. Preserved as-is by plan 010's refactor.
+    // build does not thread strict mode into this probe, where compile and
+    // plan do. Long-standing, and preserved rather than quietly unified.
     validationErrors.push(...(await checkCudaPytorch({ debugLog: true })));
   }
 
@@ -1424,22 +1323,13 @@ elif "${framework}" == "sklearn":
 print("Integrity tests completed successfully")
 `;
 
-  const tempScriptPath = "temp_integrity_test.py";
-
-  try {
-    await fs.writeFile(tempScriptPath, testScript);
-    const result = await executePythonScript(testScript, {
-      cwd: process.cwd(),
-    });
-    if (!result.success) {
-      throw new Error(
-        `Architecture test failed: ${formatExecutionError(result)}`
-      );
-    }
-  } finally {
-    if (fs.existsSync(tempScriptPath)) {
-      await fs.remove(tempScriptPath);
-    }
+  const result = await executePythonScript(testScript, {
+    cwd: process.cwd(),
+  });
+  if (!result.success) {
+    throw new Error(
+      `Architecture test failed: ${formatExecutionError(result)}`
+    );
   }
 }
 

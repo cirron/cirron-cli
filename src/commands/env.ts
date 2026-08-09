@@ -1,4 +1,3 @@
-// src/commands/env.ts
 import chalk from "chalk";
 import inquirer from "inquirer";
 import ora from "ora";
@@ -13,6 +12,7 @@ interface EnvOptions {
   env?: string;
 }
 
+/** Entry point for `cirron env list`. The platform route does not exist yet, so this currently 404s. */
 export async function envListCommand(options: EnvOptions): Promise<void> {
   const spinner = ora("Fetching environment variables...").start();
 
@@ -54,6 +54,7 @@ export async function envListCommand(options: EnvOptions): Promise<void> {
   }
 }
 
+/** Entry point for `cirron env set`. The platform route does not exist yet, so this currently 404s. */
 export async function envSetCommand(
   key: string,
   value: string,
@@ -80,6 +81,7 @@ export async function envSetCommand(
   }
 }
 
+/** Entry point for `cirron env delete`. The platform route does not exist yet, so this currently 404s. */
 export async function envDeleteCommand(
   key: string,
   options: EnvOptions
@@ -121,7 +123,6 @@ async function setupCommand(): Promise<{
   api: CirronApi;
   projectConfig: ProjectConfig;
 }> {
-  // Load project configuration
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {
@@ -132,7 +133,6 @@ async function setupCommand(): Promise<{
 
   const projectConfig = projectConfigResult.config;
 
-  // Check authentication
   const config = new ConfigManager();
   const currentConfig = config.load();
 

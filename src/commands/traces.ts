@@ -1,11 +1,8 @@
-// src/commands/traces.ts
-//
-// SDK-51: `cirron traces {view,list,export,clear}`.
+// `cirron traces {view,list,export,clear}`.
 //
 // Reads the local spool (`.cirron/spool/*.json`) + snapshots
 // (`.cirron/snapshots/<span_id>/*.safetensors`). Never talks to the
-// platform. Remote/run-scoped reads are a follow-on ticket (see
-// features/sdk-traces-platform-read.md in the platform monorepo).
+// platform. Remote/run-scoped reads are not yet supported.
 
 import path from "node:path";
 import chalk, { Chalk } from "chalk";
@@ -114,6 +111,7 @@ function noTracesFound(): void {
 
 // view
 
+/** Entry point for `cirron traces view`: text flamegraph of a local session. */
 export async function tracesViewCommand(options: ViewOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.spool);
   const sessions = await loadSessions(spoolDir);
@@ -222,6 +220,7 @@ function sessionToJsonTree(session: Session): unknown {
 
 // list
 
+/** Entry point for `cirron traces list`: list reconstructed local sessions. */
 export async function tracesListCommand(options: ListOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.spool);
   const sessions = await loadSessions(spoolDir);
@@ -290,6 +289,7 @@ export async function tracesListCommand(options: ListOptions): Promise<void> {
 
 // export
 
+/** Entry point for `cirron traces export`: write sessions as Parquet, OTLP, CSV or JSON. */
 export async function tracesExportCommand(
   options: ExportOptions
 ): Promise<void> {
@@ -350,6 +350,7 @@ export async function tracesExportCommand(
 
 // clear
 
+/** Entry point for `cirron traces clear`: delete local sessions and their snapshot directories. */
 export async function tracesClearCommand(options: ClearOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.spool);
   const snapshotDir = resolveSnapshotDir(spoolDir);
@@ -403,9 +404,8 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
     totalBytes += s.totalBytes;
   }
 
-  // Figure out snapshot dirs to remove (only those whose span is in the
-  // to-delete set). Then, if --prune-orphans (default true), also drop any
-  // snapshot dir whose span isn't referenced by any *surviving* session.
+  // Snapshot dirs to remove: those whose span is being deleted, plus — under
+  // --prune-orphans (default on) — any span no surviving session references.
   const survivingSpanIds = new Set<string>();
   for (const s of sessions) {
     if (eligible.includes(s)) {
@@ -501,9 +501,7 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
   );
 }
 
-// ---------------------------------------------------------------------------
 // snapshots (list) + snapshot (detail)
-// ---------------------------------------------------------------------------
 
 const HISTOGRAM_BLOCKS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
 
@@ -570,6 +568,7 @@ function formatStat(v: unknown): string {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+/** Entry point for `cirron traces snapshots`: list tensor snapshots for a span. */
 export async function tracesSnapshotsCommand(
   spanArg: string | undefined,
   options: SnapshotsListOptions
@@ -687,6 +686,7 @@ export async function tracesSnapshotsCommand(
   console.log(table.toString());
 }
 
+/** Entry point for `cirron traces snapshot`: inspect or export one span's tensor snapshots. */
 export async function tracesSnapshotCommand(
   spanIdArg: string,
   tensorNameArg: string | undefined,
@@ -709,9 +709,8 @@ export async function tracesSnapshotCommand(
   const span = match.session.spans.get(match.snapshots[0]!.spanId);
   const fullSpanId = match.snapshots[0]!.spanId;
   const useColor = shouldColor(process.stdout, options.noColor);
-  // Scoped chalk so --no-color actually disables ANSI across every code
-  // path in this command (table headers, inline labels, the helper
-  // below). A level=0 Chalk passes strings through untouched.
+  // Scoped Chalk so --no-color reaches every path here; level 0 passes
+  // strings through untouched.
   const c = new Chalk({ level: useColor ? 3 : 0 });
 
   // Figure out which safetensors files live under this span.
@@ -748,11 +747,8 @@ export async function tracesSnapshotCommand(
     }
 
     const destInput = path.resolve(options.export);
-    // Decide file vs dir. Priority:
-    //   1. If the path exists on disk, use what's there.
-    //   2. If the path ends in .safetensors, treat as file.
-    //   3. If there's a single blob and the path has no extension, treat
-    //      as file; otherwise treat as a directory.
+    // What's on disk wins; otherwise a .safetensors suffix, or a lone blob
+    // going to an extensionless path, means file. Anything else is a dir.
     let destIsDir: boolean;
     try {
       const stat = await fs.stat(destInput);
@@ -942,9 +938,8 @@ export async function tracesSnapshotCommand(
     }
 
     if (options.export) {
-      // Extract just this tensor into a fresh single-tensor safetensors
-      // file, rather than copying the whole blob (which would contain
-      // every tensor for this span).
+      // Extract just this tensor into a fresh single-tensor file; copying the
+      // blob would carry every other tensor for this span along with it.
       let dest = path.resolve(options.export);
       try {
         const stat = await fs.stat(dest);

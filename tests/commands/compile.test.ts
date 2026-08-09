@@ -15,6 +15,7 @@ import { execSync } from "node:child_process";
 import { compileCommand } from "../../src/commands/compile";
 // biome-ignore lint/performance/noNamespaceImport: needed for vi.spyOn
 import * as executionMod from "../../src/utils/execution";
+import { InteractiveManager } from "../../src/utils/interactive";
 import { ModelConfigManager } from "../../src/utils/model-config";
 import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
@@ -154,5 +155,34 @@ describe("compileCommand", () => {
     await compileCommand({ arch: "cpu" });
     // Should complete one way or another without PROJECT_NOT_FOUND
     expect(exitSpy.mock.calls[0]?.[0]).not.toBe(31);
+  });
+
+  it("compiles for the interactively selected architecture, not the detected one", async () => {
+    mlProject("pytorch");
+    vi.spyOn(ModelConfigManager.prototype, "loadModelConfig").mockResolvedValue(
+      {
+        name: "m",
+        framework: "pytorch",
+        inference: { device: "cuda" },
+      } as never
+    );
+    vi.spyOn(InteractiveManager.prototype, "isInteractive").mockReturnValue(
+      true
+    );
+    vi.spyOn(InteractiveManager.prototype, "confirmStep").mockResolvedValue(
+      true
+    );
+    vi.spyOn(InteractiveManager.prototype, "selectOption").mockResolvedValue(
+      "gpu"
+    );
+
+    await compileCommand({ interactive: true });
+
+    // The bug: `architecture` was const, so the selection was logged and then
+    // discarded. Assert on the value the compilation actually used.
+    const logged = infoSpy.mock.calls.flat().join(" ");
+    expect(logged).toContain("Architecture changed from cuda to gpu");
+    expect(logged).toContain("Target architecture: gpu");
+    expect(logged).not.toContain("Target architecture: cuda");
   });
 });

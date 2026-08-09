@@ -33,12 +33,12 @@ interface TestOptions {
   watch?: boolean;
 }
 
+/** Entry point for `cirron test`: runs the selected test suites, or a default set when none are named. */
 export async function testCommand(options: TestOptions): Promise<void> {
   const spinner = ora("Preparing tests...").start();
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -49,7 +49,6 @@ export async function testCommand(options: TestOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -636,7 +635,7 @@ else:
     try {
       const result = await executePythonFile(tempScriptPath);
       if (!result.success) {
-        throw new Error(`Model test failed: ${formatExecutionError(result)}`);
+        throw new Error(`Data test failed: ${formatExecutionError(result)}`);
       }
     } finally {
       // Clean up temporary file

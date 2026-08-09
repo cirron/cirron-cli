@@ -13,11 +13,11 @@ import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 import { buildCommand } from "./build";
 
+/** Entry point for `cirron deploy`: build, upload and roll out to an environment, polling until the deployment settles. */
 export async function deployCommand(options: DeployOptions): Promise<void> {
   const spinner = ora("Preparing deployment...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -30,7 +30,6 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Check authentication
     const config = new ConfigManager();
     const currentConfig = config.load();
 
