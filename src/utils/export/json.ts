@@ -1,5 +1,3 @@
-// src/utils/export/json.ts
-//
 // Merged + deduped spool JSON. One object containing the union of all
 // spans/marks/snapshots across the provided sessions. Output mirrors the
 // single-batch spool shape so downstream tools can read it with their

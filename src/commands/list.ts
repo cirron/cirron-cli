@@ -1,4 +1,3 @@
-// src/commands/list.ts
 import chalk from "chalk";
 import Table from "cli-table3";
 import ora from "ora";
@@ -34,7 +33,6 @@ export async function listCommand(
     return;
   }
 
-  // Check authentication
   const config = new ConfigManager();
   const currentConfig = config.load();
 

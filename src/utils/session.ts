@@ -1,5 +1,3 @@
-// src/utils/session.ts
-//
 // Session reconstruction for `cirron traces`. Reads JSON batch files from
 // the spool, dedupes spans/marks/snapshots across batches, and groups them
 // into logical sessions rooted at each `cirron.session` span.

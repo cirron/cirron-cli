@@ -53,11 +53,9 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
       process.exit(1);
     }
 
-    // Load project configuration
     const { configPath: cirronJsonPath, config: projectConfig } =
       projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 

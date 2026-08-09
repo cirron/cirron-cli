@@ -1,5 +1,3 @@
-// src/commands/spool.ts
-
 import zlib from "node:zlib";
 import chalk from "chalk";
 import Table from "cli-table3";

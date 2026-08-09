@@ -1,5 +1,3 @@
-// src/utils/export/otlp.ts
-//
 // OpenTelemetry Protocol (OTLP) JSON encoding, per the OTLP/JSON spec.
 // Produces a file that can be POSTed to an OTEL collector or imported
 // directly into Jaeger / Tempo / Honeycomb — making the "no lock-in"

@@ -1,5 +1,3 @@
-// src/utils/export/csv.ts
-//
 // Flat spans-only CSV for quick analysis in Excel/Google Sheets. One row
 // per span; marks are excluded (use Parquet or JSON for full fidelity).
 // Streams rows to a WriteStream so very large spools (millions of spans)

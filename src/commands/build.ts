@@ -164,7 +164,6 @@ export async function buildCommand(options: BuildOptions): Promise<void> {
   const spinner = ora("Preparing build...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -224,7 +223,6 @@ async function handleMLBuild(
 ): Promise<void> {
   const interactive = createInteractiveManager(options.interactive ?? false);
 
-  // Load model configuration
   const modelConfigManager = new ModelConfigManager();
   const modelConfig = await modelConfigManager.loadModelConfig();
 

@@ -1,5 +1,3 @@
-// src/commands/traces.ts
-//
 // `cirron traces {view,list,export,clear}`.
 //
 // Reads the local spool (`.cirron/spool/*.json`) + snapshots

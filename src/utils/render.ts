@@ -1,5 +1,3 @@
-// src/utils/render.ts
-//
 // Text flamegraph rendering for `cirron traces view`. Produces output in this
 // format:
 //

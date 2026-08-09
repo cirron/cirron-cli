@@ -31,7 +31,6 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -243,7 +242,6 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -428,7 +426,6 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing linting scope...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -474,7 +471,6 @@ export async function planTestCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing test suite...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -1061,7 +1057,6 @@ export async function planSaveCommand(
     }
   }
 
-  // Load project configuration
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {

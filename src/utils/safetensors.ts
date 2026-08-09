@@ -1,5 +1,3 @@
-// src/utils/safetensors.ts
-//
 // Minimal pure-JS safetensors reader. Used by `cirron traces snapshot` to
 // inspect tensor contents written to `.cirron/snapshots/<span_id>/*.safetensors`
 // without pulling in a native dep.

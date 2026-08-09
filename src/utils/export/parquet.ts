@@ -1,5 +1,3 @@
-// src/utils/export/parquet.ts
-//
 // Parquet writer for `cirron traces export --format parquet`. Emits three
 // files into the output directory, each with stable snake_case column names
 // so DuckDB / pandas / Polars users can query them directly:

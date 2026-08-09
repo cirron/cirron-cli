@@ -17,7 +17,6 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
   const spinner = ora("Preparing deployment...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -30,7 +29,6 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Check authentication
     const config = new ConfigManager();
     const currentConfig = config.load();
 

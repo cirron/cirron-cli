@@ -1,5 +1,3 @@
-// src/utils/spool.ts
-//
 // Shared spool-directory helpers consumed by both `cirron spool` and
 // `cirron traces`. The spool format is documented public API — see the SDK's
 // spool-format documentation.

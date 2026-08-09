@@ -1,4 +1,3 @@
-// src/commands/env.ts
 import chalk from "chalk";
 import inquirer from "inquirer";
 import ora from "ora";
@@ -121,7 +120,6 @@ async function setupCommand(): Promise<{
   api: CirronApi;
   projectConfig: ProjectConfig;
 }> {
-  // Load project configuration
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {
@@ -132,7 +130,6 @@ async function setupCommand(): Promise<{
 
   const projectConfig = projectConfigResult.config;
 
-  // Check authentication
   const config = new ConfigManager();
   const currentConfig = config.load();
 

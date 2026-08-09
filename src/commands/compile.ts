@@ -39,7 +39,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -55,7 +54,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 

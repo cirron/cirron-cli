@@ -1,4 +1,3 @@
-// src/commands/logs.ts
 import chalk from "chalk";
 import ora from "ora";
 import type { LogEntry } from "../types";
@@ -19,7 +18,6 @@ export async function logsCommand(options: LogsOptions): Promise<void> {
   const spinner = ora("Fetching logs...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -32,7 +30,6 @@ export async function logsCommand(options: LogsOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Check authentication
     const config = new ConfigManager();
     const currentConfig = config.load();
 

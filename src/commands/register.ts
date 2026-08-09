@@ -1,4 +1,3 @@
-// src/commands/register.ts
 import chalk from "chalk";
 import ora from "ora";
 import { CirronApi } from "../utils/api";
