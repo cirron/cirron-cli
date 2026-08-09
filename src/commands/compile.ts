@@ -637,21 +637,10 @@ if os.path.exists('data/sample'):
 print("Integrity tests completed successfully")
 `;
 
-  const tempScriptPath = "temp_integrity_test.py";
-
-  try {
-    await fs.writeFile(tempScriptPath, testScript);
-    const result = await executePythonScript(testScript, {
-      cwd: process.cwd(),
-    });
-    if (!result.success) {
-      throw new Error(
-        `Compilation test failed: ${formatExecutionError(result)}`
-      );
-    }
-  } finally {
-    if (fs.existsSync(tempScriptPath)) {
-      await fs.remove(tempScriptPath);
-    }
+  const result = await executePythonScript(testScript, {
+    cwd: process.cwd(),
+  });
+  if (!result.success) {
+    throw new Error(`Compilation test failed: ${formatExecutionError(result)}`);
   }
 }
