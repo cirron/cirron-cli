@@ -49,7 +49,6 @@ export async function determineArchitectureFromHardware(
     return "cpu"; // sklearn and custom default to CPU
   }
 
-  // Fallback to legacy logic
   return await determineDefaultArchitecture(projectConfig);
 }
 

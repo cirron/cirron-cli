@@ -156,7 +156,6 @@ function analyzeTokenStatus(config: CirronConfig): DiagnosticResult {
     }
   }
 
-  // Check legacy token
   if (config.token) {
     return {
       status: "ok",

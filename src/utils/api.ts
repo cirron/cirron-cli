@@ -69,10 +69,8 @@ const DEPLOYMENT_STATUS_MAP: Record<string, DeploymentInfo["status"]> = {
  *
  * Two behaviors are worth knowing before calling anything:
  *
- * - **Credential precedence.** The device-flow JWT (`auth.accessToken`) wins;
- *   a legacy `sk-*` `config.token` is the fallback. Those legacy tokens are
- *   accepted by `/api/cli/status` but rejected by every JWT-verified data
- *   route, so `verifyAuth` succeeding does not mean the rest will.
+ * - **Credential precedence.** The device-flow JWT (`auth.accessToken`) wins,
+ *   falling back to `config.token`.
  * - **Requests can rewrite your config file.** A token near expiry, or a 401
  *   on a retryable request, triggers a refresh that persists new tokens to
  *   `~/.cirron/config.json` mid-request. A long-running command can therefore
@@ -1014,8 +1012,7 @@ export class CirronApi {
   /**
    * Open a chunked upload session.
    *
-   * Belongs to the retired chunk-upload path and has no callers: large artifacts
-   * now go through `initMultipartUpload`.
+   * Unused: large artifacts go through `initMultipartUpload` instead.
    *
    * @param options - File path, total size, chunk size, chunk count and checksum.
    * @returns The new session's id.
@@ -1365,8 +1362,7 @@ export class CirronApi {
   /**
    * Upload one chunk of a chunked upload.
    *
-   * Belongs to the retired chunk-upload path and has no callers: parts now go
-   * through `uploadFilePart`, which carries no Content-Range.
+   * Unused: parts go through `uploadFilePart`, which carries no Content-Range.
    *
    * @param url - Presigned URL for the chunk.
    * @param filePath - Local file to read the chunk from.
@@ -1482,7 +1478,7 @@ export class CirronApi {
   /**
    * Build the Authorization header from stored credentials.
    *
-   * Prefers the device-flow JWT and falls back to a legacy `sk-*` token.
+   * Prefers the device-flow JWT and falls back to `config.token`.
    *
    * @returns The header value, or undefined when no credentials are stored.
    */
@@ -1491,7 +1487,6 @@ export class CirronApi {
     if (this.config.auth?.accessToken) {
       return `Bearer ${this.config.auth.accessToken}`;
     }
-    // Fallback to legacy sk-* token
     if (this.config.token) {
       return `Bearer ${this.config.token}`;
     }
@@ -1627,7 +1622,6 @@ export class CirronApi {
       ...options.headers,
     };
 
-    // Support both JWT and legacy token authentication
     const authHeader = this.getAuthHeader();
     if (authHeader) {
       headers["Authorization"] = authHeader;

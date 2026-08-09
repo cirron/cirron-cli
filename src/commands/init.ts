@@ -401,7 +401,7 @@ function deriveFramework(template: string): ProjectConfig["framework"] {
 }
 
 function deriveType(modelType: string): string {
-  // The picker uses kebab-case keys already; normalize anything legacy.
+  // The picker already emits kebab-case; normalize anything else.
   return modelType.replace(/_/g, "-");
 }
 

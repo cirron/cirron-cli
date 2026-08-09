@@ -35,7 +35,7 @@ export interface SpoolMark {
   id: string;
   kind: SpoolValueKind;
   name: string;
-  spanId: string; // may be "root" legacy sentinel
+  spanId: string; // may be the "root" sentinel
   tsNs: bigint;
   value: unknown;
   valueType: string;

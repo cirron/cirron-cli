@@ -26,7 +26,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
       currentConfig.apiUrl = options.url;
     }
 
-    // Support legacy --token option for CI/CD workflows
+    // --token is the non-interactive path for CI/CD workflows.
     if (options.token) {
       return legacyTokenLogin(options, currentConfig, config);
     }
@@ -68,7 +68,6 @@ async function legacyTokenLogin(
       throw new Error("Invalid token");
     }
 
-    // Save configuration with legacy token
     currentConfig.token = options.token!;
     config.save(currentConfig);
 
@@ -292,7 +291,6 @@ export async function logoutCommand(): Promise<void> {
       return;
     }
 
-    // Clear both JWT and legacy tokens
     delete currentConfig.token;
     delete currentConfig.auth;
     config.save(currentConfig);

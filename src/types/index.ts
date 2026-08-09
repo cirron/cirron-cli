@@ -9,7 +9,7 @@ export interface CirronConfig {
   defaultEnv: string;
   retries: number;
   timeout: number;
-  token?: string; // Keep for backward compatibility with sk-* tokens
+  token?: string;
   version?: number;
 }
 
