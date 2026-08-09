@@ -1319,7 +1319,9 @@ print("Integrity tests completed successfully")
     cwd: process.cwd(),
   });
   if (!result.success) {
-    throw new Error(`Architecture test failed: ${formatExecutionError(result)}`);
+    throw new Error(
+      `Architecture test failed: ${formatExecutionError(result)}`
+    );
   }
 }
 
