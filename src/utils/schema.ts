@@ -197,13 +197,20 @@ export class SchemaValidator {
     }));
   }
 
+  /**
+   * Stamp global settings with `toVersion` and validate them against the
+   * current schema.
+   *
+   * Only schema version 1 exists, so there is no field-shape migration to
+   * perform: this restamps and validates. `fromVersion` is accepted for the
+   * call sites that already thread it through and for the per-version
+   * branching a future bump will need.
+   */
   migrateGlobalSettings(
     settings: any,
     _fromVersion: number,
     toVersion = 1
   ): GlobalSettings {
-    // For now, just ensure we have the current structure
-    // Future versions can implement migration logic here
     const migrated = { ...settings, version: toVersion };
 
     const result = this.validateGlobalSettings(migrated);
@@ -216,13 +223,15 @@ export class SchemaValidator {
     return result.data!;
   }
 
+  /**
+   * Stamp project settings with `toVersion` and validate them against the
+   * current schema. See `migrateGlobalSettings` — same single-version story.
+   */
   migrateProjectSettings(
     settings: any,
     _fromVersion: number,
     toVersion = 1
   ): ProjectSettings {
-    // For now, just ensure we have the current structure
-    // Future versions can implement migration logic here
     const migrated = { ...settings, version: toVersion };
 
     const result = this.validateProjectSettings(migrated);

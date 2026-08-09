@@ -364,6 +364,18 @@ export class PlanStorage {
     return stats;
   }
 
+  /**
+   * Write every matching saved plan to a single JSON file at `outputPath`.
+   *
+   * Despite the name and the `format` option, this produces neither a zip nor
+   * a tar — `format` is accepted and ignored, and the output is always one
+   * JSON document holding each plan alongside its metadata.
+   *
+   * @param outputPath - Destination file for the JSON export.
+   * @param options - `includePattern` narrows which plans are exported;
+   * `format` has no effect.
+   * @throws If no plans match.
+   */
   static async exportPlansArchive(
     outputPath: string,
     options: {
@@ -383,8 +395,6 @@ export class PlanStorage {
       throw new Error("No plans found to export");
     }
 
-    // For now, just create a JSON export with all plans
-    // In a real implementation, you might use archiver or similar
     const exportData = {
       exportedAt: new Date().toISOString(),
       totalPlans: plans.length,

@@ -275,6 +275,14 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. `cirron env list` cannot work until it lands. Do not build on this.
+   *
+   * @param projectName - Model name to scope the lookup to.
+   * @param environment - Environment name, e.g. `production`.
+   * @returns The environment's variables, keyed by name.
+   */
   async getEnvironmentVariables(
     projectName: string,
     environment: string
@@ -285,6 +293,15 @@ export class CirronApi {
     return response.data;
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. `cirron env set` cannot work until it lands. Do not build on this.
+   *
+   * @param projectName - Model name to scope the write to.
+   * @param environment - Environment name, e.g. `production`.
+   * @param key - Variable name.
+   * @param value - Variable value.
+   */
   async setEnvironmentVariable(
     projectName: string,
     environment: string,
@@ -297,6 +314,14 @@ export class CirronApi {
     });
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. `cirron env delete` cannot work until it lands. Do not build on this.
+   *
+   * @param projectName - Model name to scope the delete to.
+   * @param environment - Environment name, e.g. `production`.
+   * @param key - Variable name to remove.
+   */
   async deleteEnvironmentVariable(
     projectName: string,
     environment: string,
@@ -359,6 +384,14 @@ export class CirronApi {
     return response.data || [];
   }
 
+  /**
+   * NOTE: the platform does not implement this route yet, so calls fail with
+   * 404. The registry exposes push, pull and sync but no artifact listing, so
+   * `cirron list registry` cannot work until it lands. Do not build on this.
+   *
+   * @param options - Filters forwarded as query parameters.
+   * @returns The matching registry artifacts.
+   */
   async getRegistryArtifacts(
     options: {
       limit?: number;

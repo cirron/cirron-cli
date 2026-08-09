@@ -18,9 +18,8 @@ import {
 } from "../utils/spool";
 import { CLI_VERSION, USER_AGENT } from "../utils/version";
 
-// TODO allow the user to configure the api path/endpoint for flushing and ingesting to keep the platform-agnostic theme.
-// Also, if the user isn't authenticated and the data doesn't upload anywhere, add a warning and allow the user to flush --force
-// or something similar to clear out the data without uploading and confirming that they understand it won't be uploaded and will delete
+// TODO: make the ingest endpoint configurable, and add `flush --force` so an
+// unauthenticated user can clear the spool without silently discarding data.
 
 const INGEST_PATH = "/api/traces";
 const GZIP_MIN_BYTES = 1024;

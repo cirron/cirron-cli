@@ -112,11 +112,20 @@ function displayForceWarnings(
   console.log();
 }
 
+/**
+ * Compare a project's recorded metadata against what can be detected now.
+ *
+ * Checks the git commit hash only, and only when `src/model.py` and a metadata
+ * block both exist. Deep model introspection — the fuller comparison behind
+ * `cirron info` — is out of scope here; a build should not pay for it. A
+ * missing git repository is not an error.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @returns Every mismatch found, empty when there are none or nothing to check.
+ */
 async function checkMetadataMismatches(
   projectConfig: ProjectConfig
 ): Promise<MetadataMismatch[]> {
-  // This is a simplified version of metadata checking
-  // In a full implementation, we would import and use the analysis from info.ts
   const mismatches: MetadataMismatch[] = [];
 
   try {
