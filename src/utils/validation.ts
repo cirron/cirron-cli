@@ -21,7 +21,11 @@ import { logger } from "./logger";
 
 const DEFAULT_REQUIRED_FILES = ["src/model.py", "requirements.txt"];
 
-/** Files a project must contain before any of build/compile/plan will run. */
+/**
+ * Files a project must contain before any of build/compile/plan will run.
+ *
+ * @returns One message per missing file; empty when all are present.
+ */
 export function checkRequiredFiles(files?: string[]): string[] {
   const errors: string[] = [];
   for (const file of files ?? DEFAULT_REQUIRED_FILES) {
@@ -38,6 +42,8 @@ export function checkRequiredFiles(files?: string[]): string[] {
  * A version string that doesn't match the expected shape is treated as
  * acceptable, matching the original behavior: only a probe that throws
  * (python3 absent) or a genuinely lower version is an error.
+ * @returns One message describing the problem; empty when the interpreter is
+ * usable.
  */
 export function checkPythonVersion(required?: string): string[] {
   const errors: string[] = [];
@@ -127,7 +133,11 @@ async function runProbe(
   return errors;
 }
 
-/** Probe that PyTorch can see a CUDA device. */
+/**
+ * Probe that PyTorch can see a CUDA device.
+ *
+ * @returns The errors the probe reported; empty when CUDA is usable.
+ */
 export function checkCudaPytorch(opts: ProbeOptions = {}): Promise<string[]> {
   return runProbe(
     "import torch; assert torch.cuda.is_available()",
@@ -137,7 +147,11 @@ export function checkCudaPytorch(opts: ProbeOptions = {}): Promise<string[]> {
   );
 }
 
-/** Probe that TensorFlow can see a GPU device. */
+/**
+ * Probe that TensorFlow can see a GPU device.
+ *
+ * @returns The errors the probe reported; empty when the GPU is usable.
+ */
 export function checkTensorflowGpu(opts: ProbeOptions = {}): Promise<string[]> {
   return runProbe(
     'import tensorflow as tf; assert len(tf.config.list_physical_devices("GPU")) > 0',
@@ -152,6 +166,7 @@ export function checkTensorflowGpu(opts: ProbeOptions = {}): Promise<string[]> {
  *
  * A falsy `indexConfig` is not an error: the index file is optional and this
  * only checks the contents when one was supplied.
+ * @returns One message per problem found; empty when the config is valid.
  */
 export function checkIndexConfig(
   indexConfig: unknown,
@@ -181,7 +196,11 @@ export function checkIndexConfig(
   return errors;
 }
 
-/** Probe that the project's model module can be imported and instantiated. */
+/**
+ * Probe that the project's model module can be imported and instantiated.
+ *
+ * @returns The errors the probe reported; empty when the model instantiates.
+ */
 export function checkModelCreation(
   opts: ProbeOptions & { script: string; baseErrorCode?: CLIErrorCode }
 ): Promise<string[]> {

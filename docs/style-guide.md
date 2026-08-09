@@ -51,10 +51,15 @@ constraint. Delete anything that merely renames the next line.
 JSDoc describes structure and may run as long as it needs to.
 
 - Every exported function and method gets a summary.
-- **Library-style exports also get `@param <name> - <description>` and
-  `@returns`** — the utilities under `src/utils/`, and anything callers invoke
-  with meaningful arguments. This is what puts text in editor hover and
-  signature help.
+- **Library-style exports also get `@param <name> - <description>`** — the
+  utilities under `src/utils/`, and anything callers invoke with meaningful
+  arguments. This is what puts text in editor hover and signature help.
+- **`@returns` where the return is not self-evident**: when the function can
+  return `null`, `undefined` or an empty result, or when the value needs
+  explanation the type alone does not give. Skip it when the summary already
+  says what comes back — `@returns The formatted string.` above a function
+  whose summary says it formats a string is the restatement this guide
+  otherwise tells you to delete. Never write `@returns` on a `void` function.
 - **Command entry points get the summary alone.** Every `*Command` in
   `src/commands/` takes one Commander-built options object and returns
   `Promise<void>`; `@param options - Command options.` on fifty-two of them

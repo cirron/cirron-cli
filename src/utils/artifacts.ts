@@ -48,7 +48,12 @@ export function parseNameTag(nameArg: string): { name: string; tag?: string } {
   return { name: nameArg };
 }
 
-/** Every file under `targetPath`, or the file itself when it is not a dir. */
+/**
+ * Every file under `targetPath`, or the file itself when it is not a dir.
+ *
+ * @returns Absolute paths of every file found, empty when the directory does
+ * not exist.
+ */
 export async function collectFiles(targetPath: string): Promise<string[]> {
   const resolved = path.resolve(targetPath);
   const stat = await fs.stat(resolved);
@@ -89,6 +94,8 @@ export async function collectFiles(targetPath: string): Promise<string[]> {
  * `excludePatterns` is a comma-separated list layered on top of
  * `.cirronignore`. It carries `push --ignore` and `sync --exclude`; the flag
  * names stay distinct on the command line, only this parameter is unified.
+ * @returns Absolute paths of the files to upload, after ignore filtering;
+ * empty when nothing matches.
  */
 export async function collectProjectFiles(
   projectConfig: ProjectConfig,

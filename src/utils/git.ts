@@ -26,6 +26,8 @@ export function isGitRepository(workingDir: string = process.cwd()): boolean {
 
 /**
  * Get the current git commit hash
+ * @returns The full commit hash, or null outside a repository or before the
+ * first commit.
  */
 export function getCurrentCommitHash(
   workingDir: string = process.cwd()
@@ -50,6 +52,8 @@ export function getCurrentCommitHash(
 
 /**
  * Get the current git branch name
+ * @returns The branch name, or null outside a repository or on a detached
+ * HEAD.
  */
 export function getCurrentBranch(
   workingDir: string = process.cwd()
@@ -74,6 +78,8 @@ export function getCurrentBranch(
 
 /**
  * Get the remote origin URL
+ * @returns The origin URL, or null outside a repository or when no origin is
+ * configured.
  */
 export function getRemoteOrigin(
   workingDir: string = process.cwd()
@@ -122,6 +128,8 @@ export function isWorkingDirectoryClean(
 
 /**
  * Get the last commit message
+ * @returns The last commit's subject, or null outside a repository or before
+ * the first commit.
  */
 export function getLastCommitMessage(
   workingDir: string = process.cwd()
@@ -146,6 +154,8 @@ export function getLastCommitMessage(
 
 /**
  * Get the last commit date
+ * @returns The last commit's date, or null outside a repository or before the
+ * first commit.
  */
 export function getLastCommitDate(
   workingDir: string = process.cwd()
@@ -210,6 +220,8 @@ export function getRepositoryInfo(workingDir: string = process.cwd()): GitInfo {
 
 /**
  * Get a short version of the commit hash (first 7 characters)
+ * @returns The abbreviated commit hash, or null outside a repository or before
+ * the first commit.
  */
 export function getShortCommitHash(
   workingDir: string = process.cwd()

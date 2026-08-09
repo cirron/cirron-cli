@@ -87,6 +87,8 @@ function findCirronConfigInDir(dir: string): string | null {
 /**
  * Load the root workspace config from `dir` (defaults to cwd). Returns null if
  * there is no cirron config there, or if the config has no `workspace` key.
+ * @returns The path and parsed workspace config, or null when the directory
+ * holds none.
  */
 export function loadWorkspaceConfig(
   dir?: string

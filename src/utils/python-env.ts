@@ -81,6 +81,7 @@ export function discoverPythonEnv(
  * Find site-packages under a venv root.
  *   POSIX  : {root}/lib/pythonX.Y/site-packages
  *   Windows: {root}/Lib/site-packages
+ * @returns The site-packages directory, or null when it cannot be located.
  */
 function resolveSitePackages(root: string): string | null {
   if (!fs.existsSync(root)) {

@@ -14,6 +14,8 @@ import path from "node:path";
  * lives inside `baseDir` and points outside it still passes. Guarding that
  * needs `fs.realpath` at the call site, which is a different (and racy)
  * problem; this function bounds the path string only.
+ * @returns The resolved absolute path, or null when the candidate escapes the
+ * base.
  */
 export function resolveWithin(
   baseDir: string,

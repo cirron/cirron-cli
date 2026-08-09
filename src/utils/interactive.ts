@@ -202,6 +202,7 @@ export class InteractiveManager {
 
   /**
    * Allow user to select which steps to run from a list
+   * @returns The chosen step names, empty when the user selects none.
    */
   async selectSteps(
     availableSteps: { name: string; description: string; default?: boolean }[],
