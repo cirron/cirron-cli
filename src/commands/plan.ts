@@ -10,6 +10,10 @@ import type {
   PlanSaveOptions,
   ProjectConfig,
 } from "../types";
+import {
+  determineDefaultArchitecture,
+  loadIndexFile,
+} from "../utils/architecture";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
@@ -570,40 +574,6 @@ export async function planDiffCommand(
     spinner.fail(chalk.red("Plan comparison failed"));
     logger.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
-  }
-}
-
-// Helper functions (moved from compile.ts and build.ts)
-async function determineDefaultArchitecture(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  if (projectConfig.framework === "pytorch") {
-    return projectConfig.gpuRequired ? "cuda" : "cpu";
-  }
-  if (projectConfig.framework === "tensorflow") {
-    return projectConfig.gpuRequired ? "gpu" : "cpu";
-  }
-  if (projectConfig.framework === "sklearn") {
-    return "cpu";
-  }
-  return "cpu";
-}
-
-async function loadIndexFile(indexPath: string): Promise<any> {
-  try {
-    const ext = path.extname(indexPath).toLowerCase();
-
-    if (ext === ".json") {
-      return await fs.readJSON(indexPath);
-    }
-    if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
-      const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
-    }
-    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
-  } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
   }
 }
 
