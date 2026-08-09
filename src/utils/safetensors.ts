@@ -315,10 +315,8 @@ export async function writeSingleTensorSafetensors(
       data_offsets: [0, tensor.byteSize],
     },
   };
-  // Safetensors requires the JSON payload's UTF-8 byte length to be a
-  // multiple of 8. Pad in BYTES, not JS string length — non-ASCII tensor
-  // names would otherwise produce a misaligned/invalid file (one code
-  // point can be 2–4 UTF-8 bytes).
+  // Pad in BYTES, not JS string length: one code point can be 2-4 UTF-8
+  // bytes, so a non-ASCII tensor name would otherwise misalign the header.
   const headerJson = JSON.stringify(newHeader);
   let headerBytes = Buffer.from(headerJson, "utf-8");
   const pad = (8 - (headerBytes.length % 8)) % 8;

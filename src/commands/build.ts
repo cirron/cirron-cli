@@ -1111,8 +1111,8 @@ async function runValidationChecks(
     (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
   ) {
-    // Note: build deliberately does not thread strict mode into this probe;
-    // compile and plan do. Preserved as-is by plan 010's refactor.
+    // build does not thread strict mode into this probe, where compile and
+    // plan do. Long-standing, and preserved rather than quietly unified.
     validationErrors.push(...(await checkCudaPytorch({ debugLog: true })));
   }
 

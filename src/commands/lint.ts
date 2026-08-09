@@ -175,13 +175,21 @@ async function lintProjectConfig(
   }
 }
 
+/**
+ * Check the project layout against the reference structure.
+ *
+ * The expected shape mirrors the `cirron-sample-models` reference: a config
+ * (`cirron.yaml`), `requirements.txt`, `train.py` and an `artifacts/`
+ * directory at the project root. `serve.py` is recommended rather than
+ * required — it only matters for local serving.
+ *
+ * @param summary - Accumulates findings; mutated in place.
+ * @param _options - Lint options; unused by this check.
+ */
 async function lintProjectStructure(
   summary: LintSummary,
   _options: LintOptions
 ): Promise<void> {
-  // Structure mirrors the cirron-sample-models reference: cirron.yaml,
-  // requirements.txt, train.py, and an artifacts/ directory at the
-  // project root. serve.py is recommended for local serving.
   const requiredFiles = [
     { path: "requirements.txt", required: true },
     { path: "train.py", required: true },

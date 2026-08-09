@@ -400,9 +400,8 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
     totalBytes += s.totalBytes;
   }
 
-  // Figure out snapshot dirs to remove (only those whose span is in the
-  // to-delete set). Then, if --prune-orphans (default true), also drop any
-  // snapshot dir whose span isn't referenced by any *surviving* session.
+  // Snapshot dirs to remove: those whose span is being deleted, plus — under
+  // --prune-orphans (default on) — any span no surviving session references.
   const survivingSpanIds = new Set<string>();
   for (const s of sessions) {
     if (eligible.includes(s)) {
@@ -706,9 +705,8 @@ export async function tracesSnapshotCommand(
   const span = match.session.spans.get(match.snapshots[0]!.spanId);
   const fullSpanId = match.snapshots[0]!.spanId;
   const useColor = shouldColor(process.stdout, options.noColor);
-  // Scoped chalk so --no-color actually disables ANSI across every code
-  // path in this command (table headers, inline labels, the helper
-  // below). A level=0 Chalk passes strings through untouched.
+  // Scoped Chalk so --no-color reaches every path here; level 0 passes
+  // strings through untouched.
   const c = new Chalk({ level: useColor ? 3 : 0 });
 
   // Figure out which safetensors files live under this span.
@@ -745,11 +743,8 @@ export async function tracesSnapshotCommand(
     }
 
     const destInput = path.resolve(options.export);
-    // Decide file vs dir. Priority:
-    //   1. If the path exists on disk, use what's there.
-    //   2. If the path ends in .safetensors, treat as file.
-    //   3. If there's a single blob and the path has no extension, treat
-    //      as file; otherwise treat as a directory.
+    // What's on disk wins; otherwise a .safetensors suffix, or a lone blob
+    // going to an extensionless path, means file. Anything else is a dir.
     let destIsDir: boolean;
     try {
       const stat = await fs.stat(destInput);
@@ -939,9 +934,8 @@ export async function tracesSnapshotCommand(
     }
 
     if (options.export) {
-      // Extract just this tensor into a fresh single-tensor safetensors
-      // file, rather than copying the whole blob (which would contain
-      // every tensor for this span).
+      // Extract just this tensor into a fresh single-tensor file; copying the
+      // blob would carry every other tensor for this span along with it.
       let dest = path.resolve(options.export);
       try {
         const stat = await fs.stat(dest);

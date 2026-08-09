@@ -573,15 +573,27 @@ export async function planDiffCommand(
   }
 }
 
+/**
+ * Run the pre-flight checks for plan generation.
+ *
+ * This runs a narrower set than `build` and `compile`: required files plus a
+ * CUDA check, with no Python-version probe. That gap is long-standing rather
+ * than considered — it was preserved through the extraction of the shared
+ * validation primitives instead of being quietly widened, so the behavior is
+ * unchanged and the divergence stays visible.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param _indexConfig - Accepted for signature parity; not inspected.
+ * @param architecture - Target architecture, which selects the CUDA check.
+ * @param strictMode - Raise a CLIError rather than a plain Error on failure.
+ * @throws If any check fails.
+ */
 async function runValidationChecks(
   projectConfig: ProjectConfig,
   _indexConfig: any,
   architecture: string,
   strictMode: boolean
 ): Promise<void> {
-  // Note: plan deliberately runs fewer checks than build and compile. It has
-  // never probed the Python version, and only checks CUDA. Preserved as-is by
-  // plan 010's refactor; whether that is intentional is a maintainer question.
   const validationErrors: string[] = [...checkRequiredFiles()];
 
   // Architecture-specific validation

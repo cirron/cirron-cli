@@ -223,9 +223,8 @@ function renderSpan(ctx: RenderContext, spanId: string, depth: number): void {
   const nextDepth = depth + 1;
 
   if (nextDepth > ctx.opts.maxDepth && children.length > 0) {
-    // Aggregate only the descendant subtrees — the current span's own
-    // duration is already rendered on the line above, so including it
-    // here would double-count and produce a total exceeding the parent.
+    // Descendant subtrees only: this span's own duration is already on the
+    // line above, so including it would exceed the parent's total.
     let totalNs = 0n;
     let spanCount = 0;
     for (const childId of children) {

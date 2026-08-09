@@ -104,10 +104,8 @@ export interface ProjectConfig {
   platform?: string;
   profiling?: Record<string, unknown>;
 
-  // Legacy fields kept optional because their consumer commands (compile,
-  // build, test, plan, info, hardware, push, sync, deploy, status) still
-  // read them. New scaffolds do not write any of these. They will be
-  // removed as the consuming commands are migrated.
+  // Optional because new scaffolds no longer write them, but ten commands
+  // still read them; they go once those commands are migrated.
   pythonVersion?: string;
   servingConfig?: ServingConfig;
   settings?: ProjectSettings;

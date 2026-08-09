@@ -541,9 +541,8 @@ export async function loadSessions(
     });
   }
 
-  // Orphan bucket — only emit if there are no real sessions. Keeps the
-  // common case clean; lets us still render something when a spool was
-  // produced before `ci.profile()` opened a root.
+  // Orphan bucket, emitted only when there are no real sessions: renders
+  // something for a spool produced before `ci.profile()` opened a root.
   if (sessions.length === 0 && orphanSpanIds.length > 0) {
     const spans = new Map<string, SpoolSpan>();
     const childrenOf = new Map<string, string[]>();

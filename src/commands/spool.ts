@@ -234,9 +234,8 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
     return;
   }
 
-  // Exercise token refresh via CirronApi — if the access token is near expiry
-  // and a refresh token is present, this will transparently refresh and persist
-  // the new token to ~/.cirron/config.json before we read auth out.
+  // Exercising CirronApi refreshes a near-expiry token and persists it to
+  // ~/.cirron/config.json before the auth header is read out below.
   const api = new CirronApi(config);
   try {
     await api.verifyAuth();
