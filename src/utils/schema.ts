@@ -1,3 +1,12 @@
+/**
+ * JSON Schema validation for the settings files.
+ *
+ * Validates global and project settings against the schemas in `src/schemas/`
+ * using Ajv, returning structured errors rather than throwing. Also owns the
+ * version-stamping entry points that a future schema change would grow into
+ * real migrations.
+ */
+
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import globalSettingsSchema from "../schemas/global-settings.json";
@@ -197,13 +206,20 @@ export class SchemaValidator {
     }));
   }
 
+  /**
+   * Stamp global settings with `toVersion` and validate them against the
+   * current schema.
+   *
+   * Only schema version 1 exists, so there is no field-shape migration to
+   * perform: this restamps and validates. The source version is accepted but
+   * unread — hence `_fromVersion` — for the call sites that already thread it
+   * through and for the per-version branching a future bump will need.
+   */
   migrateGlobalSettings(
     settings: any,
     _fromVersion: number,
     toVersion = 1
   ): GlobalSettings {
-    // For now, just ensure we have the current structure
-    // Future versions can implement migration logic here
     const migrated = { ...settings, version: toVersion };
 
     const result = this.validateGlobalSettings(migrated);
@@ -216,13 +232,15 @@ export class SchemaValidator {
     return result.data!;
   }
 
+  /**
+   * Stamp project settings with `toVersion` and validate them against the
+   * current schema. See `migrateGlobalSettings` — same single-version story.
+   */
   migrateProjectSettings(
     settings: any,
     _fromVersion: number,
     toVersion = 1
   ): ProjectSettings {
-    // For now, just ensure we have the current structure
-    // Future versions can implement migration logic here
     const migrated = { ...settings, version: toVersion };
 
     const result = this.validateProjectSettings(migrated);

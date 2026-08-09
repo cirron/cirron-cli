@@ -1,5 +1,3 @@
-// src/commands/spool.ts
-
 import zlib from "node:zlib";
 import chalk from "chalk";
 import Table from "cli-table3";
@@ -18,9 +16,8 @@ import {
 } from "../utils/spool";
 import { CLI_VERSION, USER_AGENT } from "../utils/version";
 
-// TODO allow the user to configure the api path/endpoint for flushing and ingesting to keep the platform-agnostic theme.
-// Also, if the user isn't authenticated and the data doesn't upload anywhere, add a warning and allow the user to flush --force
-// or something similar to clear out the data without uploading and confirming that they understand it won't be uploaded and will delete
+// TODO: make the ingest endpoint configurable, and add `flush --force` so an
+// unauthenticated user can clear the spool without silently discarding data.
 
 const INGEST_PATH = "/api/traces";
 const GZIP_MIN_BYTES = 1024;
@@ -39,6 +36,7 @@ async function drainResponse(response: Response): Promise<void> {
   }
 }
 
+/** Entry point for `cirron spool inspect`: summarize the local spool directory. */
 export async function spoolInspectCommand(
   options: SpoolOptions
 ): Promise<void> {
@@ -218,6 +216,7 @@ async function flushBatch(
   return "retryable";
 }
 
+/** Entry point for `cirron spool flush`: upload spooled batches, then delete the ones that landed. */
 export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.dir);
   const files = await listSpoolFiles(spoolDir);
@@ -237,9 +236,8 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
     return;
   }
 
-  // Exercise token refresh via CirronApi — if the access token is near expiry
-  // and a refresh token is present, this will transparently refresh and persist
-  // the new token to ~/.cirron/config.json before we read auth out.
+  // Exercising CirronApi refreshes a near-expiry token and persists it to
+  // ~/.cirron/config.json before the auth header is read out below.
   const api = new CirronApi(config);
   try {
     await api.verifyAuth();
@@ -309,6 +307,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   );
 }
 
+/** Entry point for `cirron spool clear`: delete spooled batches without uploading. */
 export async function spoolClearCommand(options: SpoolOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.dir);
   const files = await listSpoolFiles(spoolDir);

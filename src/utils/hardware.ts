@@ -1,3 +1,15 @@
+/**
+ * Local hardware detection and the stored hardware profile.
+ *
+ * `HardwareDetector` probes CPU, GPU and CUDA per platform by shelling out to
+ * the tools each one provides, so results depend on what is installed. It also
+ * owns reading and writing the persisted profile, and validating its shape.
+ *
+ * Note the neighbours: `validateHardwareConfig` here checks that a stored
+ * profile is well-formed, while `validateHardwareCompatibility` in
+ * `./architecture` checks a profile against a target architecture and throws.
+ */
+
 import { execSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";

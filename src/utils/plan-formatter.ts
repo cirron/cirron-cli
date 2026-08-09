@@ -1,3 +1,11 @@
+/**
+ * Rendering for generated plans.
+ *
+ * Console output is chalk-styled and structured by section; the JSON form is
+ * the machine contract for `--json`. Formatting only — nothing here reads or
+ * writes a plan.
+ */
+
 import chalk from "chalk";
 import type { ArtifactPlan, DependencyInfo, PlanFile } from "./plan";
 

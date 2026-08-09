@@ -3,10 +3,14 @@ import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
-import type { HardwareConfig, ProjectConfig } from "../types";
+import type { ProjectConfig } from "../types";
+import {
+  determineArchitectureFromHardware,
+  loadIndexFile,
+  validateHardwareCompatibility,
+} from "../utils/architecture";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
 import { executePythonScript, formatExecutionError } from "../utils/execution";
-import { HardwareDetector } from "../utils/hardware";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
@@ -29,13 +33,13 @@ interface CompileOptions {
   verbose?: boolean;
 }
 
+/** Entry point for `cirron compile`: compile and optimize a model for a target architecture. Exits PROJECT_NOT_FOUND (31) outside a project. */
 export async function compileCommand(options: CompileOptions): Promise<void> {
   const spinner = ora("Preparing compilation...").start();
   const strictMode = options.strict ?? false;
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -51,7 +55,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -96,7 +99,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
     }
 
     // Determine architecture from options, model config, or hardware detection
-    const architecture =
+    let architecture =
       options.arch ||
       modelConfig?.inference?.device ||
       (await determineArchitectureFromHardware(projectConfig));
@@ -121,6 +124,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
         logger.info(
           `Architecture changed from ${architecture} to ${confirmedArch}`
         );
+        architecture = confirmedArch;
       }
       spinner.start();
     }
@@ -285,67 +289,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
       handleCLIError(compileError, strictMode, options.verbose);
     }
-  }
-}
-
-async function determineArchitectureFromHardware(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  // First check if hardware configuration exists in project
-  if (projectConfig.hardware) {
-    const hardwareType = projectConfig.hardware.type;
-
-    // Map hardware type to architecture based on framework
-    if (projectConfig.framework === "pytorch") {
-      return hardwareType === "cuda"
-        ? "cuda"
-        : hardwareType === "gpu"
-          ? "cuda"
-          : "cpu";
-    }
-    if (projectConfig.framework === "tensorflow") {
-      return hardwareType === "cuda" || hardwareType === "gpu" ? "gpu" : "cpu";
-    }
-    return "cpu"; // sklearn and custom default to CPU
-  }
-
-  // Fallback to legacy logic
-  return await determineDefaultArchitecture(projectConfig);
-}
-
-async function determineDefaultArchitecture(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  // Determine default architecture based on framework and requirements
-  if (projectConfig.framework === "pytorch") {
-    return projectConfig.gpuRequired ? "cuda" : "cpu";
-  }
-  if (projectConfig.framework === "tensorflow") {
-    return projectConfig.gpuRequired ? "gpu" : "cpu";
-  }
-  if (projectConfig.framework === "sklearn") {
-    return "cpu";
-  }
-
-  // For custom or unspecified frameworks, default to CPU
-  return "cpu";
-}
-
-async function loadIndexFile(indexPath: string): Promise<any> {
-  try {
-    const ext = path.extname(indexPath).toLowerCase();
-
-    if (ext === ".json") {
-      return await fs.readJSON(indexPath);
-    }
-    if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
-      const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
-    }
-    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
-  } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
   }
 }
 
@@ -693,77 +636,10 @@ if os.path.exists('data/sample'):
 print("Integrity tests completed successfully")
 `;
 
-  const tempScriptPath = "temp_integrity_test.py";
-
-  try {
-    await fs.writeFile(tempScriptPath, testScript);
-    const result = await executePythonScript(testScript, {
-      cwd: process.cwd(),
-    });
-    if (!result.success) {
-      throw new Error(
-        `Compilation test failed: ${formatExecutionError(result)}`
-      );
-    }
-  } finally {
-    if (fs.existsSync(tempScriptPath)) {
-      await fs.remove(tempScriptPath);
-    }
-  }
-}
-
-async function validateHardwareCompatibility(
-  hardwareConfig: HardwareConfig,
-  targetArch: string,
-  framework?: string
-): Promise<void> {
-  const validationErrors: string[] = [];
-
-  // Validate hardware configuration
-  const validation = HardwareDetector.validateHardwareConfig(hardwareConfig);
-  if (!validation.valid) {
-    validationErrors.push(...validation.errors);
-  }
-
-  // Check architecture compatibility
-  if (targetArch === "cuda" && hardwareConfig.type !== "cuda") {
-    validationErrors.push(
-      "CUDA architecture selected but hardware configuration is not CUDA-capable"
-    );
-  }
-
-  if (targetArch === "gpu" && hardwareConfig.type === "cpu") {
-    validationErrors.push(
-      "GPU architecture selected but hardware configuration is CPU-only"
-    );
-  }
-
-  // Framework-specific validation
-  if (framework) {
-    const frameworkCompatible =
-      hardwareConfig.compatibility[
-        framework as keyof typeof hardwareConfig.compatibility
-      ];
-    if (typeof frameworkCompatible === "boolean" && !frameworkCompatible) {
-      validationErrors.push(
-        `Hardware not compatible with ${framework} framework`
-      );
-    }
-  }
-
-  // Check for compatibility warnings
-  if (
-    hardwareConfig.compatibility.warnings &&
-    hardwareConfig.compatibility.warnings.length > 0
-  ) {
-    for (const warning of hardwareConfig.compatibility.warnings) {
-      logger.warn(`Hardware warning: ${warning}`);
-    }
-  }
-
-  if (validationErrors.length > 0) {
-    throw new Error(
-      `Hardware compatibility validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
-    );
+  const result = await executePythonScript(testScript, {
+    cwd: process.cwd(),
+  });
+  if (!result.success) {
+    throw new Error(`Compilation test failed: ${formatExecutionError(result)}`);
   }
 }

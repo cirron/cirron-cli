@@ -215,6 +215,7 @@ function printDryRun(
 
 // --- Main Command ---
 
+/** Entry point for `cirron pull`: download registry artifacts into the project. */
 export async function pullCommand(
   resource: string | undefined,
   name: string | undefined,

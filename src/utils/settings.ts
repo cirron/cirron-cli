@@ -1,3 +1,12 @@
+/**
+ * Global and project settings.
+ *
+ * Global settings live in `~/.cirron/settings.json`. Project settings come
+ * from an `.cirronrc` file in the project, in JSON or YAML. Every read is
+ * validated against the schemas in `./schema`, so a malformed file surfaces as
+ * an error rather than silently supplying defaults.
+ */
+
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";

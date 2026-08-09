@@ -153,6 +153,7 @@ function getStatusColor(status: string): (text: string) => string {
 
 // --- Command Handlers ---
 
+/** Entry point for `cirron run pipeline`: trigger a pipeline run and optionally follow it. */
 export async function runPipelineCommand(
   nameOrId: string | undefined,
   options: RunPipelineOptions
@@ -316,6 +317,7 @@ export async function runPipelineCommand(
   }
 }
 
+/** Entry point for `cirron run list`: list recent runs. */
 export async function runListCommand(options: RunListOptions): Promise<void> {
   const auth = checkAuth();
   if (!auth) {
@@ -396,6 +398,7 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
 
 // --- Enhanced Stubs ---
 
+/** Entry point for `cirron run job`. Not implemented — prints a placeholder and returns. */
 export async function runJobCommand(options: RunJobOptions): Promise<void> {
   logger.info(`${chalk.yellow("run job")} is not yet implemented.`);
   logger.info("This command will execute a single-task job.");
@@ -404,6 +407,7 @@ export async function runJobCommand(options: RunJobOptions): Promise<void> {
   }
 }
 
+/** Entry point for `cirron run inference`. Not implemented — prints a placeholder and returns. */
 export async function runInferenceCommand(
   deployment: string | undefined,
   options: RunInferenceOptions
@@ -418,6 +422,7 @@ export async function runInferenceCommand(
   }
 }
 
+/** Entry point for `cirron run sweep`. Not implemented — prints a placeholder and returns. */
 export async function runSweepCommand(options: RunSweepOptions): Promise<void> {
   logger.info(`${chalk.yellow("run sweep")} is not yet implemented.`);
   logger.info("This command will trigger a hyperparameter sweep.");
@@ -426,6 +431,7 @@ export async function runSweepCommand(options: RunSweepOptions): Promise<void> {
   }
 }
 
+/** Entry point for `cirron run status`: report one run's state. */
 export async function runStatusCommand(
   runId: string,
   options: RunStatusOptions
@@ -512,6 +518,7 @@ export async function runStatusCommand(
   }
 }
 
+/** Entry point for `cirron run cancel`: cancel a run. */
 export async function runCancelCommand(
   runId: string,
   options: RunCancelOptions
@@ -544,6 +551,7 @@ export async function runCancelCommand(
   }
 }
 
+/** Entry point for `cirron run logs`: fetch a run's logs. */
 export async function runLogsCommand(
   runId: string,
   options: RunLogsOptions

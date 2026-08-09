@@ -42,6 +42,7 @@ interface InfoOptions {
   update?: string;
 }
 
+/** Entry point for `cirron info`: project, model and metadata summary, dispatched on flags. */
 export async function infoCommand(options: InfoOptions = {}): Promise<void> {
   try {
     // Check if we're in a Cirron project
@@ -53,11 +54,9 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
       process.exit(1);
     }
 
-    // Load project configuration
     const { configPath: cirronJsonPath, config: projectConfig } =
       projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -443,13 +442,22 @@ function extractModelInfo(
   return info;
 }
 
+/**
+ * Guess a model's parameter count from its framework.
+ *
+ * These are fixed per-framework constants, not a measurement: the only input
+ * that matters is whether any model definition was found at all. Treat the
+ * result as an order-of-magnitude hint. Real counts need static analysis or
+ * loading the model and introspecting it.
+ *
+ * @param framework - The project's ML framework.
+ * @param analysis - Source analysis; only `modelDefinitions` is read.
+ * @returns A rough parameter-count estimate, or 0 when nothing was found.
+ */
 function estimateParameterCount(
   framework: string,
   analysis: ModelAnalysis
 ): number {
-  // This is a rough estimation based on common patterns
-  // In a real implementation, you'd want to use static analysis or model introspection
-
   switch (framework) {
     case "pytorch":
       if (analysis.modelDefinitions.length > 0) {

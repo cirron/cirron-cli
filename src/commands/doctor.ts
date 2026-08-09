@@ -131,6 +131,7 @@ interface DoctorReport {
   spool: SpoolReport;
 }
 
+/** Entry point for `cirron doctor`: checks the local toolchain, config and platform reachability. */
 export async function doctorCommand(options: DoctorOptions): Promise<void> {
   if (options.noColor) {
     chalk.level = 0;
@@ -484,15 +485,26 @@ async function detectGpu(): Promise<GpuReport> {
   }
 }
 
+/**
+ * Report on platform reachability and which config supplied the credentials.
+ *
+ * Two config layers can carry auth. The CLI's `~/.cirron/config.json` is the
+ * source of truth once `cirron auth login` has run; the SDK's
+ * `~/.cirron/config.toml` is a separate layer for the Python SDK. The CLI
+ * config wins here so `cirron doctor` reflects what `cirron auth status`
+ * reports rather than disagreeing with it.
+ *
+ * @param cfg - Resolved SDK configuration.
+ * @param cliConfig - The CLI's own configuration.
+ * @param cliConfigFound - Whether a CLI config file was found at all.
+ * @returns The platform report, including which layer the endpoint came from.
+ */
 async function probePlatform(
   cfg: ResolvedSdkConfig,
   cliConfig: CirronConfig,
   cliConfigFound: boolean
 ): Promise<PlatformReport> {
-  // The CLI's ~/.cirron/config.json is the source of truth for auth
-  // when `cirron auth login` has been run; the SDK's ~/.cirron/config.toml
-  // is a separate layer for the Python SDK. Prefer the CLI config here so
-  // `cirron doctor` reflects what `cirron auth status` reports.
+  // Prefer CLI auth over SDK auth — see above.
   const cliAuthed = cliConfigFound && cliHasAuth(cliConfig);
   const endpoint = cliAuthed ? cliConfig.apiUrl : cfg.apiEndpoint.value;
   const endpointSource: "cli" | "sdk" = cliAuthed ? "cli" : "sdk";

@@ -1,5 +1,3 @@
-// src/utils/export/otlp.ts
-//
 // OpenTelemetry Protocol (OTLP) JSON encoding, per the OTLP/JSON spec.
 // Produces a file that can be POSTed to an OTEL collector or imported
 // directly into Jaeger / Tempo / Honeycomb — making the "no lock-in"
@@ -97,6 +95,19 @@ interface OtlpSpan {
   traceId: string;
 }
 
+/**
+ * Encode one spool span as an OTLP span, with its marks as span events.
+ *
+ * Status is deliberately never OK (1). OTLP treats UNSET as "no opinion",
+ * which is the truth here: the profiler does not model success or failure, so
+ * claiming OK on every span would paint an entire trace green regardless of
+ * what happened. ERROR (2) is set only when a span attribute says so.
+ *
+ * @param span - The spool span to encode.
+ * @param traceId - Hex trace id shared by every span in the session.
+ * @param marks - Marks belonging to this span, emitted as OTLP events.
+ * @returns The encoded OTLP span.
+ */
 function encodeSpan(
   span: SpoolSpan,
   traceId: string,
@@ -125,10 +136,8 @@ function encodeSpan(
         { key: "kind", value: { stringValue: mark.kind } },
       ],
     })),
-    // Per OTLP: default to UNSET (0); ERROR (2) when the span attr signals
-    // an error. We don't claim OK (1) proactively because the profiler
-    // doesn't model success/failure semantics — letting the backend keep
-    // spans "unset" reflects reality and avoids painting everything green.
+    // UNSET (0) or ERROR (2), never OK (1) — see the status note on this
+    // function.
     status: { code: hasError ? 2 : 0 },
   };
   if (span.parentId !== null) {

@@ -18,6 +18,7 @@ import { buildCommand } from "../../src/commands/build";
 import { CirronApi } from "../../src/utils/api";
 // biome-ignore lint/performance/noNamespaceImport: needed for vi.spyOn
 import * as executionMod from "../../src/utils/execution";
+import { InteractiveManager } from "../../src/utils/interactive";
 import { ModelConfigManager } from "../../src/utils/model-config";
 import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
@@ -46,6 +47,7 @@ describe("buildCommand", () => {
   let exitSpy: ReturnType<typeof vi.spyOn>;
   let errorSpy: ReturnType<typeof vi.spyOn>;
   let infoSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     tmp = makeTmpDir("cirron-build-");
@@ -56,7 +58,7 @@ describe("buildCommand", () => {
       .mockImplementation(() => undefined as never);
     infoSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     execSyncMock.mockReset();
     execSyncMock.mockReturnValue("Python 3.10.0\n");
     spawnMock.mockReset();
@@ -343,6 +345,49 @@ describe("buildCommand", () => {
       );
     });
 
+    /** A pytorch project whose declared hardware can't satisfy a cuda build. */
+    function incompatibleHardwareProject() {
+      writeProjectConfig(tmp.dir, { framework: "pytorch" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+      const fs2 = require("fs-extra");
+      const path2 = require("node:path");
+      const cfgPath = path2.join(tmp.dir, "cirron.json");
+      const cfg = JSON.parse(fs2.readFileSync(cfgPath, "utf-8"));
+      cfg.hardware = {
+        type: "cpu",
+        architecture: "x86_64",
+        specifications: {
+          cpu: { cores: 4, model: "x", architecture: "x86_64" },
+        },
+        compatibility: { pytorch: true, tensorflow: true, sklearn: true },
+      };
+      fs2.writeFileSync(cfgPath, JSON.stringify(cfg));
+    }
+
+    it("fails the build when hardware validation fails without --force", async () => {
+      incompatibleHardwareProject();
+      await buildCommand({ env: "production", arch: "cuda" });
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it("--force runs hardware validation and warns instead of failing", async () => {
+      incompatibleHardwareProject();
+
+      await buildCommand({ env: "production", arch: "cuda", force: true });
+
+      // --force used to skip validation entirely, leaving the warn branch dead.
+      expect(warnSpy.mock.calls.flat().join(" ")).toContain(
+        "continuing with --force"
+      );
+      expect(exitSpy).not.toHaveBeenCalledWith(1);
+    });
+
     it("--analyze on an ML build", async () => {
       pytorchProject();
       await buildCommand({ env: "production", arch: "cpu", analyze: true });
@@ -370,6 +415,36 @@ describe("buildCommand", () => {
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
         /Target architecture: cuda|Build Results/i
       );
+    });
+
+    it("builds with the interactively selected architecture, not the detected one", async () => {
+      pytorchProject();
+      vi.spyOn(
+        ModelConfigManager.prototype,
+        "loadModelConfig"
+      ).mockResolvedValue({
+        name: "m",
+        framework: "pytorch",
+        inference: { device: "cuda" },
+      } as never);
+      vi.spyOn(InteractiveManager.prototype, "isInteractive").mockReturnValue(
+        true
+      );
+      vi.spyOn(InteractiveManager.prototype, "confirmStep").mockResolvedValue(
+        true
+      );
+      vi.spyOn(InteractiveManager.prototype, "selectOption").mockResolvedValue(
+        "gpu"
+      );
+
+      await buildCommand({ env: "production", interactive: true });
+
+      // The bug: `architecture` was const, so the selection was logged and
+      // then discarded. Assert on the value the build actually used.
+      const logged = infoSpy.mock.calls.flat().join(" ");
+      expect(logged).toContain("Architecture changed from cuda to gpu");
+      expect(logged).toContain("Target architecture: gpu");
+      expect(logged).not.toContain("Target architecture: cuda");
     });
   });
 });

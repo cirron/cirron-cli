@@ -687,10 +687,10 @@ spoolCmd
   .option("--force", "Skip confirmation prompt")
   .action(spoolClearCommand);
 
-// Traces command group (SDK-51) — semantic view of local spool sessions,
-// plus export to Parquet / OpenTelemetry / CSV / JSON. Reads the same
-// files as `cirron spool` but reconstructs the scope tree and handles
-// snapshot directories. See features/sdk-launch-stories.md SDK-51.
+// Traces command group — semantic view of local spool sessions, plus export
+// to Parquet / OpenTelemetry / CSV / JSON. Reads the same files as
+// `cirron spool` but reconstructs the scope tree and handles snapshot
+// directories.
 const tracesCmd = program
   .command("traces")
   .description("View and export local trace sessions");

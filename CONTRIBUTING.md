@@ -123,7 +123,7 @@ Adding any new dependency (runtime or dev) requires justification in the PR desc
 - **Code style.** We use `ultracite` / `biome` for lint and format (`npm run lint`, `npm run lint:fix`) and TypeScript strict mode. Run lint and `npm run build` before submitting. CI will fail otherwise.
 - **No emojis in logging.** This is a production CLI. Use standard log levels, not emoji decoration. The only acceptable emoji is 💡 for tips in documentation. (See `CLAUDE.md`.)
 - **Interactive prompts.** All Inquirer prompts use `loop: false` to avoid infinite-carousel behavior, and every interactive feature has a graceful non-interactive fallback. Follow the command and `InteractiveManager` patterns already in the codebase (`CLAUDE.md` has the details).
-- **Comments.** Write the *why*, not the *what*. If a comment just restates the code, delete it. Keep one-line comments where the code's intent isn't obvious from naming.
+- **Comments and JSDoc.** See [`docs/style-guide.md`](docs/style-guide.md). The short version: inline comments are one line (two at most), JSDoc carries the long explanations, exported API gets `@param`/`@returns` without type annotations, and a comment that only restates the next line gets deleted.
 - **Errors.** Surface failures clearly and use the project's error-code conventions (`CLI-ERROR-CODES.md`); don't swallow errors silently.
 - **Documentation.** If you change user-facing behavior or the command surface, update `README.md` and `CLAUDE.md` in the same PR. The user-facing CLI docs live in the application repo under `apps/docs/` (`docs.cirron.com/cli`) — keep them in sync.
 

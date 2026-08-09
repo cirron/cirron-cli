@@ -1037,6 +1037,7 @@ function printSyncSummary(summary: SyncSummary, options: SyncOptions): void {
 
 // --- Main Entry Point ---
 
+/** Entry point for `cirron sync`: reconcile local files against the registry, resolving conflicts. */
 export async function syncCommand(
   syncPath: string | undefined,
   options: SyncOptions

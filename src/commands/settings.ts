@@ -10,6 +10,7 @@ import {
 } from "../utils/nested";
 import { settingsManager } from "../utils/settings";
 
+/** Entry point for `cirron settings`: read and write global or project settings. */
 export async function settingsCommand(options: SettingsOptions): Promise<void> {
   try {
     // Determine scope - default to global if not in project

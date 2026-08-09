@@ -310,6 +310,16 @@ export class PlanGenerator {
     return conflicts;
   }
 
+  /**
+   * Describe the model in `src/model.py` for the generated plan.
+   *
+   * Everything here is inferred by pattern-matching the source text — no AST
+   * parsing, no import of the model. Shapes, architecture and parameter counts
+   * are best-effort guesses, and `trainableParameters` simply repeats the
+   * total rather than distinguishing frozen weights.
+   *
+   * @returns The inferred shape info, or undefined when there is no model file.
+   */
   private async analyzeModelShape(): Promise<ModelShapeInfo | undefined> {
     const modelPath = path.join(this.projectPath, "src", "model.py");
 
@@ -319,8 +329,6 @@ export class PlanGenerator {
 
     const framework = this.projectConfig.framework || "custom";
 
-    // Basic model analysis - this is a simplified version
-    // In a real implementation, we might use AST parsing or dynamic analysis
     const modelContent = await fs.readFile(modelPath, "utf8");
 
     const inputShape = this.detectInputShape(modelContent, framework);

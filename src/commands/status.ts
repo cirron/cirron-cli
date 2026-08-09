@@ -1,5 +1,3 @@
-// src/commands/status.ts
-
 import { execSync } from "node:child_process";
 import path from "node:path";
 import chalk from "chalk";
@@ -16,11 +14,11 @@ interface StatusOptions {
   remote?: boolean;
 }
 
+/** Entry point for `cirron status`: local project status, plus deployments with `--remote`. */
 export async function statusCommand(options: StatusOptions): Promise<void> {
   const spinner = ora("Checking project status...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {

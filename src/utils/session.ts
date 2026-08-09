@@ -1,10 +1,8 @@
-// src/utils/session.ts
-//
 // Session reconstruction for `cirron traces`. Reads JSON batch files from
 // the spool, dedupes spans/marks/snapshots across batches, and groups them
 // into logical sessions rooted at each `cirron.session` span.
 //
-// Shape mirrors cirron_sdk/docs/spool-format.md (schema_version 1). Unknown
+// Shape mirrors the SDK's documented spool format (schema_version 1). Unknown
 // fields are preserved per the forward-compat rule so minor SDK bumps don't
 // break the CLI.
 
@@ -37,7 +35,7 @@ export interface SpoolMark {
   id: string;
   kind: SpoolValueKind;
   name: string;
-  spanId: string; // may be "root" legacy sentinel
+  spanId: string; // may be the "root" sentinel
   tsNs: bigint;
   value: unknown;
   valueType: string;
@@ -543,9 +541,8 @@ export async function loadSessions(
     });
   }
 
-  // Orphan bucket — only emit if there are no real sessions. Keeps the
-  // common case clean; lets us still render something when a spool was
-  // produced before `ci.profile()` opened a root.
+  // Orphan bucket, emitted only when there are no real sessions: renders
+  // something for a spool produced before `ci.profile()` opened a root.
   if (sessions.length === 0 && orphanSpanIds.length > 0) {
     const spans = new Map<string, SpoolSpan>();
     const childrenOf = new Map<string, string[]>();
