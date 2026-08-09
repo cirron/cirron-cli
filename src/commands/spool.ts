@@ -36,6 +36,7 @@ async function drainResponse(response: Response): Promise<void> {
   }
 }
 
+/** Entry point for `cirron spool inspect`: summarize the local spool directory. */
 export async function spoolInspectCommand(
   options: SpoolOptions
 ): Promise<void> {
@@ -215,6 +216,7 @@ async function flushBatch(
   return "retryable";
 }
 
+/** Entry point for `cirron spool flush`: upload spooled batches, then delete the ones that landed. */
 export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.dir);
   const files = await listSpoolFiles(spoolDir);
@@ -305,6 +307,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   );
 }
 
+/** Entry point for `cirron spool clear`: delete spooled batches without uploading. */
 export async function spoolClearCommand(options: SpoolOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.dir);
   const files = await listSpoolFiles(spoolDir);

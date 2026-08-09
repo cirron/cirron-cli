@@ -586,6 +586,7 @@ function printDryRun(
 
 // --- Main Command ---
 
+/** Entry point for `cirron push`: upload artifacts to the registry, single-PUT or multipart by size. */
 export async function pushCommand(
   resource: string | undefined,
   name: string | undefined,

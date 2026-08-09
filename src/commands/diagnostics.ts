@@ -51,6 +51,7 @@ interface DiagnosticsReport {
   warnings: string[];
 }
 
+/** Entry point for `cirron diagnostics`: environment and connectivity report for bug reports. */
 export async function diagnosticsCommand(
   options: DiagnosticsOptions
 ): Promise<void> {

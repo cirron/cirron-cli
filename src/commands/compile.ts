@@ -33,6 +33,7 @@ interface CompileOptions {
   verbose?: boolean;
 }
 
+/** Entry point for `cirron compile`: compile and optimize a model for a target architecture. Exits PROJECT_NOT_FOUND (31) outside a project. */
 export async function compileCommand(options: CompileOptions): Promise<void> {
   const spinner = ora("Preparing compilation...").start();
   const strictMode = options.strict ?? false;

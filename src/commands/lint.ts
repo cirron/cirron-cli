@@ -38,6 +38,7 @@ interface LintSummary {
   warnings: number;
 }
 
+/** Entry point for `cirron lint`: config, structure, dependency and code checks. */
 export async function lintCommand(options: LintOptions): Promise<void> {
   const spinner = ora("Starting project linting...").start();
 

@@ -16,6 +16,7 @@ interface LoginOptions {
   url?: string;
 }
 
+/** Entry point for `cirron auth login`: device flow by default, or a direct token with `--token`. */
 export async function loginCommand(options: LoginOptions): Promise<void> {
   try {
     const config = new ConfigManager();
@@ -279,6 +280,7 @@ async function saveTokens(
   config.save(currentConfig);
 }
 
+/** Entry point for `cirron auth logout`: clears stored credentials. */
 export async function logoutCommand(): Promise<void> {
   const spinner = ora("Logging out...").start();
 
@@ -304,6 +306,7 @@ export async function logoutCommand(): Promise<void> {
   }
 }
 
+/** Entry point for `cirron auth status`: reports who the stored credentials belong to. */
 export async function authCommand(): Promise<void> {
   try {
     const config = new ConfigManager();
@@ -379,6 +382,7 @@ export async function authCommand(): Promise<void> {
   }
 }
 
+/** Entry point for `cirron auth refresh`: exchanges the refresh token for a new access token. */
 export async function refreshCommand(): Promise<void> {
   const spinner = ora("Refreshing authentication...").start();
 

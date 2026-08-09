@@ -160,6 +160,7 @@ async function checkMetadataMismatches(
   return mismatches;
 }
 
+/** Entry point for `cirron build`: container or ML build from compiled artifacts. Exits 1 outside a project. */
 export async function buildCommand(options: BuildOptions): Promise<void> {
   const spinner = ora("Preparing build...").start();
 

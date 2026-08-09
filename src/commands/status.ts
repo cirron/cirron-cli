@@ -14,6 +14,7 @@ interface StatusOptions {
   remote?: boolean;
 }
 
+/** Entry point for `cirron status`: local project status, plus deployments with `--remote`. */
 export async function statusCommand(options: StatusOptions): Promise<void> {
   const spinner = ora("Checking project status...").start();
 

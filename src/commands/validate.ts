@@ -219,6 +219,7 @@ async function runMonorepoMode(
   }
 }
 
+/** Entry point for `cirron validate`: validate the project config, or every model in a workspace. Exits 1 on any failure. */
 export async function validateCommand(
   options: ValidateOptions = {}
 ): Promise<void> {

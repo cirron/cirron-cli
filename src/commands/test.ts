@@ -33,6 +33,7 @@ interface TestOptions {
   watch?: boolean;
 }
 
+/** Entry point for `cirron test`: runs the selected test suites, or a default set when none are named. */
 export async function testCommand(options: TestOptions): Promise<void> {
   const spinner = ora("Preparing tests...").start();
   const interactive = createInteractiveManager(options.interactive ?? false);

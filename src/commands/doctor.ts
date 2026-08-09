@@ -131,6 +131,7 @@ interface DoctorReport {
   spool: SpoolReport;
 }
 
+/** Entry point for `cirron doctor`: checks the local toolchain, config and platform reachability. */
 export async function doctorCommand(options: DoctorOptions): Promise<void> {
   if (options.noColor) {
     chalk.level = 0;

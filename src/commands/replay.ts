@@ -8,6 +8,7 @@ import { logger } from "../utils/logger";
 import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
 
+/** Entry point for `cirron replay`: re-execute a previously saved plan. */
 export async function replayCommand(options: ReplayOptions): Promise<void> {
   const spinner = ora("Loading plan for replay...").start();
 

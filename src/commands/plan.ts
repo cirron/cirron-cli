@@ -24,7 +24,7 @@ import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
 import { checkCudaPytorch, checkRequiredFiles } from "../utils/validation";
 
-// Plan compile subcommand
+/** Entry point for `cirron plan compile`: preview a compilation without running it. */
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating compilation plan...").start();
   const strictMode = false; // Plans don't use strict mode
@@ -236,7 +236,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan build subcommand
+/** Entry point for `cirron plan build`: preview a build without running it. */
 export async function planBuildCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating build plan...").start();
   const interactive = createInteractiveManager(options.interactive ?? false);
@@ -421,7 +421,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan lint subcommand
+/** Entry point for `cirron plan lint`: preview what lint would check. */
 export async function planLintCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing linting scope...").start();
 
@@ -466,7 +466,7 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan test subcommand
+/** Entry point for `cirron plan test`: preview which tests would run. */
 export async function planTestCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing test suite...").start();
 
@@ -511,7 +511,7 @@ export async function planTestCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan diff subcommand
+/** Entry point for `cirron plan diff`: compare two saved plans. */
 export async function planDiffCommand(
   planFileA: string,
   planFileB: string,
@@ -906,7 +906,12 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   }
 }
 
-// Plan compare command (interactive)
+/**
+ * Entry point for `cirron plan compare`: compare two saved plans side by side.
+ *
+ * Prompts for the pair interactively when they are not named. Exits when fewer
+ * than two saved plans exist.
+ */
 export async function planCompareCommand(
   planA?: string,
   planB?: string,
@@ -1005,7 +1010,7 @@ export async function planCompareCommand(
   }
 }
 
-// Plan save command
+/** Entry point for `cirron plan save`: generate and store plans, or list and clean up stored ones. */
 export async function planSaveCommand(
   type?: string,
   options: PlanSaveOptions = {}

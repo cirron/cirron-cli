@@ -42,6 +42,7 @@ interface InfoOptions {
   update?: string;
 }
 
+/** Entry point for `cirron info`: project, model and metadata summary, dispatched on flags. */
 export async function infoCommand(options: InfoOptions = {}): Promise<void> {
   try {
     // Check if we're in a Cirron project

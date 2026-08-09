@@ -107,6 +107,7 @@ async function promptExistingProjectAction(
   return action;
 }
 
+/** Entry point for `cirron init`: scaffold a project from a framework template. */
 export async function initCommand(
   projectName?: string,
   options: InitOptions = { template: "pytorch" }

@@ -14,6 +14,7 @@ interface LogsOptions {
   lines?: string;
 }
 
+/** Entry point for `cirron logs`: fetch deployment logs, optionally following. */
 export async function logsCommand(options: LogsOptions): Promise<void> {
   const spinner = ora("Fetching logs...").start();
 

@@ -25,6 +25,7 @@ function deriveAppUrl(apiUrl: string, modelId: string): string {
   }
 }
 
+/** Entry point for `cirron register`: register the local project with the platform. */
 export async function registerCommand(
   options: RegisterOptions = {}
 ): Promise<void> {

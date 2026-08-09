@@ -111,6 +111,7 @@ function noTracesFound(): void {
 
 // view
 
+/** Entry point for `cirron traces view`: text flamegraph of a local session. */
 export async function tracesViewCommand(options: ViewOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.spool);
   const sessions = await loadSessions(spoolDir);
@@ -219,6 +220,7 @@ function sessionToJsonTree(session: Session): unknown {
 
 // list
 
+/** Entry point for `cirron traces list`: list reconstructed local sessions. */
 export async function tracesListCommand(options: ListOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.spool);
   const sessions = await loadSessions(spoolDir);
@@ -287,6 +289,7 @@ export async function tracesListCommand(options: ListOptions): Promise<void> {
 
 // export
 
+/** Entry point for `cirron traces export`: write sessions as Parquet, OTLP, CSV or JSON. */
 export async function tracesExportCommand(
   options: ExportOptions
 ): Promise<void> {
@@ -347,6 +350,7 @@ export async function tracesExportCommand(
 
 // clear
 
+/** Entry point for `cirron traces clear`: delete local sessions and their snapshot directories. */
 export async function tracesClearCommand(options: ClearOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.spool);
   const snapshotDir = resolveSnapshotDir(spoolDir);
@@ -566,6 +570,7 @@ function formatStat(v: unknown): string {
   return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+/** Entry point for `cirron traces snapshots`: list tensor snapshots for a span. */
 export async function tracesSnapshotsCommand(
   spanArg: string | undefined,
   options: SnapshotsListOptions
@@ -683,6 +688,7 @@ export async function tracesSnapshotsCommand(
   console.log(table.toString());
 }
 
+/** Entry point for `cirron traces snapshot`: inspect or export one span's tensor snapshots. */
 export async function tracesSnapshotCommand(
   spanIdArg: string,
   tensorNameArg: string | undefined,

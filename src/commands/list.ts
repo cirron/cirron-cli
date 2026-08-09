@@ -13,7 +13,7 @@ interface ListOptions {
   limit?: number;
 }
 
-// Main list command delegator
+/** Entry point for `cirron list`: list a platform resource, chosen by positional argument. */
 export async function listCommand(
   resource: string,
   options: ListOptions
