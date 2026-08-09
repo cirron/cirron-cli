@@ -4,15 +4,19 @@
 // files into the output directory, each with stable snake_case column names
 // so DuckDB / pandas / Polars users can query them directly:
 //
-//   spans.parquet     — id, session_id, parent_id, name, timing (start_ns,
-//                       end_ns, duration_ns, cpu_ns, gpu_ns), placement
-//                       (thread_id, pid, rank), memory_peak_bytes, attrs_json
-//   marks.parquet     — id, span_id, session_id, name, kind, ts_ns and the
-//                       value_* column matching value_type
+//   spans.parquet     — id, session_id, parent_id, name, index, start_ns,
+//                       end_ns, duration_ns, cpu_ns, gpu_ns,
+//                       memory_peak_bytes, thread_id, pid, rank, attrs_json
+//   marks.parquet     — id, span_id, session_id, name, value_type,
+//                       value_float, value_int, value_string, value_bool,
+//                       ts_ns, kind, attrs_json
 //   snapshots.parquet — id, span_id, session_id, tensor_name, dtype,
 //                       shape_json, mode, stats_json, blob_uri, ts_ns
 //
-// Nested values are carried as JSON strings in the *_json columns.
+// A mark populates the one value_* column its value_type names; the others
+// are null. Values that fit no primitive column are JSON-encoded into
+// value_string, so read value_type before value_string. The *_json columns
+// (attrs, shape, stats) are always JSON text.
 //
 // Uses `@dsnp/parquetjs` (pure JS) so the `pkg`-built binaries keep
 // working without native modules.

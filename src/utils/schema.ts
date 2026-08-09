@@ -202,9 +202,9 @@ export class SchemaValidator {
    * current schema.
    *
    * Only schema version 1 exists, so there is no field-shape migration to
-   * perform: this restamps and validates. `fromVersion` is accepted for the
-   * call sites that already thread it through and for the per-version
-   * branching a future bump will need.
+   * perform: this restamps and validates. The source version is accepted but
+   * unread — hence `_fromVersion` — for the call sites that already thread it
+   * through and for the per-version branching a future bump will need.
    */
   migrateGlobalSettings(
     settings: any,
