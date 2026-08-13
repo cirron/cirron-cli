@@ -6,6 +6,7 @@ import type {
   AuthInfo,
   CirronConfig,
   CreateModelResponse,
+  DeploymentAccessResponse,
   DeploymentInfo,
   DeploymentListResponse,
   DeploymentResponse,
@@ -215,6 +216,30 @@ export class CirronApi {
       `/api/cli/deployments/${deploymentId}`
     );
     return this.normalizeDeployment(response.data);
+  }
+
+  /** Read a deployment's public-access toggle. */
+  async getDeploymentAccess(deploymentId: string): Promise<boolean> {
+    const response = await this.request<DeploymentAccessResponse>(
+      `/api/cli/deployments/${deploymentId}/access`
+    );
+    return response.data.makePublic;
+  }
+
+  /**
+   * Flip a deployment's public-access toggle. Default is key-required; public
+   * means the managed URL answers without an inference key. The change
+   * reaches the region gateways within seconds.
+   */
+  async setDeploymentAccess(
+    deploymentId: string,
+    makePublic: boolean
+  ): Promise<boolean> {
+    const response = await this.request<DeploymentAccessResponse>(
+      `/api/cli/deployments/${deploymentId}/access`,
+      { method: "PATCH", body: { makePublic } }
+    );
+    return response.data.makePublic;
   }
 
   /**

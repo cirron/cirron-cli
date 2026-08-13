@@ -355,6 +355,12 @@ export interface InferenceKeyIssueResponse {
   success: boolean;
 }
 
+/** `GET`/`PATCH /api/cli/deployments/{id}/access` response. */
+export interface DeploymentAccessResponse {
+  data: { makePublic: boolean };
+  success: boolean;
+}
+
 /** Model as returned by `POST /api/cli/models`. */
 export interface ModelSummary {
   active?: boolean;
