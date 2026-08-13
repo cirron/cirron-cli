@@ -188,6 +188,21 @@ Run `cirron <command> --help` for full flags, or browse [docs.cirron.com/cli](ht
 | `cirron auth status` | Show authentication status |
 | `cirron auth refresh` | Refresh the auth token |
 
+### Deployment access (platform)
+
+Managed deployment URLs require an inference key by default. Keys are shown
+once at issue time and never retrievable again; listings only ever show the
+key prefix and metadata.
+
+| Command | Description |
+| --- | --- |
+| `cirron keys issue <deploymentId>` | Issue an inference key (`--name`, `--expires-at`) |
+| `cirron keys list <deploymentId>` | List keys: prefix, status, and usage metadata |
+| `cirron keys rotate <deploymentId> <keyId>` | Issue a replacement, then revoke the old key |
+| `cirron keys revoke <deploymentId> <keyId>` | Revoke a key (`-y` to skip the confirmation) |
+| `cirron access get <deploymentId>` | Show whether the deployment URL requires a key |
+| `cirron access set <deploymentId>` | `--public` for keyless access, `--private` to require a key |
+
 ## Use cases
 
 ### Scaffold and iterate on a model locally
