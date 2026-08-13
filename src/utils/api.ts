@@ -12,6 +12,10 @@ import type {
   DeviceAuthStatus,
   DeviceCodeResponse,
   DeviceTokenResponse,
+  InferenceKeyInfo,
+  InferenceKeyIssueResponse,
+  InferenceKeyListResponse,
+  IssuedInferenceKey,
   LogEntry,
   ModelSummary,
   PullArtifactInfo,
@@ -211,6 +215,58 @@ export class CirronApi {
       `/api/cli/deployments/${deploymentId}`
     );
     return this.normalizeDeployment(response.data);
+  }
+
+  /**
+   * Issue an inference key for a managed deployment.
+   *
+   * The returned `rawKey` is shown exactly once and never retrievable again;
+   * the platform persists only its hash.
+   */
+  async issueInferenceKey(
+    deploymentId: string,
+    options: { expiresAt?: string; name?: string } = {}
+  ): Promise<IssuedInferenceKey> {
+    const response = await this.request<InferenceKeyIssueResponse>(
+      `/api/cli/deployments/${deploymentId}/keys`,
+      { method: "POST", body: options }
+    );
+    return response.data;
+  }
+
+  /** List a deployment's inference keys - metadata only, never key material. */
+  async listInferenceKeys(deploymentId: string): Promise<InferenceKeyInfo[]> {
+    const response = await this.request<InferenceKeyListResponse>(
+      `/api/cli/deployments/${deploymentId}/keys`
+    );
+    return response.data.keys;
+  }
+
+  /**
+   * Rotate an inference key: issues a replacement (inheriting name and expiry
+   * unless a new name is given), then revokes the old key. Both keys stay
+   * valid during the cutover window.
+   */
+  async rotateInferenceKey(
+    deploymentId: string,
+    keyId: string,
+    options: { name?: string } = {}
+  ): Promise<IssuedInferenceKey> {
+    const response = await this.request<InferenceKeyIssueResponse>(
+      `/api/cli/deployments/${deploymentId}/keys/${keyId}/rotate`,
+      { method: "POST", body: options }
+    );
+    return response.data;
+  }
+
+  /**
+   * Revoke an inference key. The gateway caches positive validations for up
+   * to 30 seconds, so the key dies at that TTL boundary.
+   */
+  async revokeInferenceKey(deploymentId: string, keyId: string): Promise<void> {
+    await this.request(`/api/cli/deployments/${deploymentId}/keys/${keyId}`, {
+      method: "DELETE",
+    });
   }
 
   /**
