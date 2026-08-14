@@ -36,6 +36,7 @@ export async function keysIssueCommand(
       `Invalid --expires-at value: ${chalk.yellow(options.expiresAt)} (expected an ISO date)`
     );
     process.exit(1);
+    return;
   }
 
   const spinner = ora("Issuing inference key...").start();
@@ -104,7 +105,7 @@ export async function keysRotateCommand(
     });
     spinner.succeed("Inference key rotated");
     logger.info(
-      `The old key ${chalk.yellow(keyId)} is revoked; update clients now.`
+      `The old key ${chalk.yellow(keyId)} is revoked and stops validating within about 30 seconds; update clients now.`
     );
     printIssuedKey(rotated);
   } catch (error) {
@@ -160,6 +161,8 @@ function requireApi(): CirronApi | null {
       `Not authenticated. Run ${chalk.cyan("cirron auth login")} first`
     );
     process.exit(1);
+    // Reached only when process.exit is mocked (tests): stay side-effect free.
+    return null;
   }
   return new CirronApi(currentConfig);
 }
