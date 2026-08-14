@@ -47,6 +47,8 @@ export async function accessSetCommand(
       `Pass exactly one of ${chalk.cyan("--public")} or ${chalk.cyan("--private")}`
     );
     process.exit(1);
+    // Reached only when process.exit is mocked (tests): never proceed.
+    return;
   }
   const makePublic = Boolean(options.public);
 
@@ -88,6 +90,8 @@ function requireApi(): CirronApi | null {
       `Not authenticated. Run ${chalk.cyan("cirron auth login")} first`
     );
     process.exit(1);
+    // Reached only when process.exit is mocked (tests): stay side-effect free.
+    return null;
   }
   return new CirronApi(currentConfig);
 }
