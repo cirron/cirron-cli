@@ -321,6 +321,46 @@ export interface RollbackDeploymentResponse {
   success: boolean;
 }
 
+/**
+ * An inference key's listable metadata. The key material itself is never
+ * returned by any list; the `prefix` (`ifk-` + 8 hex) is the only durable
+ * handle for telling keys apart.
+ */
+export interface InferenceKeyInfo {
+  createdAt: string;
+  expiresAt: string | null;
+  id: string;
+  lastUsedAt: string | null;
+  name: string | null;
+  prefix: string;
+  revokedAt: string | null;
+}
+
+/** `POST .../keys` and `POST .../keys/{id}/rotate` response payload. */
+export interface IssuedInferenceKey {
+  key: InferenceKeyInfo;
+  /** Shown exactly once at issue/rotate time; never retrievable again. */
+  rawKey: string;
+}
+
+/** `GET /api/cli/deployments/{id}/keys` response. */
+export interface InferenceKeyListResponse {
+  data: { keys: InferenceKeyInfo[] };
+  success: boolean;
+}
+
+/** `POST /api/cli/deployments/{id}/keys` (and `/rotate`) response. */
+export interface InferenceKeyIssueResponse {
+  data: IssuedInferenceKey;
+  success: boolean;
+}
+
+/** `GET`/`PATCH /api/cli/deployments/{id}/access` response. */
+export interface DeploymentAccessResponse {
+  data: { makePublic: boolean };
+  success: boolean;
+}
+
 /** Model as returned by `POST /api/cli/models`. */
 export interface ModelSummary {
   active?: boolean;

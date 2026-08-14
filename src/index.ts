@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { accessGetCommand, accessSetCommand } from "./commands/access";
 import {
   authCommand,
   loginCommand,
@@ -16,6 +17,12 @@ import { doctorCommand } from "./commands/doctor";
 import { hardwareCommand } from "./commands/hardware";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
+import {
+  keysIssueCommand,
+  keysListCommand,
+  keysRevokeCommand,
+  keysRotateCommand,
+} from "./commands/keys";
 import { lintCommand } from "./commands/lint";
 import { listCommand } from "./commands/list";
 import {
@@ -236,6 +243,53 @@ program
   .option("--rollback", "Rollback to previous deployment")
   .option("-m, --message <message>", "Deployment message")
   .action(deployCommand);
+
+// Deployment public-access command group
+const accessCmd = program
+  .command("access")
+  .description("Manage a deployment's public-access posture");
+
+accessCmd
+  .command("get <deploymentId>")
+  .description("Show whether the managed URL requires an inference key")
+  .action(accessGetCommand);
+
+accessCmd
+  .command("set <deploymentId>")
+  .description("Make a deployment public (keyless) or private (the default)")
+  .option("--public", "Allow keyless access to the managed URL")
+  .option("--private", "Require an inference key (the default posture)")
+  .option("-y, --yes", "Skip the make-public confirmation")
+  .action(accessSetCommand);
+
+// Inference keys command group
+const keysCmd = program
+  .command("keys")
+  .description("Manage inference keys for managed deployment URLs");
+
+keysCmd
+  .command("issue <deploymentId>")
+  .description("Issue an inference key (the raw key is shown exactly once)")
+  .option("-n, --name <name>", "Key name")
+  .option("--expires-at <date>", "ISO expiry date")
+  .action(keysIssueCommand);
+
+keysCmd
+  .command("list <deploymentId>")
+  .description("List inference keys (prefixes and metadata, never the key)")
+  .action(keysListCommand);
+
+keysCmd
+  .command("rotate <deploymentId> <keyId>")
+  .description("Issue a replacement key, then revoke the old one")
+  .option("-n, --name <name>", "Rename the replacement key")
+  .action(keysRotateCommand);
+
+keysCmd
+  .command("revoke <deploymentId> <keyId>")
+  .description("Revoke an inference key")
+  .option("-y, --yes", "Skip confirmation")
+  .action(keysRevokeCommand);
 
 // Config command (merged: CLI config + settings + hardware subcommand)
 const configCmd = program
