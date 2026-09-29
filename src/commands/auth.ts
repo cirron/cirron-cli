@@ -130,11 +130,8 @@ async function deviceFlowLogin(
       });
     });
 
-    // 3. Open browser (fix URL if server returns null)
-    const baseUrl = currentConfig.apiUrl.replace("/api", "").replace(/\/$/, ""); // Remove trailing slash
-    const verificationUrl = deviceAuth.verificationUrl.startsWith("null/")
-      ? deviceAuth.verificationUrl.replace("null/", `${baseUrl}/`)
-      : deviceAuth.verificationUrl;
+    // 3. Open browser; the server sends an absolute web-app URL
+    const { verificationUrl } = deviceAuth;
 
     console.log(`\nOpening ${verificationUrl} in your browser...`);
     await open(verificationUrl);

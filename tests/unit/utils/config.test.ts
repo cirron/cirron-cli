@@ -23,7 +23,7 @@ describe("ConfigManager", () => {
   describe("load()", () => {
     it("returns defaults when no config file exists", () => {
       const config = new ConfigManager().load();
-      expect(config.apiUrl).toBe("https://app.cirron.com");
+      expect(config.apiUrl).toBe("https://api.cirron.com");
       expect(config.defaultEnv).toBe("production");
       expect(config.timeout).toBe(30_000);
       expect(config.retries).toBe(3);
@@ -54,7 +54,7 @@ describe("ConfigManager", () => {
       });
 
       const config = new ConfigManager().load();
-      expect(config.apiUrl).toBe("https://app.cirron.com");
+      expect(config.apiUrl).toBe("https://api.cirron.com");
       expect(warnSpy).toHaveBeenCalled();
     });
   });

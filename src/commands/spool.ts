@@ -15,6 +15,7 @@ import {
   type SpoolFile,
 } from "../utils/spool";
 import { CLI_VERSION, USER_AGENT } from "../utils/version";
+import { webOriginFor } from "../utils/web-origin";
 
 // TODO: make the ingest endpoint configurable, and add `flush --force` so an
 // unauthenticated user can clear the spool without silently discarding data.
@@ -136,7 +137,8 @@ async function flushBatch(
     headers["Content-Encoding"] = "gzip";
   }
 
-  const url = new URL(INGEST_PATH, apiUrl).toString();
+  // Trace ingest is a web-app route, not a CLI route on the API origin.
+  const url = new URL(INGEST_PATH, webOriginFor(apiUrl)).toString();
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {

@@ -140,7 +140,7 @@ export class SchemaValidator {
         syncSettings: false,
       },
       api: {
-        url: "https://app.cirron.com",
+        url: "https://api.cirron.com",
         timeout: 30_000,
         retries: 3,
       },

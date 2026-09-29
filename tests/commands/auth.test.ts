@@ -569,8 +569,10 @@ describe("loginCommand (device flow)", () => {
     await expect(loginCommand({})).rejects.toThrow();
   });
 
-  it("rewrites a 'null/...' verification URL using the API base", async () => {
-    verificationUrl = "null/activate";
+  // The API origin is not the web origin, so the server's absolute
+  // web-app URL is opened as sent rather than derived from the API base.
+  it("opens the server's verification URL as sent", async () => {
+    verificationUrl = "https://app.cirron.com/cli/authorize";
     pollQueue.push(
       jsonResponse({
         accessToken: "a",
@@ -580,11 +582,10 @@ describe("loginCommand (device flow)", () => {
       })
     );
 
-    await loginCommand({ url: "https://platform.cirron.dev/api" });
+    await loginCommand({ url: "https://api.cirron.com" });
 
-    // base = "https://platform.cirron.dev" (with /api stripped)
     expect(openMock).toHaveBeenCalledWith(
-      "https://platform.cirron.dev/activate"
+      "https://app.cirron.com/cli/authorize"
     );
   });
 

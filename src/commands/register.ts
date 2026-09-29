@@ -5,6 +5,7 @@ import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
+import { webOriginFor } from "../utils/web-origin";
 
 interface RegisterOptions {
   dir?: string;
@@ -16,10 +17,7 @@ interface RegisterOptions {
 
 function deriveAppUrl(apiUrl: string, modelId: string): string {
   try {
-    const url = new URL(apiUrl);
-    url.hostname = url.hostname.replace(/^api\./, "app.");
-    url.pathname = `/models/${modelId}`;
-    return url.toString();
+    return new URL(`/models/${modelId}`, webOriginFor(apiUrl)).toString();
   } catch {
     return "";
   }

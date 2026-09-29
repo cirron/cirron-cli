@@ -278,7 +278,7 @@ Inheritance rules: `env` is shallow-merged and the model's value wins on conflic
 
 ### Connect to the Cirron platform
 
-Platform access is rolling out to users. These commands target `app.cirron.com` and need an account; the local workflow above does not.
+Platform access is rolling out to users. These commands target the platform API (`api.cirron.com`, or `--url` for a dedicated install) and need an account at `app.cirron.com`; the local workflow above does not.
 
 ```bash
 cirron auth login
