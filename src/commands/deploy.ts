@@ -321,7 +321,7 @@ async function handleRollback(
 const IN_PROGRESS_TEXT = new Map<string, string>([
   ["pending", "Deployment queued..."],
   ["building", "Building deployment..."],
-  ["deploying", "Deploying to infrastructure..."],
+  ["deploying", "Deploying..."],
 ]);
 
 /** A polling failure worth retrying: the platform was briefly unreachable, erroring or rate-limiting. */
