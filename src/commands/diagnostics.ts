@@ -3,6 +3,7 @@ import ora from "ora";
 import type { CirronConfig, GlobalSettings, ProjectSettings } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { settingsManager } from "../utils/settings";
 
@@ -69,7 +70,7 @@ export async function diagnosticsCommand(
       process.exit(1);
     }
   } catch (error) {
-    logger.error("Diagnostics command failed:", error);
+    reportCommandError(error, "Diagnostics command failed");
     process.exit(1);
   }
 }

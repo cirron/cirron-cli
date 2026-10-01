@@ -9,6 +9,7 @@ import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { errorMessage } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 import { buildCommand } from "./build";
@@ -333,7 +334,7 @@ async function monitorDeployment(
       await new Promise((resolve) => setTimeout(resolve, 5000));
       attempts++;
     } catch (error) {
-      logger.warn("Error checking deployment status:", error);
+      logger.warn(`Error checking deployment status: ${errorMessage(error)}`);
       attempts++;
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }

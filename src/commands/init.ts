@@ -7,6 +7,7 @@ import type { InitOptions, ProjectConfig, Template } from "../types";
 import { CirronApi } from "../utils/api";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { executeScript, formatExecutionError } from "../utils/execution";
 import { logger } from "../utils/logger";
 import { findProjectConfigPath } from "../utils/project-config";
@@ -383,7 +384,7 @@ export async function initCommand(
       throw error;
     }
   } catch (error) {
-    logger.error("Failed to initialize project:", error);
+    reportCommandError(error, "Failed to initialize project");
     process.exit(1);
   }
 }

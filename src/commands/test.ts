@@ -4,6 +4,7 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig } from "../types";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import {
   executePythonFile,
   executeScript,
@@ -291,7 +292,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Test execution failed"));
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }
@@ -837,11 +838,13 @@ async function watchTests(
               break;
           }
         } catch (error) {
-          logger.error(chalk.red(`✗ ${test} tests failed: ${error}`));
+          logger.error(
+            chalk.red(`✗ ${test} tests failed: ${errorMessage(error)}`)
+          );
         }
       }
     } catch (error) {
-      logger.error("Watch test failed:", error);
+      reportCommandError(error, "Watch test failed");
     }
 
     isRunning = false;
@@ -1054,7 +1057,7 @@ print("Throughput: {:.2f} predictions/second".format(throughput))
       }
     }
   } catch (error) {
-    throw new Error(`Validation testing failed: ${error}`);
+    throw new Error(`Validation testing failed: ${errorMessage(error)}`);
   }
 }
 
@@ -1163,7 +1166,7 @@ else:
       }
     }
   } catch (error) {
-    throw new Error(`Endpoint testing failed: ${error}`);
+    throw new Error(`Endpoint testing failed: ${errorMessage(error)}`);
   }
 }
 
@@ -1220,7 +1223,7 @@ async function runPipelineTests(
         time: endTime - startTime,
         error: error instanceof Error ? error.message : String(error),
       });
-      logger.error(`✗ ${step.name} failed: ${error}`);
+      logger.error(`✗ ${step.name} failed: ${errorMessage(error)}`);
       throw new Error(`Pipeline failed at step: ${step.name}`);
     }
   }

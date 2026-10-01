@@ -289,8 +289,9 @@ describe("auth gate", () => {
       saveConfig("none");
       const getVars = stubEnv();
 
-      await envListCommand({});
+      const caught = await envListCommand({}).catch((e: unknown) => e);
 
+      expect(exitCodeFromError(caught)).toBe(1);
       expect(errors()).toMatch(/auth login/);
       expect(getVars).not.toHaveBeenCalled();
     });

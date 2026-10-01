@@ -2,6 +2,7 @@ import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import type { ModelConfig, ProjectConfig } from "../types";
+import { reportCommandError } from "../utils/errors";
 import { getRepositoryInfo, getShortCommitHash } from "../utils/git";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
@@ -108,7 +109,7 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
       displayMismatchWarnings(mismatches);
     }
   } catch (error) {
-    logger.error("Failed to get model info:", error);
+    reportCommandError(error, "Failed to get model info");
     process.exit(1);
   }
 }
@@ -734,7 +735,7 @@ async function handleMetadataUpdate(
       )
     );
   } catch (error) {
-    logger.error("Failed to update metadata:", error);
+    reportCommandError(error, "Failed to update metadata");
     process.exit(1);
   }
 }

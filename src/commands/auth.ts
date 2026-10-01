@@ -9,6 +9,7 @@ import {
   PlatformRateLimitError,
 } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
 interface LoginOptions {
@@ -297,8 +298,7 @@ export async function logoutCommand(): Promise<void> {
     spinner.succeed(chalk.green("Successfully logged out"));
   } catch (error) {
     spinner.fail(chalk.red("Logout failed"));
-    handlePlatformError(error);
-    logger.error("Error during logout:", error);
+    reportCommandError(error, "Error during logout");
     process.exit(1);
   }
 }
@@ -368,13 +368,11 @@ export async function authCommand(): Promise<void> {
       }
     } catch (error) {
       spinner.fail(chalk.red("Failed to verify authentication"));
-      handlePlatformError(error);
-      logger.error("Error verifying token:", error);
+      reportCommandError(error, "Error verifying token");
       logger.info(`Run ${chalk.cyan("cirron auth login")} to re-authenticate`);
     }
   } catch (error) {
-    handlePlatformError(error);
-    logger.error("Error checking authentication status:", error);
+    reportCommandError(error, "Error checking authentication status");
     process.exit(1);
   }
 }

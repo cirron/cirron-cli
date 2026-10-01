@@ -5,6 +5,7 @@ import type { ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 
@@ -50,7 +51,8 @@ export async function envListCommand(options: EnvOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Failed to fetch environment variables"));
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
@@ -77,7 +79,8 @@ export async function envSetCommand(
     );
   } catch (error) {
     spinner.fail(chalk.red("Failed to set environment variable"));
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
@@ -115,7 +118,8 @@ export async function envDeleteCommand(
     );
   } catch (error) {
     spinner.fail(chalk.red("Failed to delete environment variable"));
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
