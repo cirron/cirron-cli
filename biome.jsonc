@@ -7,6 +7,9 @@
         // CLI command handlers are inherently branchy (option parsing, validation,
         // error paths). Hitting this score doesn't indicate a real defect.
         "noExcessiveCognitiveComplexity": "off",
+        // Autofix deletes the trailing `return;` in `T | undefined` functions,
+        // which tsconfig's noImplicitReturns: true then rejects (TS7030).
+        "noUselessReturn": "off",
         // Autofix rewrites obj["foo"] -> obj.foo, but tsconfig sets
         // noPropertyAccessFromIndexSignature: true, which requires bracket
         // access on index-signature types. The fix breaks the build.
@@ -35,7 +38,10 @@
         // illegal under tsconfig's exactOptionalPropertyTypes: true.
         "noDelete": "off",
         // Single-file aggregator modules are intentional in this codebase.
-        "noBarrelFile": "off"
+        "noBarrelFile": "off",
+        // Most CLI loops are sequential on purpose: ordered uploads, prompts,
+        // build steps, and retries that must not run concurrently.
+        "noAwaitInLoops": "off"
       },
       "style": {
         // Autofix rewrites arr[arr.length - 1] -> arr.at(-1), but Array.at
@@ -71,7 +77,19 @@
         // without improving safety, since the runtime data really is unknown
         // shape until validated. Type the values where a domain type exists,
         // but don't force `unknown` blanket-replacement.
-        "noExplicitAny": "off"
+        "noExplicitAny": "off",
+        // Types describe validated shapes, but cirron.json and API responses
+        // are untrusted at runtime; the fallbacks it flags are intentional.
+        "noUnnecessaryConditions": "off"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        // Key order is meaningful here: it sets the field order of generated
+        // cirron.json/YAML templates, JSON output, and printed tables.
+        "useSortedKeys": "off"
       }
     }
   }
