@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -464,18 +465,22 @@ describe("syncCommand", () => {
       expect(exitCodeFromError(caught)).toBe(1);
     });
 
-    it("keep-both creates .local and .remote copies", async () => {
+    it("keep-both creates .local and .remote copies and keeps the local baseline", async () => {
       createAuthenticatedSession(tmp.dir);
       writeProjectConfig(tmp.dir);
-      writeFileAt(tmp.dir, "models/m1.pth", "hello world");
+      writeFileAt(tmp.dir, "models/m1.pth", "local edit");
+      const localChecksum = createHash("sha256")
+        .update("local edit")
+        .digest("hex");
       vi.spyOn(CirronApi.prototype, "getSyncDiff").mockResolvedValue(
         syncDiff({
           conflicts: [
             {
               path: "models/m1.pth",
-              localChecksum: HELLO_CHECKSUM,
+              localChecksum,
+              // stubPullChain writes "hello world", so the remote copy verifies.
               remoteChecksum: HELLO_CHECKSUM,
-              localSize: 11,
+              localSize: 10,
               remoteSize: 11,
               artifactId: "art-1",
               artifactName: "m1",
@@ -485,9 +490,9 @@ describe("syncCommand", () => {
           ],
         })
       );
-      vi.spyOn(CirronApi.prototype, "completeSyncMetadata").mockResolvedValue(
-        undefined as never
-      );
+      const complete = vi
+        .spyOn(CirronApi.prototype, "completeSyncMetadata")
+        .mockResolvedValue(undefined as never);
       stubPullChain();
 
       await syncCommand(undefined, { conflicts: "keep-both" });
@@ -497,6 +502,23 @@ describe("syncCommand", () => {
       );
       expect(fs.existsSync(path.join(tmp.dir, "models/m1.remote.pth"))).toBe(
         true
+      );
+      // The original still holds the local bytes, so its baseline must be the
+      // local checksum; the remote one made the next sync report a change.
+      expect(fs.readFileSync(path.join(tmp.dir, "models/m1.pth"), "utf8")).toBe(
+        "local edit"
+      );
+      const { pulled } = complete.mock.calls[0]?.[0] as {
+        pulled: { path: string; checksum: string }[];
+      };
+      expect(pulled).toContainEqual(
+        expect.objectContaining({
+          path: "models/m1.pth",
+          checksum: localChecksum,
+        })
+      );
+      expect(pulled).not.toContainEqual(
+        expect.objectContaining({ checksum: HELLO_CHECKSUM })
       );
     });
 
