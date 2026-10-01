@@ -10,6 +10,7 @@ import {
   planSaveCommand,
   planTestCommand,
 } from "../../src/commands/plan";
+import { ModelConfigManager } from "../../src/utils/model-config";
 import { PlanGenerator } from "../../src/utils/plan";
 import { PlanDiffAnalyzer } from "../../src/utils/plan-diff";
 import { PlanFormatter } from "../../src/utils/plan-formatter";
@@ -72,6 +73,10 @@ describe("plan commands", () => {
     vi.spyOn(PlanStorage, "savePlan").mockResolvedValue(
       "/tmp/plans/p.json" as never
     );
+    // Plans resolve the target like compile and build, which read model.yaml.
+    vi.spyOn(ModelConfigManager.prototype, "loadModelConfig").mockResolvedValue(
+      null
+    );
   });
 
   afterEach(() => {
@@ -118,6 +123,44 @@ describe("plan commands", () => {
         "mps",
         null
       );
+    });
+
+    it("prefers model.yaml's inference.device over the hardware block, like compile", async () => {
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      vi.spyOn(
+        ModelConfigManager.prototype,
+        "loadModelConfig"
+      ).mockResolvedValue({
+        name: "m",
+        inference: { device: "cpu" },
+      } as never);
+
+      await planCompileCommand({});
+
+      expect(PlanGenerator.prototype.generatePlan).toHaveBeenCalledWith(
+        "compile",
+        "cpu",
+        null
+      );
+    });
+
+    it("rejects an mps plan for a tensorflow project", async () => {
+      writeProjectConfig(tmp.dir, { framework: "tensorflow" });
+      let caught: unknown;
+      try {
+        await planCompileCommand({ arch: "mps" });
+      } catch (err) {
+        caught = err;
+      }
+      expect(typeof exitCodeFromError(caught)).toBe("number");
+      // Non-strict plan failures are reported through console.warn.
+      expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toContain(
+        "MPS architecture is only supported for PyTorch"
+      );
+      expect(PlanGenerator.prototype.generatePlan).not.toHaveBeenCalled();
     });
 
     it("--json prints JSON", async () => {

@@ -128,17 +128,18 @@ describe("compileCommand", () => {
     expect(compileScript).toContain("models/model_mps.pth");
   });
 
-  it("rejects an mps compile for a tensorflow project", async () => {
-    writeProjectConfig(tmp.dir, {
-      framework: "tensorflow",
-      hardware: appleSiliconHardware(),
-    });
-    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
-    writeFileAt(tmp.dir, "requirements.txt", "tensorflow\n");
+  it("rejects an mps compile for a tensorflow project with no hardware block", async () => {
+    // The framework check used to live in the hardware validator, which only
+    // runs when a hardware block exists, so this compiled a CPU model_mps.
+    mlProject("tensorflow");
 
     await compileCommand({ arch: "mps" });
 
     expect(exitSpy).toHaveBeenCalled();
+    expect(execSyncMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("temp_compile.py"),
+      expect.anything()
+    );
     expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toContain(
       "MPS architecture is only supported for PyTorch"
     );

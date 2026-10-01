@@ -429,6 +429,23 @@ describe("buildCommand", () => {
       expect(buildScript).not.toContain("model_mps");
     });
 
+    it("rejects an mps build for a tensorflow project with no hardware block", async () => {
+      writeProjectConfig(tmp.dir, { framework: "tensorflow" });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "tensorflow\n");
+
+      await buildCommand({ env: "production", arch: "mps" });
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(errorSpy.mock.calls.flat().join(" ")).toContain(
+        "MPS architecture is only supported for PyTorch"
+      );
+    });
+
     it("--analyze on an ML build", async () => {
       pytorchProject();
       await buildCommand({ env: "production", arch: "cpu", analyze: true });

@@ -9,7 +9,9 @@ import {
   isGpuArchitecture,
   loadIndexFile,
   pytorchDevicePlacement,
+  resolveTargetArchitecture,
   validateHardwareCompatibility,
+  validateTargetFramework,
 } from "../../../src/utils/architecture";
 import { makeTmpDir } from "../../helpers/tmpdir";
 
@@ -259,15 +261,6 @@ describe("validateHardwareCompatibility", () => {
     ).rejects.toThrow(/not Apple Silicon/);
   });
 
-  it.each([
-    "tensorflow",
-    "sklearn",
-  ])("rejects an mps build for %s, whose scripts have no MPS path", async (fw) => {
-    await expect(
-      validateHardwareCompatibility(appleSiliconHardware(), "mps", fw)
-    ).rejects.toThrow(/MPS architecture is only supported for PyTorch/);
-  });
-
   it("still rejects a cuda build on Apple Silicon, pointing at --arch", async () => {
     await expect(
       validateHardwareCompatibility(appleSiliconHardware(), "cuda", "pytorch")
@@ -378,5 +371,50 @@ describe("pytorchDevicePlacement", () => {
     expect(py).toContain('if "cuda" == "cuda":');
     expect(py).toContain("model = model.cuda()");
     expect(py).toContain("Warning: CUDA not available, using CPU");
+  });
+});
+
+describe("resolveTargetArchitecture", () => {
+  const appleProject = () =>
+    project({ framework: "pytorch", hardware: appleSiliconHardware() });
+
+  it("prefers an explicit --arch over everything else", async () => {
+    const modelConfig = { inference: { device: "cpu" } } as never;
+    expect(
+      await resolveTargetArchitecture(appleProject(), modelConfig, "cuda")
+    ).toBe("cuda");
+  });
+
+  it("prefers the model config's inference.device over the hardware block", async () => {
+    // plan used to skip this step, so it planned mps where compile used cpu.
+    const modelConfig = { inference: { device: "cpu" } } as never;
+    expect(await resolveTargetArchitecture(appleProject(), modelConfig)).toBe(
+      "cpu"
+    );
+  });
+
+  it("falls back to the hardware block", async () => {
+    expect(await resolveTargetArchitecture(appleProject(), null)).toBe("mps");
+  });
+});
+
+describe("validateTargetFramework", () => {
+  it("accepts mps for pytorch", () => {
+    expect(() => validateTargetFramework("mps", "pytorch")).not.toThrow();
+  });
+
+  it.each([
+    "tensorflow",
+    "sklearn",
+    "custom",
+    undefined,
+  ])("rejects mps for %s, whose scripts have no MPS path", (fw) => {
+    expect(() => validateTargetFramework("mps", fw)).toThrow(
+      /MPS architecture is only supported for PyTorch/
+    );
+  });
+
+  it.each(["cpu", "cuda", "gpu"])("leaves %s alone for tensorflow", (arch) => {
+    expect(() => validateTargetFramework(arch, "tensorflow")).not.toThrow();
   });
 });

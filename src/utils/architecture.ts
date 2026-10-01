@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { load as loadYaml } from "js-yaml";
-import type { HardwareConfig, ProjectConfig } from "../types";
+import type { HardwareConfig, ModelConfig, ProjectConfig } from "../types";
 import { HardwareDetector } from "./hardware";
 import { logger } from "./logger";
 
@@ -84,6 +84,49 @@ elif "${architecture}" == "mps":
     else:
         print("Warning: MPS not available, using CPU")
 `;
+}
+
+/**
+ * Resolve the target architecture the same way in compile, build and plan.
+ *
+ * An explicit `--arch` wins, then the model config's `inference.device`, then
+ * the project's declared hardware via `determineArchitectureFromHardware`.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param modelConfig - The loaded model config, or null when there is none.
+ * @param explicitArch - The `--arch` value, when one was given.
+ */
+export async function resolveTargetArchitecture(
+  projectConfig: ProjectConfig,
+  modelConfig: ModelConfig | null,
+  explicitArch?: string
+): Promise<string> {
+  return (
+    explicitArch ||
+    modelConfig?.inference?.device ||
+    (await determineArchitectureFromHardware(projectConfig))
+  );
+}
+
+/**
+ * Check that a framework's generated scripts can target an architecture.
+ *
+ * Runs whether or not the project declares hardware, since `--arch` and
+ * `inference.device` can name a target without one. Only the PyTorch scripts
+ * place a model on MPS; any other framework would train on the CPU and still
+ * label the artifact `mps`.
+ *
+ * @param architecture - The resolved target architecture.
+ * @param framework - The project's ML framework, when declared.
+ * @throws If `architecture` is `mps` and `framework` is not `pytorch`.
+ */
+export function validateTargetFramework(
+  architecture: string,
+  framework?: string
+): void {
+  if (architecture === "mps" && framework !== "pytorch") {
+    throw new Error("MPS architecture is only supported for PyTorch");
+  }
 }
 
 /**
@@ -205,17 +248,10 @@ export async function validateHardwareCompatibility(
     );
   }
 
-  if (targetArch === "mps") {
-    if (!isAppleSilicon(hardwareConfig)) {
-      validationErrors.push(
-        'MPS architecture selected but hardware configuration is not Apple Silicon (type "gpu", architecture "arm64")'
-      );
-    }
-    // Only the PyTorch scripts place a model on MPS; any other framework would
-    // quietly build for the CPU.
-    if (framework && framework !== "pytorch") {
-      validationErrors.push("MPS architecture is only supported for PyTorch");
-    }
+  if (targetArch === "mps" && !isAppleSilicon(hardwareConfig)) {
+    validationErrors.push(
+      'MPS architecture selected but hardware configuration is not Apple Silicon (type "gpu", architecture "arm64")'
+    );
   }
 
   if (targetArch === "gpu" && hardwareConfig.type === "cpu") {

@@ -5,11 +5,12 @@ import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig } from "../types";
 import {
-  determineArchitectureFromHardware,
   isGpuArchitecture,
   loadIndexFile,
   pytorchDevicePlacement,
+  resolveTargetArchitecture,
   validateHardwareCompatibility,
+  validateTargetFramework,
 } from "../utils/architecture";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
 import { executePythonScript, formatExecutionError } from "../utils/execution";
@@ -107,11 +108,11 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
       spinner.start();
     }
 
-    // Determine architecture from options, model config, or hardware detection
-    let architecture =
-      options.arch ||
-      modelConfig?.inference?.device ||
-      (await determineArchitectureFromHardware(projectConfig));
+    let architecture = await resolveTargetArchitecture(
+      projectConfig,
+      modelConfig,
+      options.arch
+    );
 
     // Interactive architecture confirmation
     if (interactive.isInteractive() && !options.arch) {
@@ -141,6 +142,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     spinner.text = `Compiling for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
+    validateTargetFramework(architecture, projectConfig.framework);
 
     // Load index/manifest file if specified
     let indexConfig: any = null;

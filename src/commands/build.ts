@@ -7,11 +7,11 @@ import type { BuildOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import {
   containerArchitecture,
-  determineArchitectureFromHardware,
-  isGpuArchitecture,
   loadIndexFile,
   pytorchDevicePlacement,
+  resolveTargetArchitecture,
   validateHardwareCompatibility,
+  validateTargetFramework,
 } from "../utils/architecture";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
@@ -26,7 +26,6 @@ import {
   checkCudaPytorch,
   checkIndexConfig,
   checkModelCreation,
-  checkMpsPytorch,
   checkPythonVersion,
   checkRequiredFiles,
 } from "../utils/validation";
@@ -270,11 +269,11 @@ async function handleMLBuild(
     spinner.start();
   }
 
-  // Determine architecture from options, model config, or hardware detection
-  let architecture =
-    options.arch ||
-    modelConfig?.inference?.device ||
-    (await determineArchitectureFromHardware(projectConfig));
+  let architecture = await resolveTargetArchitecture(
+    projectConfig,
+    modelConfig,
+    options.arch
+  );
 
   // Interactive architecture confirmation
   if (interactive.isInteractive() && !options.arch) {
@@ -321,26 +320,27 @@ async function handleMLBuild(
     }
   }
 
-  // Validate hardware compatibility if hardware config exists.
+  // Check the target against the framework and, when declared, the hardware.
   // --force downgrades a failure to a warning rather than skipping the check.
-  if (projectConfig.hardware) {
-    spinner.text = "Validating hardware compatibility...";
-    try {
+  try {
+    validateTargetFramework(architecture, projectConfig.framework);
+    if (projectConfig.hardware) {
+      spinner.text = "Validating hardware compatibility...";
       await validateHardwareCompatibility(
         projectConfig.hardware,
         architecture,
         projectConfig.framework
       );
       logger.success("✓ Hardware compatibility validated");
-    } catch (error) {
-      if (options.force) {
-        logger.warn(
-          `Hardware validation failed but continuing with --force: ${errorMessage(error)}`
-        );
-      } else {
-        spinner.fail("Hardware validation failed");
-        throw error;
-      }
+    }
+  } catch (error) {
+    if (options.force) {
+      logger.warn(
+        `Architecture validation failed but continuing with --force: ${errorMessage(error)}`
+      );
+    } else {
+      spinner.fail("Architecture validation failed");
+      throw error;
     }
   }
 
@@ -1123,14 +1123,14 @@ async function runValidationChecks(
     ...checkPythonVersion(projectConfig.pythonVersion),
   ];
 
+  // An mps target is already cpu here, so there is no MPS probe to run.
   if (
-    isGpuArchitecture(architecture) &&
+    (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
   ) {
-    const probe = architecture === "mps" ? checkMpsPytorch : checkCudaPytorch;
     // build does not thread strict mode into this probe, where compile and
     // plan do. Long-standing, and preserved rather than quietly unified.
-    validationErrors.push(...(await probe({ debugLog: true })));
+    validationErrors.push(...(await checkCudaPytorch({ debugLog: true })));
   }
 
   validationErrors.push(
