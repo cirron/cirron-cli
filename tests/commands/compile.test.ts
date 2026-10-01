@@ -74,6 +74,14 @@ describe("compileCommand", () => {
     expect(exitSpy.mock.calls[0]?.[0]).toBe(31);
   });
 
+  it("exits with PROJECT_NOT_FOUND, not INTERNAL_ERROR, under --strict", async () => {
+    await compileCommand({ strict: true });
+    expect(exitSpy.mock.calls[0]?.[0]).toBe(31);
+    expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toMatch(
+      /Project configuration not found \(code 31\)/
+    );
+  });
+
   it("compiles a pytorch project end-to-end", async () => {
     mlProject("pytorch");
     await compileCommand({ arch: "cpu" });

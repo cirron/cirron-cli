@@ -94,6 +94,8 @@ program
     const options = thisCommand.opts();
     if (options["verbose"]) {
       process.env["CIRRON_VERBOSE"] = "true";
+      // The logger read the env var at import, before this hook ran.
+      logger.setVerbose(true);
     }
   });
 
