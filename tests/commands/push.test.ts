@@ -809,7 +809,6 @@ describe("pushCommand", () => {
         name: "demo",
         tag: "v1",
         message: "first push",
-        registry: "main",
         force: true,
       });
 

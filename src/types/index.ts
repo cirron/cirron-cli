@@ -867,7 +867,6 @@ export interface PullOptions {
   interactive?: boolean;
   json?: boolean;
   output?: string;
-  registry?: string;
   tag?: string;
   type?: string;
 }
@@ -909,7 +908,6 @@ export interface PushOptions {
   message?: string;
   /** `--platform <slug>`; overrides `platform` in the project config. */
   platform?: string;
-  registry?: string;
   tag?: string;
 }
 

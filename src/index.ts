@@ -564,7 +564,6 @@ program
   .option("-m, --message <message>", "Push message for audit log")
   .option("--all", "Push all files defined in cirron.json")
   .option("--ignore <patterns>", "Glob patterns to exclude")
-  .option("--registry <url>", "Override registry URL")
   .option(
     "--platform <slug>",
     "Platform to push to (overrides the project config)"
@@ -583,7 +582,6 @@ program
   .option("--all", "Pull all resources for current project")
   .option("--type <type>", "Filter --all by resource type")
   .option("--ignore <patterns>", "Glob patterns to exclude")
-  .option("--registry <url>", "Override registry URL")
   .option("-f, --force", "Overwrite local files without prompting")
   .option("-i, --interactive", "Guided pull flow")
   .option("--json", "Output in JSON format")

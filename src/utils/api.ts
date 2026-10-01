@@ -950,7 +950,7 @@ export class CirronApi {
    * `initMultipartUpload` instead.
    *
    * @param options - `filename`, `size` and `checksum` are required; `resource`,
-   * `name`, `tag`, `registry` and `platform` route the artifact.
+   * `name`, `tag` and `platform` route the artifact.
    * @returns The upload URL and the session id that `confirmUpload` resolves.
    */
   async getUploadUrl(options: {
@@ -960,7 +960,6 @@ export class CirronApi {
     resource?: string;
     name?: string;
     tag?: string;
-    registry?: string;
     platform?: string;
   }): Promise<PushUploadUrl> {
     const body: Record<string, string | number> = {
@@ -976,9 +975,6 @@ export class CirronApi {
     }
     if (options.tag) {
       body["tag"] = options.tag;
-    }
-    if (options.registry) {
-      body["registry"] = options.registry;
     }
     if (options.platform) {
       body["platform"] = options.platform;
