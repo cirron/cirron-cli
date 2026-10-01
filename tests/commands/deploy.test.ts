@@ -10,6 +10,10 @@ import * as buildModule from "../../src/commands/build";
 import { deployCommand } from "../../src/commands/deploy";
 import { CirronApi } from "../../src/utils/api";
 import {
+  PlatformBadRequestError,
+  PlatformServerError,
+} from "../../src/utils/api-errors";
+import {
   deployment,
   exitCodeFromError,
   stubProcessExit,
@@ -266,6 +270,75 @@ describe("deployCommand", () => {
     expect(infoSpy.mock.calls.flat().join(" ")).toMatch(
       /build failed at step 2/
     );
+  });
+
+  it.each([
+    "rolled_back",
+    "stopped",
+    "something_new",
+  ])("stops polling as soon as the deployment reaches %s, and exits 1", async (status) => {
+    createAuthenticatedSession(tmp.dir);
+    writeProjectConfig(tmp.dir, {
+      environments: { staging: { region: "us-east-1" } },
+    });
+    vi.spyOn(CirronApi.prototype, "createDeployment").mockResolvedValue(
+      deployment({ id: "dep-42", status: "pending" })
+    );
+    const getDeployment = vi
+      .spyOn(CirronApi.prototype, "getDeployment")
+      .mockResolvedValue(deployment({ id: "dep-42", status }));
+
+    const caught = await deployCommand({ env: "staging", noBuild: true }).catch(
+      (e: unknown) => e
+    );
+
+    expect(getDeployment).toHaveBeenCalledTimes(1);
+    expect(exitCodeFromError(caught)).toBe(1);
+    expect(errorSpy.mock.calls.flat().join(" ")).not.toMatch(/timed out/);
+  });
+
+  it("fails fast when polling gets a non-transient error such as a 404", async () => {
+    createAuthenticatedSession(tmp.dir);
+    writeProjectConfig(tmp.dir, {
+      environments: { staging: { region: "us-east-1" } },
+    });
+    vi.spyOn(CirronApi.prototype, "createDeployment").mockResolvedValue(
+      deployment({ id: "dep-42", status: "pending" })
+    );
+    const getDeployment = vi
+      .spyOn(CirronApi.prototype, "getDeployment")
+      .mockRejectedValue(
+        new PlatformBadRequestError(404, "Deployment not found")
+      );
+
+    const caught = await deployCommand({ env: "staging", noBuild: true }).catch(
+      (e: unknown) => e
+    );
+
+    expect(getDeployment).toHaveBeenCalledTimes(1);
+    expect(exitCodeFromError(caught)).toBe(1);
+    expect(errorSpy.mock.calls.flat().join(" ")).toMatch(
+      /Deployment not found/
+    );
+  });
+
+  it("keeps polling through a transient platform error", async () => {
+    createAuthenticatedSession(tmp.dir);
+    writeProjectConfig(tmp.dir, {
+      environments: { staging: { region: "us-east-1" } },
+    });
+    vi.spyOn(CirronApi.prototype, "createDeployment").mockResolvedValue(
+      deployment({ id: "dep-42", status: "pending" })
+    );
+    const getDeployment = vi
+      .spyOn(CirronApi.prototype, "getDeployment")
+      .mockRejectedValueOnce(new PlatformServerError(503, "unavailable"))
+      .mockResolvedValueOnce(deployment({ id: "dep-42", status: "success" }));
+
+    await deployCommand({ env: "staging", noBuild: true });
+
+    expect(getDeployment).toHaveBeenCalledTimes(2);
+    expect(exitStub.spy).not.toHaveBeenCalled();
   });
 
   it("times out after exhausting polling attempts", async () => {

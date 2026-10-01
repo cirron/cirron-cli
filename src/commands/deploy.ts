@@ -6,7 +6,12 @@ import inquirer from "inquirer";
 import ora from "ora";
 import type { DeploymentInfo, DeployOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
-import { handlePlatformError } from "../utils/api-errors";
+import {
+  handlePlatformError,
+  PlatformRateLimitError,
+  PlatformServerError,
+  PlatformUnavailableError,
+} from "../utils/api-errors";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
 import { errorMessage } from "../utils/errors";
@@ -185,7 +190,11 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
         logger.info(`Deploy time: ${chalk.cyan(deployTime)}`);
       }
     } else {
-      spinner.fail(chalk.red("Deployment failed"));
+      spinner.fail(
+        chalk.red(
+          describeUnsuccessfulStatus("Deployment", finalDeployment.status)
+        )
+      );
 
       if (finalDeployment.logs && finalDeployment.logs.length > 0) {
         console.log();
@@ -292,13 +301,36 @@ async function handleRollback(
         logger.info(`URL: ${chalk.cyan(finalDeployment.url)}`);
       }
     } else {
-      spinner.fail(chalk.red("Rollback failed"));
+      spinner.fail(
+        chalk.red(
+          describeUnsuccessfulStatus("Rollback", finalDeployment.status)
+        )
+      );
       process.exit(1);
     }
   } catch (error) {
     spinner.fail(chalk.red("Rollback failed"));
     throw error;
   }
+}
+
+/**
+ * Spinner text for the statuses that mean a deployment is still moving. Any
+ * status not listed here is final, including ones the CLI does not know yet.
+ */
+const IN_PROGRESS_TEXT = new Map<string, string>([
+  ["pending", "Deployment queued..."],
+  ["building", "Building deployment..."],
+  ["deploying", "Deploying to infrastructure..."],
+]);
+
+/** A polling failure worth retrying: the platform was briefly unreachable, erroring or rate-limiting. */
+function isTransientPollError(error: unknown): boolean {
+  return (
+    error instanceof PlatformUnavailableError ||
+    error instanceof PlatformServerError ||
+    error instanceof PlatformRateLimitError
+  );
 }
 
 async function monitorDeployment(
@@ -312,35 +344,31 @@ async function monitorDeployment(
   while (attempts < maxAttempts) {
     try {
       const deployment = await api.getDeployment(deploymentId);
-
-      switch (deployment.status) {
-        case "pending":
-          spinner.text = "Deployment queued...";
-          break;
-        case "building":
-          spinner.text = "Building deployment...";
-          break;
-        case "deploying":
-          spinner.text = "Deploying to infrastructure...";
-          break;
-        case "success":
-        case "failed":
-          return deployment;
-        default:
-          break;
+      const progressText = IN_PROGRESS_TEXT.get(deployment.status);
+      if (progressText === undefined) {
+        return deployment;
       }
-
-      // Wait 5 seconds before next check
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      attempts++;
+      spinner.text = progressText;
     } catch (error) {
+      // A 401, 403 or 404 will not change on the next poll.
+      if (!isTransientPollError(error)) {
+        throw error;
+      }
       logger.warn(`Error checking deployment status: ${errorMessage(error)}`);
-      attempts++;
-      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
+
+    attempts++;
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 
   throw new Error("Deployment monitoring timed out");
+}
+
+/** The spinner failure line for a deployment that finished without succeeding. */
+function describeUnsuccessfulStatus(action: string, status: string): string {
+  return status === "failed"
+    ? `${action} failed`
+    : `${action} ended with status "${status}"`;
 }
 
 function calculateDeployTime(deployment: DeploymentInfo): string {

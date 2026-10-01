@@ -259,6 +259,40 @@ describe("CirronApi auth header precedence", () => {
  * stored refresh token triggers exactly one refresh and one retry, and the
  * rotated tokens must reach disk.
  */
+describe("CirronApi deployment status normalization", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  // GET-by-id lowercases the stored status, so the map must match either case.
+  it.each([
+    ["active", "success"],
+    ["ACTIVE", "success"],
+    ["error", "failed"],
+    ["running", "success"],
+    ["queued", "pending"],
+    ["ROLLED_BACK", "rolled_back"],
+    ["STOPPED", "stopped"],
+  ])("maps %s to %s", async (wire, expected) => {
+    fetchMock.mockResolvedValue(
+      jsonOk({
+        success: true,
+        data: {
+          id: "dep-1",
+          environment: "production",
+          status: wire,
+          createdAt: "2026-10-01T00:00:00Z",
+        },
+      }) as never
+    );
+
+    const api = new CirronApi({ ...BASE_CONFIG, token: "t" });
+    const deployment = await api.getDeployment("dep-1");
+
+    expect(deployment.status).toBe(expected);
+  });
+});
+
 describe("CirronApi 401 refresh and retry", () => {
   let tmp: ReturnType<typeof makeTmpDir>;
 

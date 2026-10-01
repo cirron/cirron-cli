@@ -49,8 +49,8 @@ import { USER_AGENT } from "./version";
  * Platform deployment status -> the CLI's lowercase union.
  *
  * `GET /api/cli/deployments/{id}` returns an already-lowercased status, while
- * the list and create endpoints return the raw stored value. This map
- * normalizes both onto a single union.
+ * the list and create endpoints return the raw stored value. Lookups uppercase
+ * the status first, so both forms land on the same union.
  */
 const DEPLOYMENT_STATUS_MAP: Record<string, DeploymentInfo["status"]> = {
   ACTIVE: "success",
@@ -382,7 +382,7 @@ export class CirronApi {
     return {
       ...deployment,
       status:
-        DEPLOYMENT_STATUS_MAP[deployment.status] ??
+        DEPLOYMENT_STATUS_MAP[deployment.status.toUpperCase()] ??
         deployment.status.toLowerCase(),
     };
   }
