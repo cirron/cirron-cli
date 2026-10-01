@@ -454,10 +454,10 @@ describe("loginCommand (device flow)", () => {
     for (const key of ["setRawMode", "resume", "pause", "once"]) {
       orig[key] = stdin[key];
     }
-    stdin.setRawMode = vi.fn();
-    stdin.resume = vi.fn();
-    stdin.pause = vi.fn();
-    stdin.once = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+    stdin["setRawMode"] = vi.fn();
+    stdin["resume"] = vi.fn();
+    stdin["pause"] = vi.fn();
+    stdin["once"] = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       if (event === "data") {
         setImmediate(() => cb(Buffer.from("\n")));
       }

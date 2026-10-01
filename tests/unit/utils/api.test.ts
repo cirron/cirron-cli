@@ -43,7 +43,7 @@ function headerBag(entries: Record<string, string> = {}) {
 function authHeaderOnCall(index: number): string | undefined {
   const call = fetchMock.mock.calls.at(index);
   const init = call?.[1] as { headers?: Record<string, string> } | undefined;
-  return init?.headers?.Authorization;
+  return init?.headers?.["Authorization"];
 }
 
 /** The URL of the Nth fetch call (0-indexed, negatives count from the end). */
@@ -331,7 +331,7 @@ describe("CirronApi 401 refresh and retry", () => {
 
     const api = new CirronApi({
       ...BASE_CONFIG,
-      auth: { accessToken: "old-access" } as CirronConfig["auth"],
+      auth: { accessToken: "old-access" } as NonNullable<CirronConfig["auth"]>,
     });
     await expect(api.verifyAuth()).rejects.toThrow();
 

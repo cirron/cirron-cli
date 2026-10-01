@@ -479,7 +479,7 @@ export interface PlanOptions {
   index?: string;
   interactive?: boolean;
   json?: boolean;
-  save?: string;
+  save?: string | boolean;
   validate?: boolean;
   verbose?: boolean;
 }
@@ -536,7 +536,7 @@ export interface ReplayOptions {
 
 export interface PlanCompareOptions {
   json?: boolean;
-  save?: string;
+  save?: string | boolean;
   verbose?: boolean;
 }
 
@@ -610,7 +610,7 @@ export interface HardwareOptions {
   json?: boolean;
   list?: boolean;
   profile?: string;
-  save?: string;
+  save?: string | boolean;
   verbose?: boolean;
 }
 

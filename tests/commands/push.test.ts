@@ -171,9 +171,9 @@ describe("pushCommand", () => {
 
     const jsonArg = infoSpy.mock.calls
       .flat()
-      .find((s) => typeof s === "string" && s.trim().startsWith("{")) as
-      | string
-      | undefined;
+      .find(
+        (s: unknown) => typeof s === "string" && s.trim().startsWith("{")
+      ) as string | undefined;
     expect(jsonArg).toBeTruthy();
     expect(JSON.parse(jsonArg ?? "{}").verified).toBe(true);
   });
@@ -390,7 +390,7 @@ describe("pushCommand", () => {
     const jsonArg = infoSpy.mock.calls
       .flat()
       .find(
-        (s) =>
+        (s: unknown) =>
           typeof s === "string" &&
           s.includes('"totalFiles"') &&
           s.includes('"results"')

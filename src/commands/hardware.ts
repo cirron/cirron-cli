@@ -169,7 +169,7 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
     if (options.save) {
       const configPath = await HardwareDetector.saveHardwareConfig(
         hardwareConfig,
-        options.save
+        typeof options.save === "string" ? options.save : undefined
       );
       logger.info(
         `\n${chalk.green("✓")} Hardware profile saved to ${chalk.cyan(configPath)}`

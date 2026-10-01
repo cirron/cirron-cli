@@ -194,9 +194,9 @@ describe("syncCommand", () => {
 
     const jsonArg = infoSpy.mock.calls
       .flat()
-      .find((s) => typeof s === "string" && s.includes('"localOnly"')) as
-      | string
-      | undefined;
+      .find(
+        (s: unknown) => typeof s === "string" && s.includes('"localOnly"')
+      ) as string | undefined;
     expect(jsonArg).toBeTruthy();
     expect(JSON.parse(jsonArg ?? "{}").summary.toPush).toBe(1);
   });
