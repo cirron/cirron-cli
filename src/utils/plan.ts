@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import type { ProjectConfig } from "../types";
+import { isGpuArchitecture } from "./architecture";
 
 export interface ArtifactPlan {
   description: string;
@@ -456,7 +457,7 @@ export class PlanGenerator {
     architecture: string
   ): Promise<ResourceEstimate> {
     const framework = this.projectConfig.framework || "custom";
-    const isGPU = architecture === "cuda" || architecture === "gpu";
+    const isGPU = isGpuArchitecture(architecture);
 
     // Base resource estimates
     let diskSpace = 100 * 1024 * 1024; // 100MB base

@@ -20,7 +20,11 @@ import { CirronApi } from "../../src/utils/api";
 import * as executionMod from "../../src/utils/execution";
 import { InteractiveManager } from "../../src/utils/interactive";
 import { ModelConfigManager } from "../../src/utils/model-config";
-import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
+import {
+  appleSiliconHardware,
+  writeFileAt,
+  writeProjectConfig,
+} from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 const execSyncMock = vi.mocked(execSync);
@@ -386,6 +390,43 @@ describe("buildCommand", () => {
         "continuing with --force"
       );
       expect(exitSpy).not.toHaveBeenCalledWith(1);
+    });
+
+    it("builds a pytorch project on Apple Silicon hardware for cpu, without --arch or --force", async () => {
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      writeFileAt(
+        tmp.dir,
+        "src/model.py",
+        "def create_model():\n    return 1\n"
+      );
+      writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+      // Keep the generated build script; performMLBuild deletes it afterwards.
+      let buildScript = "";
+      execSyncMock.mockImplementation(((cmd: string) => {
+        if (cmd.includes("temp_build.py")) {
+          buildScript = require("fs-extra").readFileSync(
+            "temp_build.py",
+            "utf8"
+          );
+        }
+        return "Python 3.10.0\n";
+      }) as never);
+
+      await buildCommand({ env: "production" });
+
+      // Before the mps target this resolved to cuda and failed validation.
+      expect(exitSpy).not.toHaveBeenCalledWith(1);
+      const logged = infoSpy.mock.calls.flat().join(" ");
+      expect(logged).toContain("Target architecture: mps");
+      expect(logged).toContain("Hardware compatibility validated");
+      expect(warnSpy.mock.calls.flat().join(" ")).toContain(
+        "MPS is not available inside Linux containers; building for cpu"
+      );
+      expect(buildScript).toContain("models/model_cpu.pth");
+      expect(buildScript).not.toContain("model_mps");
     });
 
     it("--analyze on an ML build", async () => {

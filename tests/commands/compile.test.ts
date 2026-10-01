@@ -17,7 +17,11 @@ import { compileCommand } from "../../src/commands/compile";
 import * as executionMod from "../../src/utils/execution";
 import { InteractiveManager } from "../../src/utils/interactive";
 import { ModelConfigManager } from "../../src/utils/model-config";
-import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
+import {
+  appleSiliconHardware,
+  writeFileAt,
+  writeProjectConfig,
+} from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 const execSyncMock = vi.mocked(execSync);
@@ -95,6 +99,49 @@ describe("compileCommand", () => {
       /Compilation Results|compilation completed/i
     );
     expect(exitSpy.mock.calls[0]?.[0]).not.toBe(31);
+  });
+
+  it("compiles a pytorch project on Apple Silicon hardware for mps", async () => {
+    writeProjectConfig(tmp.dir, {
+      framework: "pytorch",
+      hardware: appleSiliconHardware(),
+    });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+    // Keep the generated script; performCompilation deletes it afterwards.
+    let compileScript = "";
+    execSyncMock.mockImplementation(((cmd: string) => {
+      if (cmd.includes("temp_compile.py")) {
+        compileScript = require("fs-extra").readFileSync(
+          "temp_compile.py",
+          "utf8"
+        );
+      }
+      return "Python 3.10.0\n";
+    }) as never);
+
+    await compileCommand({});
+
+    // Before the mps target this resolved to cuda and failed validation.
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Compilation Results/i);
+    expect(compileScript).toContain('model = model.to("mps")');
+    expect(compileScript).toContain("models/model_mps.pth");
+  });
+
+  it("rejects an mps compile for a tensorflow project", async () => {
+    writeProjectConfig(tmp.dir, {
+      framework: "tensorflow",
+      hardware: appleSiliconHardware(),
+    });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    writeFileAt(tmp.dir, "requirements.txt", "tensorflow\n");
+
+    await compileCommand({ arch: "mps" });
+
+    expect(exitSpy).toHaveBeenCalled();
+    expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toContain(
+      "MPS architecture is only supported for PyTorch"
+    );
   });
 
   it("compiles a tensorflow project", async () => {

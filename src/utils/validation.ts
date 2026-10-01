@@ -148,6 +148,20 @@ export function checkCudaPytorch(opts: ProbeOptions = {}): Promise<string[]> {
 }
 
 /**
+ * Probe that PyTorch can see an Apple Silicon (MPS) device.
+ *
+ * @returns The errors the probe reported; empty when MPS is usable.
+ */
+export function checkMpsPytorch(opts: ProbeOptions = {}): Promise<string[]> {
+  return runProbe(
+    "import torch; assert torch.backends.mps.is_available()",
+    "MPS not available for PyTorch",
+    "MPS validation details",
+    opts
+  );
+}
+
+/**
  * Probe that TensorFlow can see a GPU device.
  *
  * @returns The errors the probe reported; empty when the GPU is usable.

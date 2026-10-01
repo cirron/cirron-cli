@@ -6,7 +6,9 @@ import ora from "ora";
 import type { ProjectConfig } from "../types";
 import {
   determineArchitectureFromHardware,
+  isGpuArchitecture,
   loadIndexFile,
+  pytorchDevicePlacement,
   validateHardwareCompatibility,
 } from "../utils/architecture";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
@@ -19,6 +21,7 @@ import {
   checkCudaPytorch,
   checkIndexConfig,
   checkModelCreation,
+  checkMpsPytorch,
   checkPythonVersion,
   checkRequiredFiles,
   checkTensorflowGpu,
@@ -121,6 +124,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
           { name: "cpu (CPU optimized)", value: "cpu" },
           { name: "cuda (NVIDIA GPU)", value: "cuda" },
           { name: "gpu (General GPU)", value: "gpu" },
+          { name: "mps (Apple Silicon GPU)", value: "mps" },
         ],
         description:
           "Architecture affects model optimization and runtime performance",
@@ -310,14 +314,15 @@ async function runValidationChecks(
   ];
 
   // Architecture-specific validation
-  if (architecture === "cuda" || architecture === "gpu") {
+  if (isGpuArchitecture(architecture)) {
     if (!projectConfig.gpuRequired) {
       logger.warn("GPU architecture selected but project does not require GPU");
     }
 
     if (projectConfig.framework === "pytorch") {
+      const probe = architecture === "mps" ? checkMpsPytorch : checkCudaPytorch;
       validationErrors.push(
-        ...(await checkCudaPytorch({
+        ...(await probe({
           strictMode,
           handleResult: true,
           debugLog: true,
@@ -325,7 +330,7 @@ async function runValidationChecks(
       );
     }
 
-    if (projectConfig.framework === "tensorflow") {
+    if (projectConfig.framework === "tensorflow" && architecture !== "mps") {
       validationErrors.push(
         ...(await checkTensorflowGpu({
           strictMode,
@@ -456,12 +461,7 @@ model = create_model()
 print("Model created successfully")
 
 # Optimize for architecture
-if "${architecture}" == "cuda":
-    if torch.cuda.is_available():
-        model = model.cuda()
-        print("Model moved to CUDA")
-    else:
-        print("Warning: CUDA not available, using CPU")
+${pytorchDevicePlacement(architecture)}
 
 # Save compiled model
 os.makedirs('models', exist_ok=True)

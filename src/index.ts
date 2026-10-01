@@ -195,7 +195,10 @@ program
 program
   .command("compile")
   .description("Compile the model (build the model locally)")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run data/model integrity checks")
   .option(
@@ -221,7 +224,10 @@ program
   .option("--clean", "Clean build (no cache)")
   .option("--push", "Push image to registry after build")
   .option("--analyze", "Analyze build output")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run data/model integrity checks")
   .option(
@@ -417,7 +423,10 @@ const planCmd = program
 planCmd
   .command("compile")
   .description("Preview model compilation with artifact paths and dependencies")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run validation checks during planning")
   .option("--save [filename]", "Save plan to file")
@@ -432,7 +441,10 @@ planCmd
 planCmd
   .command("build")
   .description("Preview build artifacts, model shape, and resource usage")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run validation checks during planning")
   .option("--save [filename]", "Save plan to file")

@@ -15,7 +15,11 @@ import { PlanDiffAnalyzer } from "../../src/utils/plan-diff";
 import { PlanFormatter } from "../../src/utils/plan-formatter";
 import { PlanStorage } from "../../src/utils/plan-storage";
 import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
-import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
+import {
+  appleSiliconHardware,
+  writeFileAt,
+  writeProjectConfig,
+} from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 /**
@@ -101,6 +105,21 @@ describe("plan commands", () => {
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/PLAN CONSOLE/);
     });
 
+    it("plans an mps compile for pytorch on Apple Silicon hardware", async () => {
+      // plan used to resolve from framework defaults alone, ignoring the
+      // declared hardware that compile itself reads.
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      await planCompileCommand({});
+      expect(PlanGenerator.prototype.generatePlan).toHaveBeenCalledWith(
+        "compile",
+        "mps",
+        null
+      );
+    });
+
     it("--json prints JSON", async () => {
       writeProjectConfig(tmp.dir);
       await planCompileCommand({ arch: "cpu", json: true });
@@ -171,6 +190,25 @@ describe("plan commands", () => {
       );
       await planBuildCommand({ arch: "cpu" });
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/PLAN CONSOLE/);
+    });
+
+    it("plans a cpu build for pytorch on Apple Silicon, matching cirron build", async () => {
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      vi.spyOn(PlanGenerator.prototype, "generatePlan").mockResolvedValue(
+        fakePlan("build")
+      );
+      await planBuildCommand({});
+      expect(PlanGenerator.prototype.generatePlan).toHaveBeenCalledWith(
+        "build",
+        "cpu",
+        null
+      );
+      expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toContain(
+        "MPS is not available inside Linux containers; planning for cpu"
+      );
     });
 
     it("--json + --save", async () => {

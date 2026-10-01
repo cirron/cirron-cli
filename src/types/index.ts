@@ -716,7 +716,7 @@ export interface ModelConfig {
   };
   framework?: "pytorch" | "tensorflow" | "sklearn" | "custom";
   inference?: {
-    device?: "cpu" | "gpu" | "cuda";
+    device?: "cpu" | "gpu" | "cuda" | "mps";
     precision?: "fp32" | "fp16" | "int8";
     batchSize?: number;
   };
