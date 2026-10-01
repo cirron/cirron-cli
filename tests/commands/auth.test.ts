@@ -91,7 +91,7 @@ describe("authCommand graceful error handling", () => {
     expect(stderr).toMatch(/cirron\.com\/waitlist/);
   });
 
-  it("exits with code 2 when credentials are rejected (401/403)", async () => {
+  it("exits with code 2 when credentials are rejected (401)", async () => {
     new ConfigManager().save({
       apiUrl: "http://localhost:1",
       defaultEnv: "production",

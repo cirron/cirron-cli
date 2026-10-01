@@ -19,7 +19,10 @@ afterEach(() => {
 
 import type { CirronConfig } from "../../../src/types";
 import { CirronApi } from "../../../src/utils/api";
-import { PlatformRateLimitError } from "../../../src/utils/api-errors";
+import {
+  PermissionDeniedError,
+  PlatformRateLimitError,
+} from "../../../src/utils/api-errors";
 import { ConfigManager } from "../../../src/utils/config";
 import { makeTmpDir } from "../../helpers/tmpdir";
 
@@ -324,6 +327,27 @@ describe("CirronApi 401 refresh and retry", () => {
     // The stored tokens are untouched by a failed refresh.
     const stored = new ConfigManager().load();
     expect(stored.auth?.accessToken).toBe("old-access");
+  });
+
+  it("does not refresh or retry on a 403, and keeps the server's permission", async () => {
+    fetchMock.mockResolvedValue(
+      jsonError(403, {
+        error: "Forbidden",
+        permission: "storage:files:upload",
+      }) as never
+    );
+
+    const api = new CirronApi(authedConfig());
+    const error = await api.verifyAuth().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PermissionDeniedError);
+    expect((error as PermissionDeniedError).permission).toBe(
+      "storage:files:upload"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const stored = new ConfigManager().load();
+    expect(stored.auth?.accessToken).toBe("old-access");
+    expect(stored.auth?.refreshToken).toBe("old-refresh");
   });
 
   it("does not attempt a refresh without a stored refresh token", async () => {

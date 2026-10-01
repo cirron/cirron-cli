@@ -1751,11 +1751,11 @@ export class CirronApi {
           const retryAfterSeconds = Number.isNaN(parsedRetryAfter)
             ? undefined
             : parsedRetryAfter;
-          throw classifyHttpError(
-            response.status,
-            errorMessage,
-            retryAfterSeconds
-          );
+          const permission = (errorData as any)?.permission;
+          throw classifyHttpError(response.status, errorMessage, {
+            retryAfterSeconds,
+            permission: typeof permission === "string" ? permission : undefined,
+          });
         }
 
         const data = await response.json();
@@ -1766,8 +1766,8 @@ export class CirronApi {
           error instanceof PlatformError ? error : classifyFetchError(error);
         lastError = classified as Error;
 
-        // 4xx means the request is wrong, so retrying cannot help. 429 goes
-        // to the caller, which knows whether to honor Retry-After.
+        // 4xx (403 included) means the request is wrong, so retrying cannot
+        // help. 429 goes to the caller, which knows whether to honor Retry-After.
         if (
           classified instanceof NotAuthenticatedError ||
           classified instanceof PlatformBadRequestError ||
