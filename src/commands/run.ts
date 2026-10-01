@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { getLevelColor } from "./logs";
 
@@ -88,7 +89,7 @@ async function monitorRun(
       await new Promise((resolve) => setTimeout(resolve, 5000));
       attempts++;
     } catch (error) {
-      logger.warn("Error checking run status:", error);
+      logger.warn(`Error checking run status: ${errorMessage(error)}`);
       attempts++;
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
@@ -392,7 +393,8 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Failed to fetch runs");
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 

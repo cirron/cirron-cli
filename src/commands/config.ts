@@ -2,6 +2,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import type { ConfigCommandOptions, SettingsOptions } from "../types";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { getNestedValue, setNestedValue } from "../utils/nested";
 import { settingsCommand } from "./settings";
@@ -191,7 +192,7 @@ export async function configCommand(
       project: selectedScope === "project",
     });
   } catch (error) {
-    logger.error("Config command failed:", error);
+    reportCommandError(error, "Config command failed");
     process.exit(1);
   }
 }
@@ -235,7 +236,7 @@ async function cliConfigHandler(options: CliConfigOptions): Promise<void> {
       await interactiveConfig(config);
     }
   } catch (error) {
-    logger.error("Config command failed:", error);
+    reportCommandError(error, "Config command failed");
     process.exit(1);
   }
 }

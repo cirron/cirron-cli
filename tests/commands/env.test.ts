@@ -70,12 +70,30 @@ describe("env commands", () => {
       expect(errorSpy).not.toHaveBeenCalled();
     });
 
-    it("handles API failure gracefully (logs error, no throw)", async () => {
+    it("prints an API failure as one line, with no stack, and exits 1", async () => {
       vi.spyOn(
         CirronApi.prototype,
         "getEnvironmentVariables"
       ).mockRejectedValue(new Error("server down"));
-      await expect(envListCommand({})).resolves.toBeUndefined();
+      await envListCommand({});
+
+      const stderr = errorSpy.mock.calls.flat().map(String).join(" ");
+      expect(stderr).toMatch(/server down/);
+      expect(stderr).not.toMatch(/Error: Error/);
+      expect(stderr).not.toMatch(/\n\s+at /);
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it("prints a missing project config as one line, with no stack or local path", async () => {
+      fs.removeSync(path.join(tmp.dir, "cirron.yaml"));
+      await envListCommand({});
+
+      const stderr = errorSpy.mock.calls.flat().map(String).join(" ");
+      expect(stderr).toMatch(/No cirron config found/);
+      expect(stderr).not.toMatch(/Error: Error/);
+      expect(stderr).not.toMatch(/\n\s+at /);
+      expect(stderr).not.toContain("src/commands/env.ts");
+      expect(process.exit).toHaveBeenCalledWith(1);
     });
   });
 

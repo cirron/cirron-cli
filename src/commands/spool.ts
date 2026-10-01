@@ -157,10 +157,17 @@ async function flushBatch(
         return "ok";
       }
 
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         await drainResponse(response);
         logger.error(
-          `Auth rejected (${response.status}) for ${file.name}. Run ${chalk.cyan("cirron auth login")}.`
+          `Auth rejected (401) for ${file.name}. Run ${chalk.cyan("cirron auth login")}.`
+        );
+        return "fatal";
+      }
+      if (response.status === 403) {
+        await drainResponse(response);
+        logger.error(
+          `Permission denied (403) for ${file.name}: your role in the active organization cannot upload traces.`
         );
         return "fatal";
       }

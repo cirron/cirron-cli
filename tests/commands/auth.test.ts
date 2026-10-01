@@ -91,7 +91,7 @@ describe("authCommand graceful error handling", () => {
     expect(stderr).toMatch(/cirron\.com\/waitlist/);
   });
 
-  it("exits with code 2 when credentials are rejected (401/403)", async () => {
+  it("exits with code 2 when credentials are rejected (401)", async () => {
     new ConfigManager().save({
       apiUrl: "http://localhost:1",
       defaultEnv: "production",
@@ -454,10 +454,10 @@ describe("loginCommand (device flow)", () => {
     for (const key of ["setRawMode", "resume", "pause", "once"]) {
       orig[key] = stdin[key];
     }
-    stdin.setRawMode = vi.fn();
-    stdin.resume = vi.fn();
-    stdin.pause = vi.fn();
-    stdin.once = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+    stdin["setRawMode"] = vi.fn();
+    stdin["resume"] = vi.fn();
+    stdin["pause"] = vi.fn();
+    stdin["once"] = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       if (event === "data") {
         setImmediate(() => cb(Buffer.from("\n")));
       }

@@ -4,9 +4,9 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig } from "../types";
+import { reportCommandError } from "../utils/errors";
 import { executeScript } from "../utils/execution";
 import { CirronIgnore } from "../utils/ignore";
-import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 
 interface LintOptions {
@@ -100,7 +100,7 @@ export async function lintCommand(options: LintOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Linting failed");
-    logger.error("Lint error:", error);
+    reportCommandError(error, "Lint error");
     process.exit(1);
   }
 }
@@ -485,7 +485,7 @@ node_modules/
     spinner.succeed("Fixes applied successfully");
   } catch (error) {
     spinner.fail("Failed to apply fixes");
-    logger.error("Fix error:", error);
+    reportCommandError(error, "Fix error");
   }
 }
 

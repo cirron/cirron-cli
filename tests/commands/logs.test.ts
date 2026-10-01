@@ -93,6 +93,10 @@ describe("logsCommand", () => {
       caught = err;
     }
     expect(exitCodeFromError(caught)).toBe(1);
+    const stderr = errorSpy.mock.calls.flat().map(String).join(" ");
+    expect(stderr).toMatch(/server down/);
+    expect(stderr).not.toMatch(/Error: Error/);
+    expect(stderr).not.toMatch(/\n\s+at /);
   });
 
   it("follow mode does the initial poll and registers an interval", async () => {

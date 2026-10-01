@@ -60,6 +60,7 @@ import {
   tracesViewCommand,
 } from "./commands/traces";
 import { handlePlatformError } from "./utils/api-errors";
+import { reportCommandError } from "./utils/errors";
 import { logger } from "./utils/logger";
 import { CLI_VERSION } from "./utils/version";
 
@@ -79,7 +80,7 @@ process.on("unhandledRejection", (error) => {
   if (handlePlatformError(error)) {
     return;
   }
-  logger.error("Unhandled rejection:", error);
+  reportCommandError(error, "Unhandled rejection");
   process.exit(1);
 });
 
@@ -93,6 +94,8 @@ program
     const options = thisCommand.opts();
     if (options["verbose"]) {
       process.env["CIRRON_VERBOSE"] = "true";
+      // The logger read the env var at import, before this hook ran.
+      logger.setVerbose(true);
     }
   });
 
@@ -152,8 +155,7 @@ program
       const { registerCommand } = await import("./commands/register");
       await registerCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load register command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -399,7 +401,7 @@ program
       const { validateCommand } = await import("./commands/validate");
       await validateCommand(options);
     } catch (error) {
-      logger.error("Failed to load validate command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -562,7 +564,6 @@ program
   .option("-m, --message <message>", "Push message for audit log")
   .option("--all", "Push all files defined in cirron.json")
   .option("--ignore <patterns>", "Glob patterns to exclude")
-  .option("--registry <url>", "Override registry URL")
   .option(
     "--platform <slug>",
     "Platform to push to (overrides the project config)"
@@ -581,7 +582,6 @@ program
   .option("--all", "Pull all resources for current project")
   .option("--type <type>", "Filter --all by resource type")
   .option("--ignore <patterns>", "Glob patterns to exclude")
-  .option("--registry <url>", "Override registry URL")
   .option("-f, --force", "Overwrite local files without prompting")
   .option("-i, --interactive", "Guided pull flow")
   .option("--json", "Output in JSON format")
@@ -639,8 +639,7 @@ program
       const { statusCommand } = await import("./commands/status");
       await statusCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load status command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -657,8 +656,7 @@ program
       const { logsCommand } = await import("./commands/logs");
       await logsCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load logs command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -677,8 +675,7 @@ envCmd
       const { envListCommand } = await import("./commands/env");
       await envListCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load env list command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -694,8 +691,7 @@ envCmd
       const { envSetCommand } = await import("./commands/env");
       await envSetCommand(key, value, options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load env set command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -710,8 +706,7 @@ envCmd
       const { envDeleteCommand } = await import("./commands/env");
       await envDeleteCommand(key, options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load env delete command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });

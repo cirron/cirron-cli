@@ -12,6 +12,7 @@ import {
 } from "../utils/architecture";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import { executePythonScript, formatExecutionError } from "../utils/execution";
 import { CirronIgnore } from "../utils/ignore";
 import { createInteractiveManager } from "../utils/interactive";
@@ -329,7 +330,7 @@ async function handleMLBuild(
     } catch (error) {
       if (options.force) {
         logger.warn(
-          `Hardware validation failed but continuing with --force: ${error}`
+          `Hardware validation failed but continuing with --force: ${errorMessage(error)}`
         );
       } else {
         spinner.fail("Hardware validation failed");
@@ -956,7 +957,7 @@ async function analyzeBuild(
     }
   } catch (error) {
     spinner.fail("Build analysis failed");
-    logger.error("Analysis error:", error);
+    reportCommandError(error, "Analysis error");
   }
 }
 

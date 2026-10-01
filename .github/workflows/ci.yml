@@ -48,6 +48,8 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+      - name: Typecheck
+        run: npm run typecheck
       - name: Test
         run: npm test
 

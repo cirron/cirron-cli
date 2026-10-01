@@ -727,11 +727,10 @@ async function resolveByKeepBoth(
     );
     return {
       ok: true,
-      // Known bug: records the REMOTE checksum as the baseline for the
-      // untouched local file, so the next sync reports a spurious change.
+      // The original keeps its local bytes, so its baseline is the local checksum.
       pulled: {
         path: conflict.path,
-        checksum: artifactInfo.checksum,
+        checksum: conflict.localChecksum,
         artifactId: artifactInfo.id,
       },
     };

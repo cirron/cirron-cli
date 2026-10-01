@@ -138,8 +138,12 @@ describe("listCommand", () => {
       ["registry", "getRegistryArtifacts"],
     ])("%s exits with code 3 when platform is unreachable", async (resource, methodName) => {
       vi.spyOn(
-        CirronApi.prototype,
-        methodName as keyof CirronApi
+        // A dynamic method name over the whole class is too wide a union for spyOn to infer.
+        CirronApi.prototype as unknown as Record<
+          string,
+          () => Promise<unknown>
+        >,
+        methodName
       ).mockRejectedValue(new PlatformUnavailableError("offline"));
 
       await listCommand(resource, {});

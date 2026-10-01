@@ -33,6 +33,17 @@ describe("getNestedValue", () => {
   });
 });
 
+describe("getNestedValue on prototype paths", () => {
+  it.each([
+    "__proto__",
+    "constructor",
+    "a.constructor",
+    "toString",
+  ])("returns undefined for %s rather than an inherited value", (keyPath) => {
+    expect(getNestedValue({ a: {} }, keyPath)).toBeUndefined();
+  });
+});
+
 describe("setNestedValue", () => {
   it("sets a top-level key", () => {
     const obj: Record<string, unknown> = {};
@@ -52,31 +63,53 @@ describe("setNestedValue", () => {
     expect(obj).toEqual({ a: { b: 99, keep: 2 } });
   });
 
-  it("PINS CURRENT BEHAVIOR: a __proto__ path is not guarded", () => {
-    // Intermediate creation uses an unguarded `key in current` check, so a
-    // path through __proto__ reaches the prototype rather than being
-    // rejected. This test documents today's behavior so a future hardening
-    // change is deliberate and visible, not an accidental side effect.
-    //
-    // The mutation is global to the Vitest worker, so cleanup runs in a
-    // `finally`: without it, a failing assertion would leave the prototype
-    // polluted and break unrelated tests that happen to run afterwards. The
-    // property name is deliberately obscure for the same reason.
+  it("rejects a __proto__ path and leaves Object.prototype untouched", () => {
+    // This inverts the test that pinned the unguarded behavior. The cleanup
+    // stays in a `finally`: if the guard ever regresses, the pollution is
+    // global to the Vitest worker and would break unrelated tests.
     const marker = "__cirronNestedProtoPin__";
     const obj: Record<string, unknown> = {};
 
     try {
-      setNestedValue(obj, `__proto__.${marker}`, "yes");
-
-      // The write lands on the object's prototype, not as an own key.
+      expect(() => setNestedValue(obj, `__proto__.${marker}`, "yes")).toThrow(
+        /"__proto__" is not allowed/
+      );
       expect(Object.hasOwn(obj, marker)).toBe(false);
-      // And it is therefore visible from an unrelated object.
-      expect(({} as Record<string, unknown>)[marker]).toBe("yes");
+      expect(({} as Record<string, unknown>)[marker]).toBeUndefined();
     } finally {
       delete (Object.prototype as Record<string, unknown>)[marker];
     }
+  });
 
-    expect(({} as Record<string, unknown>)[marker]).toBeUndefined();
+  it.each([
+    "constructor.prototype.polluted",
+    "a.constructor.x",
+    "a.prototype",
+  ])("rejects the path %s", (keyPath) => {
+    const obj: Record<string, unknown> = { a: {} };
+    try {
+      expect(() => setNestedValue(obj, keyPath, "yes")).toThrow(
+        /is not allowed/
+      );
+      expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+    } finally {
+      delete (Object.prototype as Record<string, unknown>)["polluted"];
+    }
+  });
+
+  it("throws a clear error when an intermediate value is a primitive", () => {
+    const obj = { a: 1 };
+    expect(() => setNestedValue(obj, "a.b", 2)).toThrow(
+      'Cannot set "a.b": "a" is not an object'
+    );
+    expect(obj).toEqual({ a: 1 });
+  });
+
+  it("treats a null intermediate as not an object", () => {
+    const obj = { a: { b: null } };
+    expect(() => setNestedValue(obj, "a.b.c", 1)).toThrow(
+      /"a.b" is not an object/
+    );
   });
 });
 
@@ -105,5 +138,19 @@ describe("deleteNestedValue", () => {
     const obj = { a: { b: undefined } };
     expect(deleteNestedValue(obj, "a.b")).toBe(true);
     expect(Object.hasOwn(obj.a, "b")).toBe(false);
+  });
+});
+
+describe("deleteNestedValue on prototype paths", () => {
+  it.each([
+    "__proto__",
+    "constructor",
+    "a.__proto__.x",
+    "toString",
+  ])("reports false for %s and deletes nothing", (keyPath) => {
+    const obj = { a: { x: 1 } };
+    expect(deleteNestedValue(obj, keyPath)).toBe(false);
+    expect(obj).toEqual({ a: { x: 1 } });
+    expect(typeof Object.prototype.toString).toBe("function");
   });
 });

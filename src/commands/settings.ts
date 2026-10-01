@@ -2,6 +2,7 @@ import path from "node:path";
 import chalk from "chalk";
 import inquirer from "inquirer";
 import type { SettingsOptions } from "../types";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import {
   deleteNestedValue,
@@ -41,7 +42,7 @@ export async function settingsCommand(options: SettingsOptions): Promise<void> {
       await interactiveSettings(scope, options);
     }
   } catch (error) {
-    logger.error("Settings command failed:", error);
+    reportCommandError(error, "Settings command failed");
     process.exit(1);
   }
 }
@@ -171,7 +172,7 @@ async function getSetting(
       logger.info(`${chalk.cyan(key)}: ${displayValue}`);
     }
   } catch (error) {
-    logger.error(`Failed to get setting '${key}':`, error);
+    reportCommandError(error, `Failed to get setting '${key}'`);
   }
 }
 
@@ -206,7 +207,7 @@ async function setSetting(
       `${chalk.green("✓")} Set ${chalk.cyan(key)} = ${chalk.yellow(value)} (${scope})`
     );
   } catch (error) {
-    logger.error(`Failed to set setting '${key}':`, error);
+    reportCommandError(error, `Failed to set setting '${key}'`);
   }
 }
 
@@ -238,7 +239,7 @@ async function deleteSetting(
       }
     }
   } catch (error) {
-    logger.error(`Failed to delete setting '${key}':`, error);
+    reportCommandError(error, `Failed to delete setting '${key}'`);
   }
 }
 
@@ -692,7 +693,7 @@ async function exportSettings(
       `${chalk.green("✓")} Settings exported to ${chalk.cyan(filePath)}`
     );
   } catch (error) {
-    logger.error(`Failed to export settings: ${error}`);
+    logger.error(`Failed to export settings: ${errorMessage(error)}`);
   }
 }
 
@@ -707,7 +708,7 @@ async function importSettings(
       `${chalk.green("✓")} Settings imported from ${chalk.cyan(filePath)}`
     );
   } catch (error) {
-    logger.error(`Failed to import settings: ${error}`);
+    logger.error(`Failed to import settings: ${errorMessage(error)}`);
   }
 }
 
@@ -748,7 +749,7 @@ async function applyTemplate(
       logger.info("Template application cancelled");
     }
   } catch (error) {
-    logger.error(`Failed to apply template: ${error}`);
+    logger.error(`Failed to apply template: ${errorMessage(error)}`);
   }
 }
 
@@ -788,7 +789,7 @@ async function explainSetting(
 
     console.log();
   } catch (error) {
-    logger.error(`Failed to explain setting '${key}': ${error}`);
+    logger.error(`Failed to explain setting '${key}': ${errorMessage(error)}`);
   }
 }
 
@@ -821,7 +822,7 @@ async function resetSettings(
       logger.info(`${chalk.green("✓")} Project settings reset to defaults`);
     }
   } catch (error) {
-    logger.error(`Failed to reset settings: ${error}`);
+    logger.error(`Failed to reset settings: ${errorMessage(error)}`);
   }
 }
 

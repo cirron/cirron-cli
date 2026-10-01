@@ -22,6 +22,7 @@ import type {
   SettingsTemplate,
 } from "../types";
 import { ConfigManager } from "./config";
+import { errorMessage } from "./errors";
 import { schemaValidator } from "./schema";
 
 export class SettingsManager {
@@ -86,7 +87,7 @@ export class SettingsManager {
         JSON.stringify(result.data, null, 2)
       );
     } catch (error) {
-      throw new Error(`Failed to save global settings: ${error}`);
+      throw new Error(`Failed to save global settings: ${errorMessage(error)}`);
     }
   }
 
@@ -165,7 +166,9 @@ export class SettingsManager {
         throw new Error("Project configuration not found");
       }
     } catch (error) {
-      throw new Error(`Could not load project configuration: ${error}`);
+      throw new Error(
+        `Could not load project configuration: ${errorMessage(error)}`
+      );
     }
 
     config.settings = result.data!;

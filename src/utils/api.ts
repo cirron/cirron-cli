@@ -49,8 +49,8 @@ import { USER_AGENT } from "./version";
  * Platform deployment status -> the CLI's lowercase union.
  *
  * `GET /api/cli/deployments/{id}` returns an already-lowercased status, while
- * the list and create endpoints return the raw stored value. This map
- * normalizes both onto a single union.
+ * the list and create endpoints return the raw stored value. Lookups uppercase
+ * the status first, so both forms land on the same union.
  */
 const DEPLOYMENT_STATUS_MAP: Record<string, DeploymentInfo["status"]> = {
   ACTIVE: "success",
@@ -382,7 +382,7 @@ export class CirronApi {
     return {
       ...deployment,
       status:
-        DEPLOYMENT_STATUS_MAP[deployment.status] ??
+        DEPLOYMENT_STATUS_MAP[deployment.status.toUpperCase()] ??
         deployment.status.toLowerCase(),
     };
   }
@@ -950,7 +950,7 @@ export class CirronApi {
    * `initMultipartUpload` instead.
    *
    * @param options - `filename`, `size` and `checksum` are required; `resource`,
-   * `name`, `tag`, `registry` and `platform` route the artifact.
+   * `name`, `tag` and `platform` route the artifact.
    * @returns The upload URL and the session id that `confirmUpload` resolves.
    */
   async getUploadUrl(options: {
@@ -960,7 +960,6 @@ export class CirronApi {
     resource?: string;
     name?: string;
     tag?: string;
-    registry?: string;
     platform?: string;
   }): Promise<PushUploadUrl> {
     const body: Record<string, string | number> = {
@@ -976,9 +975,6 @@ export class CirronApi {
     }
     if (options.tag) {
       body["tag"] = options.tag;
-    }
-    if (options.registry) {
-      body["registry"] = options.registry;
     }
     if (options.platform) {
       body["platform"] = options.platform;
@@ -1751,11 +1747,11 @@ export class CirronApi {
           const retryAfterSeconds = Number.isNaN(parsedRetryAfter)
             ? undefined
             : parsedRetryAfter;
-          throw classifyHttpError(
-            response.status,
-            errorMessage,
-            retryAfterSeconds
-          );
+          const permission = (errorData as any)?.permission;
+          throw classifyHttpError(response.status, errorMessage, {
+            retryAfterSeconds,
+            permission: typeof permission === "string" ? permission : undefined,
+          });
         }
 
         const data = await response.json();
@@ -1766,8 +1762,8 @@ export class CirronApi {
           error instanceof PlatformError ? error : classifyFetchError(error);
         lastError = classified as Error;
 
-        // 4xx means the request is wrong, so retrying cannot help. 429 goes
-        // to the caller, which knows whether to honor Retry-After.
+        // 4xx (403 included) means the request is wrong, so retrying cannot
+        // help. 429 goes to the caller, which knows whether to honor Retry-After.
         if (
           classified instanceof NotAuthenticatedError ||
           classified instanceof PlatformBadRequestError ||

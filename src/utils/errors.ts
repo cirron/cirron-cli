@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { handlePlatformError } from "./api-errors";
 import { logger } from "./logger";
 
 /**
@@ -214,7 +215,8 @@ export class CLIError extends Error {
   format(verbose = false): string {
     const parts: string[] = [];
 
-    parts.push(chalk.red(`Error ${this.code}: ${this.message}`));
+    // The logger already prefixes "Error:" or "Warning:", so lead with the message.
+    parts.push(chalk.red(`${this.message} (code ${this.code})`));
 
     if (this.suggestions && this.suggestions.length > 0) {
       parts.push("");
@@ -286,6 +288,36 @@ export function handleCLIError(
   } else {
     logger.error("Unknown error:", String(error));
     process.exit(CLIErrorCode.UNKNOWN_ERROR);
+  }
+}
+
+/**
+ * The printable text of a thrown value: an Error's `message`, or `String()` of
+ * anything else. Never includes a stack, so it is safe for end-user output.
+ *
+ * @param error - The caught value.
+ */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Print a command failure as one clean line.
+ *
+ * A PlatformError goes through `handlePlatformError`, which prints its user
+ * message and exits with its own code. Anything else prints as
+ * `context: message` and control returns, so the caller still decides the
+ * exit code. The stack is shown only in verbose mode.
+ *
+ * @param error - The caught value.
+ * @param context - Optional lead-in naming what failed, without a trailing colon.
+ */
+export function reportCommandError(error: unknown, context?: string): void {
+  handlePlatformError(error);
+  const message = errorMessage(error);
+  logger.error(context ? `${context}: ${message}` : message);
+  if (error instanceof Error && error.stack) {
+    logger.debug(error.stack);
   }
 }
 

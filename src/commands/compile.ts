@@ -47,7 +47,13 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
         chalk.red("No cirron config found (cirron.yaml or cirron.json)")
       );
       if (strictMode) {
-        handleCLIError(new Error("Project configuration not found"), true);
+        handleCLIError(
+          new CLIError({
+            code: CLIErrorCode.PROJECT_NOT_FOUND,
+            message: "Project configuration not found",
+          }),
+          true
+        );
       }
       logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
       process.exit(CLIErrorCode.PROJECT_NOT_FOUND);

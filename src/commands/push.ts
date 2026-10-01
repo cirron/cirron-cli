@@ -68,7 +68,6 @@ interface UploadOpts {
   message?: string;
   name?: string;
   platform?: string;
-  registry?: string;
   resource?: string;
   tag?: string;
 }
@@ -87,7 +86,6 @@ function buildUploadOpts(values: {
   message?: string | undefined;
   name?: string | undefined;
   platform?: string | undefined;
-  registry?: string | undefined;
   resource?: string | undefined;
   tag?: string | undefined;
 }): UploadOpts {
@@ -103,9 +101,6 @@ function buildUploadOpts(values: {
   }
   if (values.message) {
     opts.message = values.message;
-  }
-  if (values.registry) {
-    opts.registry = values.registry;
   }
   if (values.force) {
     opts.force = values.force;
@@ -240,7 +235,7 @@ async function resolveResourceFile(
  *
  * @param api - Authenticated platform client.
  * @param fileInfo - Path, size and checksum of the artifact.
- * @param options - Registry placement (`resource`, `name`, `tag`, `registry`,
+ * @param options - Registry placement (`resource`, `name`, `tag`,
  * `platform`), commit metadata (`message`, `gitHash`), and `force` to upload
  * even when the content already exists.
  * @param spinner - Progress spinner, updated in place.
@@ -254,7 +249,6 @@ export async function uploadSingleFile(
     name?: string;
     tag?: string;
     message?: string;
-    registry?: string;
     force?: boolean;
     gitHash?: string;
     platform?: string;
@@ -326,7 +320,6 @@ export async function uploadSingleFile(
       resource?: string;
       name?: string;
       tag?: string;
-      registry?: string;
       platform?: string;
     } = {
       filename: path.basename(fileInfo.filePath),
@@ -341,9 +334,6 @@ export async function uploadSingleFile(
     }
     if (options.tag) {
       uploadUrlOpts.tag = options.tag;
-    }
-    if (options.registry) {
-      uploadUrlOpts.registry = options.registry;
     }
     if (options.platform) {
       uploadUrlOpts.platform = options.platform;
@@ -646,7 +636,6 @@ export async function pushArtifact(
     name?: string;
     tag?: string;
     message?: string;
-    registry?: string;
     force?: boolean;
     json?: boolean;
     platform?: string;
@@ -669,7 +658,6 @@ export async function pushArtifact(
       name: options.name,
       tag: options.tag,
       message: options.message,
-      registry: options.registry,
       force: options.force,
       gitHash,
       platform: resolvePlatformHint(options.platform),
@@ -749,7 +737,6 @@ async function pushResourceTyped(
       name: resolvedName,
       tag: resolvedTag,
       message: options.message,
-      registry: options.registry,
       force: options.force,
       gitHash,
       platform: resolvePlatformHint(options.platform),
@@ -827,7 +814,6 @@ async function pushPathBased(
       const uploadOpts = buildUploadOpts({
         tag: resolvedTag,
         message: options.message,
-        registry: options.registry,
         force: options.force,
         gitHash,
         platform: resolvePlatformHint(options.platform),
@@ -856,7 +842,6 @@ async function pushPathBased(
       const multiOpts: {
         tag?: string;
         message?: string;
-        registry?: string;
         force?: boolean;
         json?: boolean;
         gitHash?: string;
@@ -867,9 +852,6 @@ async function pushPathBased(
       }
       if (options.message) {
         multiOpts.message = options.message;
-      }
-      if (options.registry) {
-        multiOpts.registry = options.registry;
       }
       if (options.force) {
         multiOpts.force = options.force;
@@ -951,7 +933,6 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     const allOpts: {
       tag?: string;
       message?: string;
-      registry?: string;
       force?: boolean;
       json?: boolean;
       gitHash?: string;
@@ -965,9 +946,6 @@ async function pushAll(api: CirronApi, options: PushOptions): Promise<void> {
     }
     if (options.message) {
       allOpts.message = options.message;
-    }
-    if (options.registry) {
-      allOpts.registry = options.registry;
     }
     if (options.force) {
       allOpts.force = options.force;
@@ -1004,7 +982,6 @@ async function pushMultipleFiles(
   options: {
     tag?: string;
     message?: string;
-    registry?: string;
     force?: boolean;
     json?: boolean;
     gitHash?: string;
@@ -1027,7 +1004,6 @@ async function pushMultipleFiles(
       const uploadOpts = buildUploadOpts({
         tag: options.tag,
         message: options.message,
-        registry: options.registry,
         force: options.force,
         gitHash: options.gitHash,
         platform: options.platform,

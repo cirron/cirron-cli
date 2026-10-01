@@ -251,15 +251,18 @@ describe("run commands", () => {
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/No runs found/);
     });
 
-    it("logs error on getRuns failure (no exit)", async () => {
+    it("prints a getRuns failure as one line and exits 1", async () => {
       createAuthenticatedSession(tmp.dir);
       vi.spyOn(CirronApi.prototype, "getRuns").mockRejectedValue(
         new Error("api down")
       );
 
-      await runListCommand({});
-      expect(errorSpy.mock.calls.flat().join(" ")).toMatch(/api down/);
-      expect(exitStub.spy).not.toHaveBeenCalled();
+      const caught = await runListCommand({}).catch((e: unknown) => e);
+      const stderr = errorSpy.mock.calls.flat().map(String).join(" ");
+      expect(stderr).toMatch(/api down/);
+      expect(stderr).not.toMatch(/Error: Error/);
+      expect(stderr).not.toMatch(/\n\s+at /);
+      expect(exitCodeFromError(caught)).toBe(1);
     });
   });
 

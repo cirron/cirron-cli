@@ -2,6 +2,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import ora from "ora";
 import type { HardwareConfig, HardwareOptions } from "../types";
+import { reportCommandError } from "../utils/errors";
 import { HardwareDetector } from "../utils/hardware";
 import { logger } from "../utils/logger";
 import {
@@ -24,7 +25,7 @@ export async function hardwareCommand(options: HardwareOptions): Promise<void> {
       await interactiveCommand(options);
     }
   } catch (error) {
-    logger.error("Hardware command failed:", error);
+    reportCommandError(error, "Hardware command failed");
     process.exit(1);
   }
 }
@@ -169,7 +170,7 @@ async function detectCommand(options: HardwareOptions): Promise<void> {
     if (options.save) {
       const configPath = await HardwareDetector.saveHardwareConfig(
         hardwareConfig,
-        options.save
+        typeof options.save === "string" ? options.save : undefined
       );
       logger.info(
         `\n${chalk.green("✓")} Hardware profile saved to ${chalk.cyan(configPath)}`
@@ -221,9 +222,9 @@ async function configCommand(options: HardwareOptions): Promise<void> {
         `${chalk.green("✓")} Hardware configuration loaded from ${chalk.cyan(options.from)}`
       );
     } catch (error) {
-      logger.error(
-        `Failed to load hardware configuration from ${options.from}:`,
-        error
+      reportCommandError(
+        error,
+        `Failed to load hardware configuration from ${options.from}`
       );
       process.exit(1);
     }
@@ -524,7 +525,7 @@ async function loadExistingConfig(): Promise<void> {
     logger.info(`${chalk.green("✓")} Hardware configuration loaded`);
     displayConfigSummary(config);
   } catch (error) {
-    logger.error("Failed to load hardware configuration:", error);
+    reportCommandError(error, "Failed to load hardware configuration");
   }
 }
 
@@ -584,6 +585,9 @@ async function applyToProject(hardwareConfig: HardwareConfig): Promise<void> {
       `${chalk.green("✓")} Hardware configuration applied to project`
     );
   } catch (error) {
-    logger.error("Failed to apply hardware configuration to project:", error);
+    reportCommandError(
+      error,
+      "Failed to apply hardware configuration to project"
+    );
   }
 }

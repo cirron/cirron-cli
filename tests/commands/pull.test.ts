@@ -148,9 +148,9 @@ describe("pullCommand", () => {
     // The full JSON output is passed as a single console.log argument
     const jsonArg = infoSpy.mock.calls
       .flat()
-      .find((s) => typeof s === "string" && s.trim().startsWith("[")) as
-      | string
-      | undefined;
+      .find(
+        (s: unknown) => typeof s === "string" && s.trim().startsWith("[")
+      ) as string | undefined;
     expect(jsonArg).toBeTruthy();
     const parsed = JSON.parse(jsonArg ?? "[]");
     expect(parsed).toHaveLength(1);
@@ -301,9 +301,9 @@ describe("pullCommand", () => {
 
     const jsonLine = infoSpy.mock.calls
       .flat()
-      .find((s) => typeof s === "string" && s.includes('"verified"')) as
-      | string
-      | undefined;
+      .find(
+        (s: unknown) => typeof s === "string" && s.includes('"verified"')
+      ) as string | undefined;
     expect(jsonLine).toBeTruthy();
     expect(JSON.parse(jsonLine ?? "{}").verified).toBe(true);
   });

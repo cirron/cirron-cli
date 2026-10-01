@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import type { CirronConfig } from "../types";
+import { errorMessage } from "./errors";
 
 export class ConfigManager {
   private readonly configPath: string;
@@ -43,7 +44,7 @@ export class ConfigManager {
       fs.ensureDirSync(configDir);
       fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
     } catch (error) {
-      throw new Error(`Failed to save config: ${error}`);
+      throw new Error(`Failed to save config: ${errorMessage(error)}`);
     }
   }
 
@@ -53,7 +54,7 @@ export class ConfigManager {
         fs.removeSync(this.configPath);
       }
     } catch (error) {
-      throw new Error(`Failed to reset config: ${error}`);
+      throw new Error(`Failed to reset config: ${errorMessage(error)}`);
     }
   }
 
