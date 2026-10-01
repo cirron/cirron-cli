@@ -156,7 +156,7 @@ export function classifyFetchError(error: unknown): PlatformError | unknown {
 
   // `Error.cause` isn't in the ES2020 lib this project targets, so read it
   // through a cast the same way PlatformError writes it.
-  const cause = (error as { cause?: unknown }).cause;
+  const { cause } = error as { cause?: unknown };
   const code =
     (error as NodeJS.ErrnoException).code ??
     (cause as NodeJS.ErrnoException | undefined)?.code;

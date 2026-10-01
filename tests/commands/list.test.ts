@@ -136,21 +136,24 @@ describe("listCommand", () => {
       ["models", "getModelInstances"],
       ["images", "getModelImages"],
       ["registry", "getRegistryArtifacts"],
-    ])("%s exits with code 3 when platform is unreachable", async (resource, methodName) => {
-      vi.spyOn(
-        // A dynamic method name over the whole class is too wide a union for spyOn to infer.
-        CirronApi.prototype as unknown as Record<
-          string,
-          () => Promise<unknown>
-        >,
-        methodName
-      ).mockRejectedValue(new PlatformUnavailableError("offline"));
+    ])(
+      "%s exits with code 3 when platform is unreachable",
+      async (resource, methodName) => {
+        vi.spyOn(
+          // A dynamic method name over the whole class is too wide a union for spyOn to infer.
+          CirronApi.prototype as unknown as Record<
+            string,
+            () => Promise<unknown>
+          >,
+          methodName
+        ).mockRejectedValue(new PlatformUnavailableError("offline"));
 
-      await listCommand(resource, {});
+        await listCommand(resource, {});
 
-      expect(exitSpy).toHaveBeenCalledWith(3);
-      const stderr = errorSpy.mock.calls.flat().join(" ");
-      expect(stderr).toMatch(/private preview/i);
-    });
+        expect(exitSpy).toHaveBeenCalledWith(3);
+        const stderr = errorSpy.mock.calls.flat().join(" ");
+        expect(stderr).toMatch(/private preview/i);
+      }
+    );
   });
 });

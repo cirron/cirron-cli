@@ -237,17 +237,18 @@ async function pollForAuthorization(
         }
 
         if (error.message === "access_denied") {
-          throw new Error("Authorization was denied.");
+          throw new Error("Authorization was denied.", { cause: error });
         }
 
         // expired_token, or invalid_request once the server has dropped the
         // record (which is also what a denial looks like from here).
         throw new Error(
-          "Authorization expired. Run cirron auth login to start again."
+          "Authorization expired. Run cirron auth login to start again.",
+          { cause: error }
         );
       }
 
-      consecutiveTransportErrors++;
+      consecutiveTransportErrors += 1;
       if (consecutiveTransportErrors > MAX_CONSECUTIVE_TRANSPORT_ERRORS) {
         throw error;
       }

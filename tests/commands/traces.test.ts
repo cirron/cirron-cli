@@ -532,8 +532,6 @@ describe("traces commands", () => {
     });
 
     it("--export copies blobs to a directory", async () => {
-      const fs = await import("fs-extra");
-      const path = await import("node:path");
       // Lay down a real blob so fs.copy succeeds.
       const spanDir = path.join(tmp.dir, ".cirron", "snapshots", "span-child");
       fs.ensureDirSync(spanDir);
@@ -569,8 +567,6 @@ describe("traces commands", () => {
     });
 
     it("targeted tensor --export writes a single-tensor file", async () => {
-      const fs = await import("fs-extra");
-      const path = await import("node:path");
       const spanDir = path.join(tmp.dir, ".cirron", "snapshots", "span-child");
       fs.ensureDirSync(spanDir);
       fs.writeFileSync(path.join(spanDir, "weights.safetensors"), "blob");

@@ -22,3 +22,7 @@ updates:
     open-pull-requests-limit: 10
     schedule:
       interval: "monthly"
+    ignore:
+      # 1.9.3 was published without its dist/ build, so the package can't be loaded
+      - dependency-name: "@dsnp/parquetjs"
+        versions: ["1.9.3"]

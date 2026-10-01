@@ -487,10 +487,5 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
 }
 
 function isValidUrl(string: string): boolean {
-  try {
-    new URL(string);
-    return true;
-  } catch {
-    return false;
-  }
+  return URL.canParse(string);
 }

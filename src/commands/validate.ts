@@ -158,7 +158,7 @@ async function runMonorepoMode(
   if (options.model && options.model.length > 0) {
     const filtered = filterModels(resolved, options.model);
     models = filtered.matched;
-    unmatched = filtered.unmatched;
+    ({ unmatched } = filtered);
   }
 
   const reports = models.map(reportFor);

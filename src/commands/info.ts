@@ -373,7 +373,7 @@ function extractModelInfo(
   if (modelAnalysis) {
     // Extract model class name
     if (modelAnalysis.modelClassNames.length > 0) {
-      const className = modelAnalysis.modelClassNames[0];
+      const [className] = modelAnalysis.modelClassNames;
       if (className) {
         info.modelClassName = className; // Use the first model class found
       }
@@ -888,11 +888,11 @@ function detectMetadataMismatches(
   }
 
   const mismatches: MetadataMismatch[] = [];
-  const metadata = projectConfig.metadata;
+  const { metadata } = projectConfig;
 
   // Check model class name mismatch
   if (modelAnalysis.modelClassNames.length > 0) {
-    const detectedClassName = modelAnalysis.modelClassNames[0];
+    const [detectedClassName] = modelAnalysis.modelClassNames;
     const storedClassName = metadata.modelClassName;
 
     if (

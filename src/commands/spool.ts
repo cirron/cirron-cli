@@ -141,7 +141,7 @@ async function flushBatch(
   const url = new URL(INGEST_PATH, webOriginFor(apiUrl)).toString();
   const maxAttempts = 3;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response | null = null;
@@ -276,7 +276,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   ).start();
   const result: FlushResult = { uploaded: 0, failed: 0, skipped: 0 };
 
-  for (let i = 0; i < files.length; i++) {
+  for (let i = 0; i < files.length; i += 1) {
     const file = files[i]!;
     spinner.text = `Flushing ${i + 1}/${files.length}: ${file.name}`;
     const outcome = await flushBatch(
@@ -288,15 +288,15 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
     if (outcome === "ok") {
       try {
         await fs.unlink(file.fullPath);
-        result.uploaded++;
+        result.uploaded += 1;
       } catch (error) {
-        result.failed++;
+        result.failed += 1;
         logger.error(
           `Uploaded ${file.name} but failed to delete local spool file ${file.fullPath}: ${(error as Error).message}. It may be re-uploaded on next flush.`
         );
       }
     } else if (outcome === "fatal") {
-      result.failed++;
+      result.failed += 1;
       result.skipped = files.length - i - 1;
       spinner.stop();
       logger.warn(
@@ -304,7 +304,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
       );
       break;
     } else {
-      result.failed++;
+      result.failed += 1;
     }
   }
 
@@ -347,7 +347,7 @@ export async function spoolClearCommand(options: SpoolOptions): Promise<void> {
   for (const file of files) {
     try {
       await fs.unlink(file.fullPath);
-      deleted++;
+      deleted += 1;
     } catch (error) {
       logger.error(
         `Failed to delete ${file.name}: ${(error as Error).message}`

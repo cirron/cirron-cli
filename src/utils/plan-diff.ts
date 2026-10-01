@@ -405,7 +405,7 @@ export class PlanDiffAnalyzer {
     for (const diff of differences) {
       categoryCounts[diff.category] = (categoryCounts[diff.category] || 0) + 1;
       if (diff.impact === "high") {
-        highImpactChanges++;
+        highImpactChanges += 1;
       }
     }
 

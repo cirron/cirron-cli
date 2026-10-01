@@ -337,9 +337,7 @@ function validateConfig(config: CirronConfig): DiagnosticResult {
   const issues: string[] = [];
 
   // Validate API URL
-  try {
-    new URL(config.apiUrl);
-  } catch {
+  if (!URL.canParse(config.apiUrl)) {
     issues.push("Invalid API URL format");
   }
 

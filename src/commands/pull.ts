@@ -469,7 +469,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
         );
         if (!shouldProceed) {
           itemSpinner.info(`Skipped ${artifact.name} (file exists)`);
-          skipCount++;
+          skipCount += 1;
           results.push({
             artifact,
             outputPath: destPath,
@@ -484,7 +484,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
         itemSpinner.succeed(
           `Pulled ${chalk.cyan(artifact.name)} -> ${destPath}`
         );
-        successCount++;
+        successCount += 1;
         results.push({
           artifact,
           outputPath: destPath,
@@ -494,7 +494,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to pull ${artifact.name}: ${msg}`);
-        failCount++;
+        failCount += 1;
         results.push({
           artifact,
           outputPath: path.join(outputDir, artifact.filename),

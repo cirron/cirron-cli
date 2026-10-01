@@ -517,14 +517,8 @@ async function editAPISettings(settings: any): Promise<void> {
       name: "url",
       message: "API URL:",
       default: settings.api.url,
-      validate: (input: string) => {
-        try {
-          new URL(input);
-          return true;
-        } catch {
-          return "Please enter a valid URL";
-        }
-      },
+      validate: (input: string) =>
+        URL.canParse(input) || "Please enter a valid URL",
     },
     {
       type: "input",

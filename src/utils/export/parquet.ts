@@ -28,12 +28,12 @@ interface ParquetSchemaCtor {
   new (schema: Record<string, unknown>): unknown;
 }
 interface ParquetWriterStatic {
-  openFile(
+  openFile: (
     schema: unknown,
     path: string
-  ): Promise<{
-    appendRow(row: Record<string, unknown>): Promise<void>;
-    close(): Promise<void>;
+  ) => Promise<{
+    appendRow: (row: Record<string, unknown>) => Promise<void>;
+    close: () => Promise<void>;
   }>;
 }
 interface ParquetModule {
@@ -48,7 +48,8 @@ async function loadParquet(): Promise<ParquetModule> {
     return mod;
   } catch (err) {
     throw new Error(
-      `Parquet export requires @dsnp/parquetjs. Reinstall the CLI or run: npm install @dsnp/parquetjs. Underlying error: ${(err as Error).message}`
+      `Parquet export requires @dsnp/parquetjs. Reinstall the CLI or run: npm install @dsnp/parquetjs. Underlying error: ${(err as Error).message}`,
+      { cause: err }
     );
   }
 }
@@ -214,7 +215,7 @@ export async function exportParquet(
         }
         seenSpans.add(span.id);
         await spanWriter.appendRow(spanRow(span, session.id));
-        counts.spans++;
+        counts.spans += 1;
       }
       for (const mark of session.marks) {
         if (seenMarks.has(mark.id)) {
@@ -222,7 +223,7 @@ export async function exportParquet(
         }
         seenMarks.add(mark.id);
         await markWriter.appendRow(markRow(mark, session.id));
-        counts.marks++;
+        counts.marks += 1;
       }
       for (const snap of session.snapshots) {
         if (seenSnapshots.has(snap.id)) {
@@ -230,7 +231,7 @@ export async function exportParquet(
         }
         seenSnapshots.add(snap.id);
         await snapshotWriter.appendRow(snapshotRow(snap, session.id));
-        counts.snapshots++;
+        counts.snapshots += 1;
       }
     }
   } finally {

@@ -52,7 +52,7 @@ function parseConfigFile(configPath: string, filename: string): unknown {
     return isYaml ? loadYaml(raw) : JSON.parse(raw);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to parse ${filename}: ${msg}`);
+    throw new Error(`Failed to parse ${filename}: ${msg}`, { cause: err });
   }
 }
 
@@ -229,7 +229,7 @@ export function discoverModels(
   workspace: WorkspaceConfig,
   rootDir: string
 ): { resolved: DiscoveredModel[]; missing: string[] } {
-  const defaults = workspace.workspace.defaults;
+  const { defaults } = workspace.workspace;
   const resolved: DiscoveredModel[] = [];
   const missing: string[] = [];
   const seen = new Set<string>();

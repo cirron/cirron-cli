@@ -896,7 +896,7 @@ export class CirronApi {
           throw error;
         }
 
-        attempt++;
+        attempt += 1;
         if (attempt <= this.config.retries) {
           const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -1301,7 +1301,7 @@ export class CirronApi {
           throw error;
         }
 
-        attempt++;
+        attempt += 1;
         if (attempt <= this.config.retries) {
           const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -1417,7 +1417,7 @@ export class CirronApi {
           throw error;
         }
 
-        attempt++;
+        attempt += 1;
         if (attempt <= this.config.retries) {
           const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -1597,13 +1597,13 @@ export class CirronApi {
         const configManager = new ConfigManager();
         const currentConfig = configManager.load();
 
-        const expiresAt = new Date(
+        const newExpiresAt = new Date(
           Date.now() + newTokens.expires_in * 1000
         ).toISOString();
         currentConfig.auth = {
           accessToken: newTokens.access_token,
           refreshToken: newTokens.refresh_token,
-          expiresAt,
+          expiresAt: newExpiresAt,
         };
 
         configManager.save(currentConfig);
@@ -1665,7 +1665,10 @@ export class CirronApi {
         };
         configManager.save(currentConfig);
         this.config = currentConfig;
-      } catch {
+      } catch (refreshError) {
+        if (error instanceof Error && error.cause === undefined) {
+          error.cause = refreshError;
+        }
         throw error;
       }
 
@@ -1705,7 +1708,7 @@ export class CirronApi {
     let body: any;
     if (options.body) {
       if (options.isFormData) {
-        body = options.body;
+        ({ body } = options);
         // Let form-data set the content-type
       } else {
         headers["Content-Type"] = "application/json";
@@ -1777,7 +1780,7 @@ export class CirronApi {
           throw classified;
         }
 
-        attempt++;
+        attempt += 1;
       } finally {
         clearTimeout(timeoutId);
       }

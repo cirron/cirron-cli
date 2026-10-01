@@ -93,7 +93,7 @@ export function humanBytes(n: number): string {
   let i = 0;
   while (v >= 1024 && i < units.length - 1) {
     v /= 1024;
-    i++;
+    i += 1;
   }
   return `${v.toFixed(2)} ${units[i]}`;
 }

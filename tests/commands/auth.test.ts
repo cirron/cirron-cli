@@ -421,7 +421,7 @@ describe("loginCommand (device flow)", () => {
           );
         }
 
-        pollCount++;
+        pollCount += 1;
         fakeNow += pollClockStepMs;
         if (pollError) {
           return Promise.reject(pollError);
@@ -492,7 +492,7 @@ describe("loginCommand (device flow)", () => {
     // The platform allows 10 minutes. The old poll loop tolerated 5 errors
     // and treated every 400 authorization_pending as one, so it gave up after
     // roughly 35 seconds.
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 12; i += 1) {
       pollQueue.push(errorResponse(400, { error: "authorization_pending" }));
     }
     pollQueue.push(

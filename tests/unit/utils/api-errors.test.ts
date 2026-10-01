@@ -141,13 +141,14 @@ describe("classifyHttpError", () => {
     );
   });
 
-  it.each([
-    400, 404, 409, 422,
-  ])("maps client error HTTP %s to PlatformBadRequestError", (status) => {
-    const err = classifyHttpError(status, "bad request");
-    expect(err).toBeInstanceOf(PlatformBadRequestError);
-    expect((err as PlatformBadRequestError).status).toBe(status);
-  });
+  it.each([400, 404, 409, 422])(
+    "maps client error HTTP %s to PlatformBadRequestError",
+    (status) => {
+      const err = classifyHttpError(status, "bad request");
+      expect(err).toBeInstanceOf(PlatformBadRequestError);
+      expect((err as PlatformBadRequestError).status).toBe(status);
+    }
+  );
 
   it("maps HTTP 429 to PlatformRateLimitError carrying Retry-After", () => {
     const err = classifyHttpError(429, "Rate limit exceeded", {
@@ -164,13 +165,14 @@ describe("classifyHttpError", () => {
     expect((err as PlatformRateLimitError).retryAfterSeconds).toBeUndefined();
   });
 
-  it.each([
-    500, 502, 503, 504,
-  ])("maps server error HTTP %s to PlatformServerError", (status) => {
-    const err = classifyHttpError(status, "boom");
-    expect(err).toBeInstanceOf(PlatformServerError);
-    expect((err as PlatformServerError).status).toBe(status);
-  });
+  it.each([500, 502, 503, 504])(
+    "maps server error HTTP %s to PlatformServerError",
+    (status) => {
+      const err = classifyHttpError(status, "boom");
+      expect(err).toBeInstanceOf(PlatformServerError);
+      expect((err as PlatformServerError).status).toBe(status);
+    }
+  );
 });
 
 describe("handlePlatformError", () => {

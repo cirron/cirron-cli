@@ -315,7 +315,7 @@ export async function tracesExportCommand(
   }
 
   const format = options.format.toLowerCase();
-  const output = options.output;
+  const { output } = options;
 
   try {
     if (format === "parquet") {
@@ -399,7 +399,7 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
     }
     for (const id of s.spans.keys()) {
       spanIds.add(id);
-      spanCount++;
+      spanCount += 1;
     }
     totalBytes += s.totalBytes;
   }
@@ -464,7 +464,7 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
       }
       try {
         await fs.unlink(file);
-        deletedFiles++;
+        deletedFiles += 1;
       } catch (err) {
         logger.error(`Failed to delete ${file}: ${(err as Error).message}`);
       }
@@ -475,7 +475,7 @@ export async function tracesClearCommand(options: ClearOptions): Promise<void> {
       }
       try {
         await fs.remove(dir);
-        deletedDirs++;
+        deletedDirs += 1;
       } catch (err) {
         logger.error(`Failed to delete ${dir}: ${(err as Error).message}`);
       }
@@ -626,10 +626,10 @@ export async function tracesSnapshotsCommand(
         };
         bySpan.set(snap.spanId, row);
       }
-      row.count++;
+      row.count += 1;
       row.modes.add(snap.mode);
       if (snap.blobUri) {
-        row.withBlob++;
+        row.withBlob += 1;
       }
     }
     rows.push(...bySpan.values());
@@ -866,7 +866,7 @@ export async function tracesSnapshotCommand(
     `\n${c.bold("Tensor")}   ${record.tensorName}  ${c.gray(`(${record.dtype}, shape=[${record.shape.join(",")}], mode=${record.mode})`)}`
   );
 
-  const stats = record.stats;
+  const { stats } = record;
   if (stats) {
     const lines = [
       `  mean = ${formatStat(stats["mean"])}`,

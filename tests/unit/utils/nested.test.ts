@@ -34,14 +34,12 @@ describe("getNestedValue", () => {
 });
 
 describe("getNestedValue on prototype paths", () => {
-  it.each([
-    "__proto__",
-    "constructor",
-    "a.constructor",
-    "toString",
-  ])("returns undefined for %s rather than an inherited value", (keyPath) => {
-    expect(getNestedValue({ a: {} }, keyPath)).toBeUndefined();
-  });
+  it.each(["__proto__", "constructor", "a.constructor", "toString"])(
+    "returns undefined for %s rather than an inherited value",
+    (keyPath) => {
+      expect(getNestedValue({ a: {} }, keyPath)).toBeUndefined();
+    }
+  );
 });
 
 describe("setNestedValue", () => {
@@ -81,21 +79,20 @@ describe("setNestedValue", () => {
     }
   });
 
-  it.each([
-    "constructor.prototype.polluted",
-    "a.constructor.x",
-    "a.prototype",
-  ])("rejects the path %s", (keyPath) => {
-    const obj: Record<string, unknown> = { a: {} };
-    try {
-      expect(() => setNestedValue(obj, keyPath, "yes")).toThrow(
-        /is not allowed/
-      );
-      expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
-    } finally {
-      delete (Object.prototype as Record<string, unknown>)["polluted"];
+  it.each(["constructor.prototype.polluted", "a.constructor.x", "a.prototype"])(
+    "rejects the path %s",
+    (keyPath) => {
+      const obj: Record<string, unknown> = { a: {} };
+      try {
+        expect(() => setNestedValue(obj, keyPath, "yes")).toThrow(
+          /is not allowed/
+        );
+        expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+      } finally {
+        delete (Object.prototype as Record<string, unknown>)["polluted"];
+      }
     }
-  });
+  );
 
   it("throws a clear error when an intermediate value is a primitive", () => {
     const obj = { a: 1 };
@@ -142,15 +139,13 @@ describe("deleteNestedValue", () => {
 });
 
 describe("deleteNestedValue on prototype paths", () => {
-  it.each([
-    "__proto__",
-    "constructor",
-    "a.__proto__.x",
-    "toString",
-  ])("reports false for %s and deletes nothing", (keyPath) => {
-    const obj = { a: { x: 1 } };
-    expect(deleteNestedValue(obj, keyPath)).toBe(false);
-    expect(obj).toEqual({ a: { x: 1 } });
-    expect(typeof Object.prototype.toString).toBe("function");
-  });
+  it.each(["__proto__", "constructor", "a.__proto__.x", "toString"])(
+    "reports false for %s and deletes nothing",
+    (keyPath) => {
+      const obj = { a: { x: 1 } };
+      expect(deleteNestedValue(obj, keyPath)).toBe(false);
+      expect(obj).toEqual({ a: { x: 1 } });
+      expect(typeof Object.prototype.toString).toBe("function");
+    }
+  );
 });

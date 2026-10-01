@@ -717,7 +717,7 @@ function renderDepsSections(report: DoctorReport): void {
 
   if (!report.sdk.installed) {
     console.log(chalk.cyan("Core:"));
-    const row = report.deps.rowsBySection.core[0];
+    const [row] = report.deps.rowsBySection.core;
     if (row) {
       renderDepRow(row, 0);
     }

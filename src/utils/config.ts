@@ -44,7 +44,9 @@ export class ConfigManager {
       fs.ensureDirSync(configDir);
       fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
     } catch (error) {
-      throw new Error(`Failed to save config: ${errorMessage(error)}`);
+      throw new Error(`Failed to save config: ${errorMessage(error)}`, {
+        cause: error,
+      });
     }
   }
 
@@ -54,7 +56,9 @@ export class ConfigManager {
         fs.removeSync(this.configPath);
       }
     } catch (error) {
-      throw new Error(`Failed to reset config: ${errorMessage(error)}`);
+      throw new Error(`Failed to reset config: ${errorMessage(error)}`, {
+        cause: error,
+      });
     }
   }
 

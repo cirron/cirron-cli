@@ -649,8 +649,9 @@ function generateImageName(
 
   // Generate tag
   let tag = "latest";
-  if (_options.tag) {
-    tag = _options.tag;
+  const { tag: optionTag } = _options;
+  if (optionTag) {
+    tag = optionTag;
   } else if (_options.env !== "development") {
     tag = `${_options.env}-${projectConfig.version}`;
   }
@@ -992,7 +993,7 @@ async function getBuildStats(
         await walk(itemPath);
       } else {
         totalSize += stat.size;
-        fileCount++;
+        fileCount += 1;
       }
     }
   };

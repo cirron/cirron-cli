@@ -411,10 +411,11 @@ export async function loadSessions(
   let schemaVersion = 1;
 
   for await (const batch of readBatches(spoolDir, opts)) {
-    if (batch.sdkVersion) {
-      sdkVersion = batch.sdkVersion;
+    const { sdkVersion: batchSdkVersion } = batch;
+    if (batchSdkVersion) {
+      sdkVersion = batchSdkVersion;
     }
-    schemaVersion = batch.schemaVersion;
+    ({ schemaVersion } = batch);
     // Rough file size tracking (only counted once per file)
     if (!byteAccum.has(batch.sourceFile)) {
       try {

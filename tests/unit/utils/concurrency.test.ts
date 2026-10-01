@@ -37,10 +37,10 @@ describe("mapWithConcurrency", () => {
     let maxInFlight = 0;
 
     await mapWithConcurrency(Array.from({ length: 20 }), 4, async () => {
-      inFlight++;
+      inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await tick(1);
-      inFlight--;
+      inFlight -= 1;
       return null;
     });
 
@@ -55,10 +55,10 @@ describe("mapWithConcurrency", () => {
     let maxInFlight = 0;
 
     await mapWithConcurrency([1, 2, 3], 1, async () => {
-      inFlight++;
+      inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
       await tick(1);
-      inFlight--;
+      inFlight -= 1;
       return null;
     });
 

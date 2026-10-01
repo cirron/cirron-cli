@@ -87,7 +87,10 @@ export class SettingsManager {
         JSON.stringify(result.data, null, 2)
       );
     } catch (error) {
-      throw new Error(`Failed to save global settings: ${errorMessage(error)}`);
+      throw new Error(
+        `Failed to save global settings: ${errorMessage(error)}`,
+        { cause: error }
+      );
     }
   }
 
@@ -167,7 +170,8 @@ export class SettingsManager {
       }
     } catch (error) {
       throw new Error(
-        `Could not load project configuration: ${errorMessage(error)}`
+        `Could not load project configuration: ${errorMessage(error)}`,
+        { cause: error }
       );
     }
 
@@ -448,8 +452,8 @@ export class SettingsManager {
     }
   }
 
-  private getNestedValue(obj: any, path: string): any {
-    return path.split(".").reduce((current, key) => current?.[key], obj);
+  private getNestedValue(obj: any, keyPath: string): any {
+    return keyPath.split(".").reduce((current, key) => current?.[key], obj);
   }
 
   private mergeSettings<T>(target: T, source: Partial<T>): T {
