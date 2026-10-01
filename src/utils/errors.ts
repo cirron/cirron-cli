@@ -76,8 +76,8 @@ export interface CLIErrorDetails {
   code: CLIErrorCode;
   details?: Record<string, any>;
   message: string;
+  /** The user can fix the cause and retry. Informational only; never changes the exit code. */
   recoverable?: boolean;
-  strictModeOnly?: boolean;
   suggestions?: string[];
 }
 
@@ -86,14 +86,12 @@ export class CLIError extends Error {
   readonly details?: Record<string, any>;
   readonly suggestions?: string[];
   readonly recoverable: boolean;
-  readonly strictModeOnly: boolean;
 
   constructor(errorDetails: CLIErrorDetails) {
     super(errorDetails.message);
     this.name = "CLIError";
     this.code = errorDetails.code;
     this.recoverable = errorDetails.recoverable ?? false;
-    this.strictModeOnly = errorDetails.strictModeOnly ?? false;
 
     if (errorDetails.details) {
       this.details = errorDetails.details;
@@ -256,21 +254,18 @@ export class CLIError extends Error {
 }
 
 /**
- * Handle CLI error and exit with appropriate code
+ * Print a fatal command error and exit non-zero.
+ *
+ * A CLIError exits with its own code, whether or not it is `recoverable`;
+ * callers that want to warn and keep going must do so before reaching here.
+ * A plain Error exits INTERNAL_ERROR, and anything else UNKNOWN_ERROR.
+ *
+ * @param error - The caught value.
+ * @param verbose - Include error details and the stack trace.
+ * @returns Never; the process exits.
  */
-export function handleCLIError(
-  error: unknown,
-  strictMode = false,
-  verbose = false
-): never {
+export function handleCLIError(error: unknown, verbose = false): never {
   if (error instanceof CLIError) {
-    // In non-strict mode, some errors can be treated as warnings
-    if (!strictMode && error.recoverable && !error.strictModeOnly) {
-      logger.warn(error.format(verbose));
-      logger.warn("Continuing in non-strict mode...");
-      process.exit(CLIErrorCode.SUCCESS);
-    }
-
     logger.error(error.format(verbose));
     process.exit(error.code);
   } else if (error instanceof Error) {
@@ -361,8 +356,7 @@ export const ErrorFactories = {
 
   validationError: (
     message: string,
-    details?: Record<string, any>,
-    strict = false
+    details?: Record<string, any>
   ): CLIError => {
     const errorDetails: CLIErrorDetails = {
       code: CLIErrorCode.VALIDATION_FAILED,
@@ -372,7 +366,6 @@ export const ErrorFactories = {
         "Run with --validate flag for detailed checks",
       ],
       recoverable: true,
-      strictModeOnly: strict,
     };
     if (details) {
       errorDetails.details = details;
@@ -407,7 +400,6 @@ export const ErrorFactories = {
         "Review test configuration",
       ],
       recoverable: true,
-      strictModeOnly: true,
     };
     if (details) {
       errorDetails.details = details;

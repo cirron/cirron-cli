@@ -17,7 +17,12 @@ import {
   resolveTargetArchitecture,
   validateTargetFramework,
 } from "../utils/architecture";
-import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
+import {
+  CLIError,
+  CLIErrorCode,
+  type CLIErrorDetails,
+  handleCLIError,
+} from "../utils/errors";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
@@ -56,7 +61,6 @@ async function savedPlanArchitecture(
 /** Entry point for `cirron plan compile`: preview a compilation without running it. */
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating compilation plan...").start();
-  const strictMode = false; // Plans don't use strict mode
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
@@ -150,26 +154,14 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
         if (shouldValidate) {
           spinner.start();
           spinner.text = "Running validation checks...";
-          await runValidationChecks(
-            projectConfig,
-            indexConfig,
-            architecture,
-            strictMode
-          );
-          logger.success("✓ Validation checks passed");
+          await runValidationChecks(projectConfig, architecture);
         } else {
           logger.warn("Skipping validation during planning");
           spinner.start();
         }
       } else {
         spinner.text = "Running validation checks...";
-        await runValidationChecks(
-          projectConfig,
-          indexConfig,
-          architecture,
-          strictMode
-        );
-        logger.success("✓ Validation checks passed");
+        await runValidationChecks(projectConfig, architecture);
       }
     }
 
@@ -247,7 +239,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
     spinner.fail(chalk.red("Plan generation failed"));
 
     if (error instanceof CLIError) {
-      handleCLIError(error, strictMode, options.verbose);
+      handleCLIError(error, options.verbose);
     } else {
       const errorDetails: any = {
         code: CLIErrorCode.COMPILE_FAILED,
@@ -257,7 +249,6 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
           "Verify that model files exist",
           "Try running with --validate flag",
         ],
-        recoverable: true,
       };
 
       if (error instanceof Error) {
@@ -265,7 +256,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       }
 
       const planError = new CLIError(errorDetails);
-      handleCLIError(planError, strictMode, options.verbose);
+      handleCLIError(planError, options.verbose);
     }
   }
 }
@@ -377,13 +368,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
     // Pre-build validation if requested
     if (options.validate) {
       spinner.text = "Running validation checks...";
-      await runValidationChecks(
-        projectConfig,
-        indexConfig,
-        architecture,
-        false
-      );
-      logger.success("✓ Validation checks passed");
+      await runValidationChecks(projectConfig, architecture);
     }
 
     // Generate comprehensive build plan
@@ -459,13 +444,25 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
   } catch (error) {
     spinner.fail(chalk.red("Build plan generation failed"));
 
-    if (error instanceof Error) {
-      logger.error(error.message);
+    if (error instanceof CLIError) {
+      handleCLIError(error, options.verbose);
     } else {
-      logger.error("Unknown error occurred");
-    }
+      const errorDetails: CLIErrorDetails = {
+        code: CLIErrorCode.BUILD_FAILED,
+        message: error instanceof Error ? error.message : String(error),
+        suggestions: [
+          "Check project configuration and dependencies",
+          "Verify that model files exist",
+          "Try running with --validate flag",
+        ],
+      };
 
-    process.exit(1);
+      if (error instanceof Error) {
+        errorDetails.cause = error;
+      }
+
+      handleCLIError(new CLIError(errorDetails), options.verbose);
+    }
   }
 }
 
@@ -630,17 +627,15 @@ export async function planDiffCommand(
  * validation primitives instead of being quietly widened, so the behavior is
  * unchanged and the divergence stays visible.
  *
+ * A plan is a preview with no `--strict`, so failures are logged as warnings
+ * and planning continues.
+ *
  * @param projectConfig - The loaded project configuration.
- * @param _indexConfig - Accepted for signature parity; not inspected.
  * @param architecture - Target architecture, which selects the CUDA or MPS check.
- * @param strictMode - Raise a CLIError rather than a plain Error on failure.
- * @throws If any check fails.
  */
 async function runValidationChecks(
   projectConfig: ProjectConfig,
-  _indexConfig: any,
-  architecture: string,
-  strictMode: boolean
+  architecture: string
 ): Promise<void> {
   const validationErrors: string[] = [...checkRequiredFiles()];
 
@@ -650,14 +645,19 @@ async function runValidationChecks(
     projectConfig.framework === "pytorch"
   ) {
     const probe = architecture === "mps" ? checkMpsPytorch : checkCudaPytorch;
-    validationErrors.push(...(await probe({ strictMode, handleResult: true })));
-  }
-
-  if (validationErrors.length > 0) {
-    throw new Error(
-      `Validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
+    validationErrors.push(
+      ...(await probe({ strictMode: false, handleResult: true }))
     );
   }
+
+  if (validationErrors.length === 0) {
+    logger.success("✓ Validation checks passed");
+    return;
+  }
+
+  logger.warn(
+    `Validation found issues:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
+  );
 }
 
 async function simulateCompilation(

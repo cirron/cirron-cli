@@ -155,9 +155,8 @@ describe("plan commands", () => {
       } catch (err) {
         caught = err;
       }
-      expect(typeof exitCodeFromError(caught)).toBe("number");
-      // Non-strict plan failures are reported through console.warn.
-      expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toContain(
+      expect(exitCodeFromError(caught)).toBe(36);
+      expect(errorSpy.mock.calls.flat().join(" ")).toContain(
         "MPS architecture is only supported for PyTorch"
       );
       expect(PlanGenerator.prototype.generatePlan).not.toHaveBeenCalled();
@@ -197,7 +196,17 @@ describe("plan commands", () => {
       } catch (err) {
         caught = err;
       }
-      expect(typeof exitCodeFromError(caught)).toBe("number");
+      expect(exitCodeFromError(caught)).toBe(36);
+    });
+
+    it("warns about --validate failures and still generates the plan", async () => {
+      writeProjectConfig(tmp.dir);
+      await planCompileCommand({ arch: "cpu", validate: true });
+      expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toMatch(
+        /Required file missing/
+      );
+      expect(exitStub.spy).not.toHaveBeenCalled();
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/PLAN CONSOLE/);
     });
   });
 
@@ -262,6 +271,21 @@ describe("plan commands", () => {
       await planBuildCommand({ arch: "cpu", json: true, save: true });
       expect(PlanStorage.savePlan).toHaveBeenCalled();
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/"plan":true/);
+    });
+
+    it("exits BUILD_FAILED when plan generation throws", async () => {
+      writeProjectConfig(tmp.dir, { framework: "pytorch" });
+      vi.spyOn(PlanGenerator.prototype, "generatePlan").mockRejectedValue(
+        new Error("analysis failed")
+      );
+      let caught: unknown;
+      try {
+        await planBuildCommand({ arch: "cpu" });
+      } catch (err) {
+        caught = err;
+      }
+      expect(exitCodeFromError(caught)).toBe(34);
+      expect(errorSpy.mock.calls.flat().join(" ")).toContain("analysis failed");
     });
   });
 

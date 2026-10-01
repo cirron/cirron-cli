@@ -55,8 +55,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
           new CLIError({
             code: CLIErrorCode.PROJECT_NOT_FOUND,
             message: "Project configuration not found",
-          }),
-          true
+          })
         );
       }
       logger.error(`Run ${chalk.cyan("cirron init")} to initialize a project`);
@@ -181,7 +180,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
             architecture,
             strictMode
           );
-          logger.success("✓ Validation checks passed");
         } else {
           logger.warn("Skipping validation checks");
           spinner.start();
@@ -194,7 +192,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
           architecture,
           strictMode
         );
-        logger.success("✓ Validation checks passed");
       }
     }
 
@@ -279,7 +276,7 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
     // Handle CLI errors with proper exit codes
     if (error instanceof CLIError) {
-      handleCLIError(error, strictMode, options.verbose);
+      handleCLIError(error, options.verbose);
     } else {
       // Handle generic errors
       const errorDetails: any = {
@@ -290,7 +287,6 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
           "Verify project configuration and dependencies",
           "Try running with --validate flag first",
         ],
-        recoverable: true,
       };
 
       if (error instanceof Error) {
@@ -299,11 +295,17 @@ export async function compileCommand(options: CompileOptions): Promise<void> {
 
       const compileError = new CLIError(errorDetails);
 
-      handleCLIError(compileError, strictMode, options.verbose);
+      handleCLIError(compileError, options.verbose);
     }
   }
 }
 
+/**
+ * Run the pre-compilation checks. Failures are warnings unless `strictMode`
+ * is set, in which case they abort with VALIDATION_FAILED.
+ *
+ * @throws CLIError (VALIDATION_FAILED) when a check fails in strict mode.
+ */
 async function runValidationChecks(
   projectConfig: ProjectConfig,
   indexConfig: any,
@@ -365,23 +367,25 @@ print('Model validation passed')
     }))
   );
 
-  if (validationErrors.length > 0) {
-    const validationError = new CLIError({
+  if (validationErrors.length === 0) {
+    logger.success("✓ Validation checks passed");
+    return;
+  }
+
+  const summary = validationErrors.map((err) => `  • ${err}`).join("\n");
+  if (strictMode) {
+    throw new CLIError({
       code: CLIErrorCode.VALIDATION_FAILED,
-      message: "Validation checks failed",
+      message: `Validation checks failed:\n${summary}`,
       details: { errors: validationErrors },
       suggestions: ["Fix validation errors and retry"],
       recoverable: true,
     });
-
-    if (strictMode) {
-      handleCLIError(validationError, strictMode);
-    }
-
-    throw new Error(
-      `Validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
-    );
   }
+
+  logger.warn(
+    `Validation found issues; continuing without --strict:\n${summary}`
+  );
 }
 
 async function performCompilation(
