@@ -129,7 +129,7 @@ export class CLIError extends Error {
 
     // Determine specific error code based on parsed errors
     if (result.parsedErrors && result.parsedErrors.length > 0) {
-      const firstError = result.parsedErrors[0];
+      const [firstError] = result.parsedErrors;
 
       switch (firstError.type) {
         case "syntax":

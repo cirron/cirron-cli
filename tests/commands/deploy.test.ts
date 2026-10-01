@@ -272,30 +272,30 @@ describe("deployCommand", () => {
     );
   });
 
-  it.each([
-    "rolled_back",
-    "stopped",
-    "something_new",
-  ])("stops polling as soon as the deployment reaches %s, and exits 1", async (status) => {
-    createAuthenticatedSession(tmp.dir);
-    writeProjectConfig(tmp.dir, {
-      environments: { staging: { region: "us-east-1" } },
-    });
-    vi.spyOn(CirronApi.prototype, "createDeployment").mockResolvedValue(
-      deployment({ id: "dep-42", status: "pending" })
-    );
-    const getDeployment = vi
-      .spyOn(CirronApi.prototype, "getDeployment")
-      .mockResolvedValue(deployment({ id: "dep-42", status }));
+  it.each(["rolled_back", "stopped", "something_new"])(
+    "stops polling as soon as the deployment reaches %s, and exits 1",
+    async (status) => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir, {
+        environments: { staging: { region: "us-east-1" } },
+      });
+      vi.spyOn(CirronApi.prototype, "createDeployment").mockResolvedValue(
+        deployment({ id: "dep-42", status: "pending" })
+      );
+      const getDeployment = vi
+        .spyOn(CirronApi.prototype, "getDeployment")
+        .mockResolvedValue(deployment({ id: "dep-42", status }));
 
-    const caught = await deployCommand({ env: "staging", noBuild: true }).catch(
-      (e: unknown) => e
-    );
+      const caught = await deployCommand({
+        env: "staging",
+        noBuild: true,
+      }).catch((e: unknown) => e);
 
-    expect(getDeployment).toHaveBeenCalledTimes(1);
-    expect(exitCodeFromError(caught)).toBe(1);
-    expect(errorSpy.mock.calls.flat().join(" ")).not.toMatch(/timed out/);
-  });
+      expect(getDeployment).toHaveBeenCalledTimes(1);
+      expect(exitCodeFromError(caught)).toBe(1);
+      expect(errorSpy.mock.calls.flat().join(" ")).not.toMatch(/timed out/);
+    }
+  );
 
   it("fails fast when polling gets a non-transient error such as a 404", async () => {
     createAuthenticatedSession(tmp.dir);

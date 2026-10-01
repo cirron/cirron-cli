@@ -534,7 +534,7 @@ async function pushSyncFiles(
         );
       }
 
-      succeeded++;
+      succeeded += 1;
       // Only track for sync metadata if we have a valid artifact ID
       // (deduped uploads may return an empty ID)
       if (result.artifact.id) {
@@ -547,7 +547,7 @@ async function pushSyncFiles(
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       itemSpinner.fail(`Failed to push ${fileInfo.relativePath}: ${msg}`);
-      failed++;
+      failed += 1;
     }
   }
 
@@ -578,7 +578,7 @@ async function pullSyncFiles(
     const destPath = resolveWithin(cwd, file.path);
     if (!destPath) {
       itemSpinner.fail(`Rejected ${file.path}: path traversal detected`);
-      failed++;
+      failed += 1;
       continue;
     }
 
@@ -589,7 +589,7 @@ async function pullSyncFiles(
       itemSpinner.succeed(
         `Pulled ${chalk.cyan(file.path)} (${formatSize(artifactInfo.size)})`
       );
-      succeeded++;
+      succeeded += 1;
       pulled.push({
         path: file.path,
         checksum: artifactInfo.checksum,
@@ -598,7 +598,7 @@ async function pullSyncFiles(
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       itemSpinner.fail(`Failed to pull ${file.path}: ${msg}`);
-      failed++;
+      failed += 1;
     }
   }
 
@@ -762,7 +762,7 @@ async function resolveConflicts(
 
   const record = (outcome: ConflictOutcome): void => {
     if (outcome.ok) {
-      resolved++;
+      resolved += 1;
       if (outcome.pushed) {
         pushed.push(outcome.pushed);
       }
@@ -770,7 +770,7 @@ async function resolveConflicts(
         pulled.push(outcome.pulled);
       }
     } else {
-      failed++;
+      failed += 1;
     }
   };
 
@@ -822,7 +822,7 @@ async function resolveConflicts(
   let lastChoice: SyncConflictResolution | null = null;
   let applyAllChoice: SyncConflictResolution | null = null;
 
-  for (let i = 0; i < conflicts.length; i++) {
+  for (let i = 0; i < conflicts.length; i += 1) {
     const conflict = conflicts[i]!;
 
     let resolution: SyncConflictResolution;
@@ -846,7 +846,7 @@ async function resolveConflicts(
 
     if (resolution === "skip") {
       logger.info(`  Skipped ${chalk.gray(conflict.path)}`);
-      skipped++;
+      skipped += 1;
       continue;
     }
 

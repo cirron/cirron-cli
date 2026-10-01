@@ -84,7 +84,8 @@ export class PlanStorage {
       return savedPlan;
     } catch (error) {
       throw new Error(
-        `Failed to load plan file: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to load plan file: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       );
     }
   }
@@ -149,7 +150,7 @@ export class PlanStorage {
       if (planDate < cutoffDate) {
         try {
           await PlanStorage.deletePlan(savedPlan.filePath);
-          deletedCount++;
+          deletedCount += 1;
         } catch (error) {
           logger.debug(
             `Failed to delete old plan ${savedPlan.filePath}:`,
@@ -271,8 +272,7 @@ export class PlanStorage {
     const allPlans = await PlanStorage.listPlans();
 
     return allPlans.filter((savedPlan) => {
-      const plan = savedPlan.plan;
-      const metadata = savedPlan.metadata;
+      const { plan, metadata } = savedPlan;
 
       // Filter by command
       if (pattern.command && plan.command !== pattern.command) {
@@ -360,11 +360,11 @@ export class PlanStorage {
       }
 
       // Count by command
-      const command = savedPlan.plan.command;
+      const { command } = savedPlan.plan;
       stats.plansByCommand[command] = (stats.plansByCommand[command] || 0) + 1;
 
       // Count by framework
-      const framework = savedPlan.plan.framework;
+      const { framework } = savedPlan.plan;
       stats.plansByFramework[framework] =
         (stats.plansByFramework[framework] || 0) + 1;
     }
@@ -412,7 +412,7 @@ export class PlanStorage {
       })),
     };
 
-    const fs = await import("fs-extra");
-    await fs.writeJson(outputPath, exportData, { spaces: 2 });
+    const fsExtra = await import("fs-extra");
+    await fsExtra.writeJson(outputPath, exportData, { spaces: 2 });
   }
 }

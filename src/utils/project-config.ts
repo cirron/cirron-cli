@@ -41,7 +41,7 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
         return { configPath, filename, config };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Failed to parse ${filename}: ${msg}`);
+        throw new Error(`Failed to parse ${filename}: ${msg}`, { cause: err });
       }
     }
   }

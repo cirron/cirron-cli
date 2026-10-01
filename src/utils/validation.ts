@@ -120,7 +120,7 @@ async function runProbe(
     if (!result.success) {
       errors.push(failureMessage);
       if (opts.debugLog && result.parsedErrors && result.parsedErrors[0]) {
-        const firstError = result.parsedErrors[0];
+        const [firstError] = result.parsedErrors;
         logger.debug(`${debugLabel}:`, firstError.message);
         if (firstError.file && firstError.line) {
           logger.debug(`Error location: ${firstError.file}:${firstError.line}`);

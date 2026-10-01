@@ -131,7 +131,7 @@ function aggregateSubtreeWallNs(
     if (!span) {
       continue;
     }
-    spanCount++;
+    spanCount += 1;
     const dur = spanDurationNs(span);
     if (dur !== null) {
       totalNs += dur;

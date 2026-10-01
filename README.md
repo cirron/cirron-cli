@@ -296,7 +296,7 @@ cirron logs -f
 npm install            # install dependencies
 npm run build          # compile TypeScript to dist/
 npm run build:watch    # watch mode compilation
-npm run dev            # run with ts-node
+npm run dev            # run with tsx
 
 npm test               # run the test suite (Vitest)
 npm run test:watch     # watch mode

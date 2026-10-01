@@ -947,8 +947,8 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   if (Object.keys(testPlan.dataPaths).length > 0) {
     console.log("");
     console.log(colorize("Data Paths:", chalk.bold.magenta));
-    for (const [type, path] of Object.entries(testPlan.dataPaths)) {
-      console.log(colorize(`  • ${type}: ${path}`, chalk.gray));
+    for (const [type, dataPath] of Object.entries(testPlan.dataPaths)) {
+      console.log(colorize(`  • ${type}: ${dataPath}`, chalk.gray));
     }
   }
 }

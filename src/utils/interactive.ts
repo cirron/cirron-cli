@@ -100,7 +100,7 @@ export class InteractiveManager {
     if (!this.interactive) {
       // Return first choice or default if not interactive
       if (options.choices && options.choices.length > 0) {
-        const firstChoice = options.choices[0];
+        const [firstChoice] = options.choices;
         return typeof firstChoice === "object"
           ? firstChoice.value
           : firstChoice;

@@ -30,7 +30,7 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
       process.exit(1);
     }
 
-    const plan = savedPlan.plan;
+    const { plan } = savedPlan;
 
     spinner.text = `Replaying ${plan.command} plan from ${new Date(plan.timestamp).toLocaleString()}`;
 
@@ -295,8 +295,8 @@ function generateReplayCompilationScript(
   plan: any,
   _currentConfig: ProjectConfig
 ): string {
-  const framework = plan.framework;
-  const architecture = plan.architecture;
+  const { framework } = plan;
+  const { architecture } = plan;
 
   let script = `
 import sys
@@ -375,8 +375,8 @@ function generateReplayBuildScript(
   plan: any,
   _currentConfig: ProjectConfig
 ): string {
-  const framework = plan.framework;
-  const architecture = plan.architecture;
+  const { framework } = plan;
+  const { architecture } = plan;
 
   let script = `
 import sys
@@ -484,7 +484,7 @@ function displayReplayPlan(
 
   console.log("");
   console.log(colorize(" Build Steps:", chalk.bold.green));
-  for (let i = 0; i < plan.buildSteps.length; i++) {
+  for (let i = 0; i < plan.buildSteps.length; i += 1) {
     console.log(colorize(`  ${i + 1}. ${plan.buildSteps[i]}`, chalk.gray));
   }
 

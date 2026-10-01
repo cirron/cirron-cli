@@ -508,7 +508,7 @@ describe("syncCommand", () => {
       expect(fs.readFileSync(path.join(tmp.dir, "models/m1.pth"), "utf8")).toBe(
         "local edit"
       );
-      const { pulled } = complete.mock.calls[0]?.[0] as {
+      const { pulled } = (complete.mock.calls[0]?.[0] ?? {}) as {
         pulled: { path: string; checksum: string }[];
       };
       expect(pulled).toContainEqual(

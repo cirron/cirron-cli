@@ -281,7 +281,7 @@ export class PlanFormatter {
       if (showDetails) {
         sections.push("");
         sections.push(colorize(" Build Steps:", chalk.bold.blue));
-        for (let i = 0; i < plan.buildSteps.length; i++) {
+        for (let i = 0; i < plan.buildSteps.length; i += 1) {
           const step = plan.buildSteps[i];
           sections.push(colorize(`  ${i + 1}. ${step}`, chalk.blue));
         }

@@ -206,7 +206,7 @@ export async function initCommand(
     }
 
     // Template and model type selection
-    let template = options.template;
+    let { template } = options;
     let modelType = "classification";
     let includeSampleData = true; // Default to true for better testing
     let includeNotebook = true; // Default to true for better development experience
@@ -217,8 +217,8 @@ export async function initCommand(
           type: "select",
           name: "template",
           message: "Choose a framework:",
-          choices: Object.entries(TEMPLATES).map(([key, template]) => ({
-            name: `${template.name} - ${template.description}`,
+          choices: Object.entries(TEMPLATES).map(([key, entry]) => ({
+            name: `${entry.name} - ${entry.description}`,
             value: key,
           })),
         },
@@ -245,10 +245,8 @@ export async function initCommand(
         },
       ]);
 
-      template = templateAnswers.template;
-      modelType = templateAnswers.modelType;
-      includeSampleData = templateAnswers.includeSampleData;
-      includeNotebook = templateAnswers.includeNotebook;
+      ({ template, modelType, includeSampleData, includeNotebook } =
+        templateAnswers);
     }
 
     const selectedTemplate = TEMPLATES[template];

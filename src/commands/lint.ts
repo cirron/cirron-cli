@@ -371,7 +371,7 @@ function validateFrameworkConfig(
   config: ProjectConfig,
   summary: LintSummary
 ): void {
-  const framework = config.framework;
+  const { framework } = config;
 
   // Framework-specific config validation has no current rules; the
   // canonical cirron.yaml shape doesn't carry pythonVersion/gpuRequired.
@@ -494,13 +494,13 @@ function addResult(summary: LintSummary, result: LintResult): void {
 
   switch (result.severity) {
     case "error":
-      summary.errors++;
+      summary.errors += 1;
       break;
     case "warning":
-      summary.warnings++;
+      summary.warnings += 1;
       break;
     case "info":
-      summary.infos++;
+      summary.infos += 1;
       break;
     default:
       break;

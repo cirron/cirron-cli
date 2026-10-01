@@ -20,7 +20,8 @@ export async function mapWithConcurrency<T, R>(
     { length: Math.max(1, Math.min(limit, items.length)) },
     async () => {
       while (!failed && next < items.length) {
-        const index = next++;
+        const index = next;
+        next += 1;
         try {
           results[index] = await fn(items[index] as T, index);
         } catch (error) {

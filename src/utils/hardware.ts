@@ -138,8 +138,7 @@ export class HardwareDetector {
       const lines = nvidiaOutput.trim().split("\n");
       if (lines.length > 0 && lines[0]) {
         const parts = lines[0].split(", ");
-        const name = parts[0];
-        const memory = parts[1];
+        const [name, memory] = parts;
         return {
           model: name?.trim() || "Unknown NVIDIA GPU",
           memory: memory ? `${memory.trim()} MB` : "Unknown",
@@ -178,7 +177,7 @@ export class HardwareDetector {
         .filter((line) => line.trim() && !line.includes("AdapterRAM"));
       if (lines.length > 0 && lines[0]) {
         const parts = lines[0].trim().split(/\s+/);
-        const ram = parts[0];
+        const [ram] = parts;
         const name = parts.slice(1).join(" ");
         return {
           model: name || "Unknown GPU",
@@ -199,8 +198,8 @@ export class HardwareDetector {
       const nvccOutput = execSync("nvcc --version", { encoding: "utf8" });
       const versionMatch = nvccOutput.match(/release (\d+\.\d+)/);
 
-      if (versionMatch && versionMatch[1]) {
-        const version = versionMatch[1];
+      const version = versionMatch?.[1];
+      if (version) {
         const devices = await HardwareDetector.detectCUDADevices();
 
         return {

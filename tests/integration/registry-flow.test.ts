@@ -135,7 +135,7 @@ describe("registry pull flow (spawned CLI binary against a stub platform)", () =
       }
 
       if (url.pathname === "/api/cli/registry/pull") {
-        metadataRequests++;
+        metadataRequests += 1;
         if (metadataRequests === 1) {
           send(res, 401, { error: "Unauthorized" });
           return;
@@ -456,7 +456,7 @@ describe("registry pull flow (spawned CLI binary against a stub platform)", () =
     // The regression: anything over 5 MB used to be split into chunks PUT at
     // a single presigned URL, which the storage signature rejects.
     expect(uploads).toHaveLength(1);
-    const put = uploads[0];
+    const [put] = uploads;
     expect(put?.bytes).toBe(payload.length);
     expect(put?.sha256).toBe(
       crypto.createHash("sha256").update(payload).digest("hex")

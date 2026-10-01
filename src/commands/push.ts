@@ -340,7 +340,7 @@ export async function uploadSingleFile(
     }
 
     const uploadInfo = await api.getUploadUrl(uploadUrlOpts);
-    uploadId = uploadInfo.uploadId;
+    ({ uploadId } = uploadInfo);
 
     spinner.text = `Uploading ${displayName} (${formatSize(fileInfo.size)})...`;
     await api.uploadFile(
@@ -459,7 +459,7 @@ async function uploadMultipart(
 
   // Every part, every time — resume is not possible; see the note above.
   const pending: number[] = [];
-  for (let partNumber = 1; partNumber <= init.partCount; partNumber++) {
+  for (let partNumber = 1; partNumber <= init.partCount; partNumber += 1) {
     pending.push(partNumber);
   }
 
@@ -513,7 +513,7 @@ async function uploadMultipart(
           sizeBytes: length,
         });
 
-        done++;
+        done += 1;
         updateProgress();
       }
     );
@@ -1020,12 +1020,12 @@ async function pushMultipleFiles(
         itemSpinner.info(
           `Skipped ${chalk.cyan(fileInfo.relativePath)} (${result.skipReason})`
         );
-        skipCount++;
+        skipCount += 1;
       } else {
         itemSpinner.succeed(
           `Pushed ${chalk.cyan(fileInfo.relativePath)} (${formatSize(fileInfo.size)})`
         );
-        successCount++;
+        successCount += 1;
         uploadedBytes += fileInfo.size;
       }
 
@@ -1033,7 +1033,7 @@ async function pushMultipleFiles(
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       itemSpinner.fail(`Failed to push ${fileInfo.relativePath}: ${msg}`);
-      failCount++;
+      failCount += 1;
       const failedArtifact: PushArtifactInfo = {
         id: "",
         name: fileInfo.relativePath,

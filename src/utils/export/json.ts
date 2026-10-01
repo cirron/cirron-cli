@@ -84,10 +84,10 @@ export async function exportJson(
 
   for (const session of sessions) {
     if (session.sdkVersion) {
-      sdkVersion = session.sdkVersion;
+      ({ sdkVersion } = session);
     }
     if (session.schemaVersion) {
-      schemaVersion = session.schemaVersion;
+      ({ schemaVersion } = session);
     }
     for (const span of session.spans.values()) {
       if (seenSpans.has(span.id)) {

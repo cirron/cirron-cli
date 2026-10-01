@@ -109,7 +109,7 @@ export async function executeScript(
   let lastResult: ExecutionResult;
 
   do {
-    attempt++;
+    attempt += 1;
 
     if (attempt > 1) {
       logger.info(`Retry attempt ${attempt}/${retries + 1} for: ${command}`);
@@ -298,8 +298,8 @@ export function parseErrors(stderr: string): ParsedError[] {
         /^(\w+Error|\w+Exception|\w+Warning):\s*(.+)$/
       );
       if (exceptionMatch && exceptionMatch[1] && exceptionMatch[2]) {
-        const exceptionType = exceptionMatch[1];
-        const message = exceptionMatch[2];
+        const [, exceptionType] = exceptionMatch;
+        const [, , message] = exceptionMatch;
 
         // Extract file and line info from traceback
         let file: string | undefined;
@@ -313,7 +313,7 @@ export function parseErrors(stderr: string): ParsedError[] {
           if (lastFileMatch) {
             const fileMatch = lastFileMatch.match(/File "([^"]+)", line (\d+)/);
             if (fileMatch && fileMatch[1] && fileMatch[2]) {
-              file = fileMatch[1];
+              [, file] = fileMatch;
               lineNumber = Number.parseInt(fileMatch[2], 10);
             }
           }
@@ -802,7 +802,7 @@ export async function withRetry<T>(
   const config = createRetryableOperation(retryConfig);
   let lastError: Error;
 
-  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt += 1) {
     try {
       return await operation();
     } catch (error) {

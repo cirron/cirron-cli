@@ -293,7 +293,7 @@ export function tensorPreview(
   const start = from === "head" ? 0 : Math.max(0, len - take);
   const end = from === "head" ? take : len;
   const out: Array<number | bigint> = [];
-  for (let i = start; i < end; i++) {
+  for (let i = start; i < end; i += 1) {
     const raw = vals[i]!;
     if (data.info.dtype === "F16") {
       out.push(float16ToFloat32(raw as number));

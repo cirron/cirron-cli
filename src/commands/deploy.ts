@@ -245,7 +245,7 @@ async function handleRollback(
       return;
     }
 
-    const previousDeployment = deployments[1]; // Second item (first is current)
+    const [, previousDeployment] = deployments; // Second item (first is current)
     if (!previousDeployment) {
       spinner.fail(chalk.red("No previous successful deployment found"));
       logger.error("Cannot rollback without a previous deployment");
@@ -357,7 +357,7 @@ async function monitorDeployment(
       logger.warn(`Error checking deployment status: ${errorMessage(error)}`);
     }
 
-    attempts++;
+    attempts += 1;
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 

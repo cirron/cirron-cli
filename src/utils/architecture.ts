@@ -209,7 +209,7 @@ export async function loadIndexFile(indexPath: string): Promise<any> {
     // `${error}` on an Error renders "Error: ...", so the wrapped message
     // would carry the prefix twice.
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to load index file: ${detail}`);
+    throw new Error(`Failed to load index file: ${detail}`, { cause: error });
   }
 }
 

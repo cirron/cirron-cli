@@ -403,16 +403,14 @@ describe("validateTargetFramework", () => {
     expect(() => validateTargetFramework("mps", "pytorch")).not.toThrow();
   });
 
-  it.each([
-    "tensorflow",
-    "sklearn",
-    "custom",
-    undefined,
-  ])("rejects mps for %s, whose scripts have no MPS path", (fw) => {
-    expect(() => validateTargetFramework("mps", fw)).toThrow(
-      /MPS architecture is only supported for PyTorch/
-    );
-  });
+  it.each(["tensorflow", "sklearn", "custom", undefined])(
+    "rejects mps for %s, whose scripts have no MPS path",
+    (fw) => {
+      expect(() => validateTargetFramework("mps", fw)).toThrow(
+        /MPS architecture is only supported for PyTorch/
+      );
+    }
+  );
 
   it.each(["cpu", "cuda", "gpu"])("leaves %s alone for tensorflow", (arch) => {
     expect(() => validateTargetFramework(arch, "tensorflow")).not.toThrow();

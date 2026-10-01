@@ -55,7 +55,9 @@ async function loadPipelineConfig(configPath: string): Promise<PipelineConfig> {
     return JSON.parse(content) as PipelineConfig;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to parse config file '${configPath}': ${message}`);
+    throw new Error(`Failed to parse config file '${configPath}': ${message}`, {
+      cause: error,
+    });
   }
 }
 
@@ -87,10 +89,10 @@ async function monitorRun(
       }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      attempts++;
+      attempts += 1;
     } catch (error) {
       logger.warn(`Error checking run status: ${errorMessage(error)}`);
-      attempts++;
+      attempts += 1;
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
