@@ -184,8 +184,31 @@ describe("compileCommand", () => {
       throw new Error("compile crashed");
     });
     await compileCommand({ arch: "cpu" });
-    // catch path calls process.exit
-    expect(exitSpy).toHaveBeenCalled();
+    expect(exitSpy.mock.calls[0]?.[0]).toBe(36);
+    expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).not.toMatch(
+      /Continuing/
+    );
+  });
+
+  it("warns about validation failures without --strict and keeps compiling", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    await compileCommand({ arch: "cpu", validate: true });
+    expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toMatch(
+      /Required file missing: requirements\.txt/
+    );
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Compilation Results/i);
+  });
+
+  it("exits VALIDATION_FAILED on validation failures under --strict", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    await compileCommand({ arch: "cpu", validate: true, strict: true });
+    expect(exitSpy.mock.calls[0]?.[0]).toBe(35);
+    expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toMatch(
+      /Required file missing: requirements\.txt/
+    );
   });
 
   it("validates hardware compatibility when hardware config is present", async () => {

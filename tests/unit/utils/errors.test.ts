@@ -5,6 +5,7 @@ import {
   CLIError,
   CLIErrorCode,
   errorMessage,
+  handleCLIError,
   reportCommandError,
 } from "../../../src/utils/errors";
 import { logger } from "../../../src/utils/logger";
@@ -86,5 +87,55 @@ describe("CLIError.format", () => {
 
     expect(formatted).toMatch(/Project configuration not found \(code 31\)/);
     expect(stripVTControlCharacters(formatted)).not.toMatch(/^Error/);
+  });
+});
+
+describe("handleCLIError", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let exitStub: ReturnType<typeof stubProcessExit>;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    exitStub = stubProcessExit();
+  });
+
+  afterEach(() => {
+    exitStub.restore();
+    vi.restoreAllMocks();
+  });
+
+  function exitCodeOf(error: unknown): number | null {
+    try {
+      handleCLIError(error);
+    } catch (err) {
+      return exitCodeFromError(err);
+    }
+    return null;
+  }
+
+  it("exits with a recoverable CLIError's own code, never success", () => {
+    const code = exitCodeOf(
+      new CLIError({
+        code: CLIErrorCode.COMPILE_FAILED,
+        message: "compile crashed",
+        recoverable: true,
+      })
+    );
+    expect(code).toBe(CLIErrorCode.COMPILE_FAILED);
+    expect(errorSpy.mock.calls.flat().join(" ")).toContain("compile crashed");
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("exits with a non-recoverable CLIError's code", () => {
+    const code = exitCodeOf(
+      new CLIError({ code: CLIErrorCode.BUILD_FAILED, message: "nope" })
+    );
+    expect(code).toBe(CLIErrorCode.BUILD_FAILED);
+  });
+
+  it("exits INTERNAL_ERROR for a plain Error", () => {
+    expect(exitCodeOf(new Error("boom"))).toBe(CLIErrorCode.INTERNAL_ERROR);
   });
 });
