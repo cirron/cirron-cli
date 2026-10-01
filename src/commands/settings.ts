@@ -572,6 +572,7 @@ async function editBuildSettings(settings: any): Promise<void> {
         "cpu",
         "cuda",
         "gpu",
+        "mps",
         "transformer",
         "xgboost",
         "resnet",

@@ -6,9 +6,12 @@ import ora from "ora";
 import type { BuildOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import {
-  determineArchitectureFromHardware,
+  containerArchitecture,
   loadIndexFile,
+  pytorchDevicePlacement,
+  resolveTargetArchitecture,
   validateHardwareCompatibility,
+  validateTargetFramework,
 } from "../utils/architecture";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
@@ -266,11 +269,11 @@ async function handleMLBuild(
     spinner.start();
   }
 
-  // Determine architecture from options, model config, or hardware detection
-  let architecture =
-    options.arch ||
-    modelConfig?.inference?.device ||
-    (await determineArchitectureFromHardware(projectConfig));
+  let architecture = await resolveTargetArchitecture(
+    projectConfig,
+    modelConfig,
+    options.arch
+  );
 
   // Interactive architecture confirmation
   if (interactive.isInteractive() && !options.arch) {
@@ -283,6 +286,7 @@ async function handleMLBuild(
         { name: "cpu", value: "cpu" },
         { name: "cuda", value: "cuda" },
         { name: "gpu", value: "gpu" },
+        { name: "mps", value: "mps" },
       ],
       description:
         "The architecture determines optimization targets and hardware compatibility",
@@ -316,27 +320,37 @@ async function handleMLBuild(
     }
   }
 
-  // Validate hardware compatibility if hardware config exists.
+  // Check the target against the framework and, when declared, the hardware.
   // --force downgrades a failure to a warning rather than skipping the check.
-  if (projectConfig.hardware) {
-    spinner.text = "Validating hardware compatibility...";
-    try {
+  try {
+    validateTargetFramework(architecture, projectConfig.framework);
+    if (projectConfig.hardware) {
+      spinner.text = "Validating hardware compatibility...";
       await validateHardwareCompatibility(
         projectConfig.hardware,
         architecture,
         projectConfig.framework
       );
       logger.success("✓ Hardware compatibility validated");
-    } catch (error) {
-      if (options.force) {
-        logger.warn(
-          `Hardware validation failed but continuing with --force: ${errorMessage(error)}`
-        );
-      } else {
-        spinner.fail("Hardware validation failed");
-        throw error;
-      }
     }
+  } catch (error) {
+    if (options.force) {
+      logger.warn(
+        `Architecture validation failed but continuing with --force: ${errorMessage(error)}`
+      );
+    } else {
+      spinner.fail("Architecture validation failed");
+      throw error;
+    }
+  }
+
+  // Validated against the declared target above, built for what the image can run.
+  const imageArchitecture = containerArchitecture(architecture);
+  if (imageArchitecture !== architecture) {
+    logger.warn(
+      `MPS is not available inside Linux containers; building for ${imageArchitecture}`
+    );
+    architecture = imageArchitecture;
   }
 
   // Pre-build validation (always run if validate is enabled, force logic is handled inside)
@@ -1109,6 +1123,7 @@ async function runValidationChecks(
     ...checkPythonVersion(projectConfig.pythonVersion),
   ];
 
+  // An mps target is already cpu here, so there is no MPS probe to run.
   if (
     (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
@@ -1245,12 +1260,7 @@ print("Model created successfully")
     script += `
 import torch
 
-if "${architecture}" == "cuda":
-    if torch.cuda.is_available():
-        model = model.cuda()
-        print("Model moved to CUDA")
-    else:
-        print("Warning: CUDA not available, using CPU")
+${pytorchDevicePlacement(architecture)}
 
 os.makedirs('models', exist_ok=True)
 torch.save(model.state_dict(), 'models/model_${architecture}.pth')

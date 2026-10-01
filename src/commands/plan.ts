@@ -11,18 +11,47 @@ import type {
   ProjectConfig,
 } from "../types";
 import {
-  determineDefaultArchitecture,
+  containerArchitecture,
+  isGpuArchitecture,
   loadIndexFile,
+  resolveTargetArchitecture,
+  validateTargetFramework,
 } from "../utils/architecture";
 import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
+import { ModelConfigManager } from "../utils/model-config";
 import { PlanGenerator } from "../utils/plan";
 import { PlanDiffAnalyzer } from "../utils/plan-diff";
 import { PlanFormatter } from "../utils/plan-formatter";
 import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
-import { checkCudaPytorch, checkRequiredFiles } from "../utils/validation";
+import {
+  checkCudaPytorch,
+  checkMpsPytorch,
+  checkRequiredFiles,
+} from "../utils/validation";
+
+/**
+ * The architecture `cirron compile` or `cirron build` would target, for `plan save`.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param planType - Which command the plan previews.
+ * @throws If the resolved target is not supported for the project's framework.
+ */
+async function savedPlanArchitecture(
+  projectConfig: ProjectConfig,
+  planType: "compile" | "build"
+): Promise<string> {
+  const architecture = await resolveTargetArchitecture(
+    projectConfig,
+    await new ModelConfigManager().loadModelConfig()
+  );
+  validateTargetFramework(architecture, projectConfig.framework);
+  return planType === "build"
+    ? containerArchitecture(architecture)
+    : architecture;
+}
 
 /** Entry point for `cirron plan compile`: preview a compilation without running it. */
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
@@ -61,9 +90,11 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       spinner.start();
     }
 
-    // Determine architecture
-    let architecture =
-      options.arch || (await determineDefaultArchitecture(projectConfig));
+    let architecture = await resolveTargetArchitecture(
+      projectConfig,
+      await new ModelConfigManager().loadModelConfig(),
+      options.arch
+    );
 
     // Interactive architecture selection
     if (interactive.isInteractive() && !options.arch) {
@@ -79,12 +110,15 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
           { name: "cpu (CPU optimized)", value: "cpu" },
           { name: "cuda (NVIDIA GPU)", value: "cuda" },
           { name: "gpu (General GPU)", value: "gpu" },
+          { name: "mps (Apple Silicon GPU)", value: "mps" },
         ],
         description:
           "This affects the planned optimization strategy and resource requirements",
       });
       spinner.start();
     }
+
+    validateTargetFramework(architecture, projectConfig.framework);
 
     spinner.text = `Planning compilation for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -287,9 +321,11 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
       spinner.start();
     }
 
-    // Determine architecture
-    let architecture =
-      options.arch || (await determineDefaultArchitecture(projectConfig));
+    let architecture = await resolveTargetArchitecture(
+      projectConfig,
+      await new ModelConfigManager().loadModelConfig(),
+      options.arch
+    );
 
     // Interactive architecture selection
     if (interactive.isInteractive() && !options.arch) {
@@ -305,11 +341,23 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
           { name: "cpu (CPU optimized)", value: "cpu" },
           { name: "cuda (NVIDIA GPU)", value: "cuda" },
           { name: "gpu (General GPU)", value: "gpu" },
+          { name: "mps (Apple Silicon GPU)", value: "mps" },
         ],
         description:
           "This affects containerization strategy and resource allocation planning",
       });
       spinner.start();
+    }
+
+    validateTargetFramework(architecture, projectConfig.framework);
+
+    // Match `cirron build`, whose Linux image cannot run an mps target.
+    const imageArchitecture = containerArchitecture(architecture);
+    if (imageArchitecture !== architecture) {
+      logger.warn(
+        `MPS is not available inside Linux containers; planning for ${imageArchitecture}`
+      );
+      architecture = imageArchitecture;
     }
 
     spinner.text = `Planning build for architecture: ${architecture}`;
@@ -584,7 +632,7 @@ export async function planDiffCommand(
  *
  * @param projectConfig - The loaded project configuration.
  * @param _indexConfig - Accepted for signature parity; not inspected.
- * @param architecture - Target architecture, which selects the CUDA check.
+ * @param architecture - Target architecture, which selects the CUDA or MPS check.
  * @param strictMode - Raise a CLIError rather than a plain Error on failure.
  * @throws If any check fails.
  */
@@ -598,12 +646,11 @@ async function runValidationChecks(
 
   // Architecture-specific validation
   if (
-    (architecture === "cuda" || architecture === "gpu") &&
+    isGpuArchitecture(architecture) &&
     projectConfig.framework === "pytorch"
   ) {
-    validationErrors.push(
-      ...(await checkCudaPytorch({ strictMode, handleResult: true }))
-    );
+    const probe = architecture === "mps" ? checkMpsPytorch : checkCudaPytorch;
+    validationErrors.push(...(await probe({ strictMode, handleResult: true })));
   }
 
   if (validationErrors.length > 0) {
@@ -1115,8 +1162,10 @@ export async function planSaveCommand(
           | Awaited<ReturnType<typeof generateTestPlan>>
           | undefined;
         if (planType === "compile" || planType === "build") {
-          const architecture =
-            await determineDefaultArchitecture(projectConfig);
+          const architecture = await savedPlanArchitecture(
+            projectConfig,
+            planType
+          );
           plan = await planGenerator.generatePlan(
             planType as "compile" | "build",
             architecture
@@ -1222,7 +1271,7 @@ export async function planSaveCommand(
       | undefined;
 
     if (type === "compile" || type === "build") {
-      const architecture = await determineDefaultArchitecture(projectConfig);
+      const architecture = await savedPlanArchitecture(projectConfig, type);
       const planGenerator = new PlanGenerator(projectConfig, process.cwd());
       plan = await planGenerator.generatePlan(
         type as "compile" | "build",

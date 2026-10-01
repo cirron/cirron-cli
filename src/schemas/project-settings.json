@@ -41,6 +41,7 @@
             "cpu",
             "cuda",
             "gpu",
+            "mps",
             "transformer",
             "xgboost",
             "resnet",

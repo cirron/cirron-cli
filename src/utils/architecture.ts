@@ -1,17 +1,19 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { load as loadYaml } from "js-yaml";
-import type { HardwareConfig, ProjectConfig } from "../types";
+import type { HardwareConfig, ModelConfig, ProjectConfig } from "../types";
 import { HardwareDetector } from "./hardware";
 import { logger } from "./logger";
 
 /**
- * Target-architecture resolution and the index-file reader shared by build and
- * compile.
+ * Target-architecture resolution, hardware validation, the PyTorch device
+ * placement snippet and the index-file reader shared by build, compile, plan
+ * and replay.
  *
- * `cirron build` began as a copy of `cirron compile`, and these four helpers
- * stayed byte-identical across both files. They live here so a change to
- * architecture detection or hardware validation is a one-file edit.
+ * `cirron build` began as a copy of `cirron compile`, and these helpers had
+ * drifted into byte-identical copies across those files. They live here so a
+ * change to architecture detection, hardware validation or device placement is
+ * a one-file edit.
  *
  * Note the split with `./validation`: that module's checks return the error
  * strings they find so each command can decide what to do with them, whereas
@@ -20,13 +22,122 @@ import { logger } from "./logger";
  */
 
 /**
+ * Whether a declared hardware config describes an Apple Silicon machine.
+ *
+ * This is the shape the "Apple Silicon" preset and `cirron hardware` detection
+ * on a Mac both write: a generic `gpu` type on an `arm64` CPU. Resolution and
+ * validation share this test so they cannot disagree about it.
+ *
+ * @param hardware - The project's declared hardware block.
+ */
+export function isAppleSilicon(hardware: HardwareConfig): boolean {
+  return hardware.type === "gpu" && hardware.architecture === "arm64";
+}
+
+/**
+ * Whether a target architecture runs on an accelerator rather than the CPU.
+ *
+ * @param architecture - The resolved target architecture.
+ */
+export function isGpuArchitecture(architecture: string): boolean {
+  return (
+    architecture === "cuda" || architecture === "gpu" || architecture === "mps"
+  );
+}
+
+/**
+ * Map a target architecture to one a Linux container can run.
+ *
+ * `cirron build` ships its artifacts in a Linux image, which cannot reach
+ * Metal, and a state dict saved from MPS tensors would not load there. An
+ * `mps` target therefore builds for `cpu`; every other target is unchanged.
+ *
+ * @param architecture - The resolved target architecture.
+ * @returns `cpu` for `mps`, otherwise `architecture`.
+ */
+export function containerArchitecture(architecture: string): string {
+  return architecture === "mps" ? "cpu" : architecture;
+}
+
+/**
+ * Python that moves `model` onto the device for a PyTorch target architecture.
+ *
+ * Shared by the compile, build and replay script generators. A `cuda` or `mps`
+ * target whose device is unavailable at run time prints a warning and leaves
+ * the model on the CPU; any other target leaves it there silently.
+ *
+ * @param architecture - The resolved target architecture.
+ * @returns A top-level Python block that expects `torch` imported and `model`
+ * bound.
+ */
+export function pytorchDevicePlacement(architecture: string): string {
+  return `if "${architecture}" == "cuda":
+    if torch.cuda.is_available():
+        model = model.cuda()
+        print("Model moved to CUDA")
+    else:
+        print("Warning: CUDA not available, using CPU")
+elif "${architecture}" == "mps":
+    if torch.backends.mps.is_available():
+        model = model.to("mps")
+        print("Model moved to MPS")
+    else:
+        print("Warning: MPS not available, using CPU")
+`;
+}
+
+/**
+ * Resolve the target architecture the same way in compile, build and plan.
+ *
+ * An explicit `--arch` wins, then the model config's `inference.device`, then
+ * the project's declared hardware via `determineArchitectureFromHardware`.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param modelConfig - The loaded model config, or null when there is none.
+ * @param explicitArch - The `--arch` value, when one was given.
+ */
+export async function resolveTargetArchitecture(
+  projectConfig: ProjectConfig,
+  modelConfig: ModelConfig | null,
+  explicitArch?: string
+): Promise<string> {
+  return (
+    explicitArch ||
+    modelConfig?.inference?.device ||
+    (await determineArchitectureFromHardware(projectConfig))
+  );
+}
+
+/**
+ * Check that a framework's generated scripts can target an architecture.
+ *
+ * Runs whether or not the project declares hardware, since `--arch` and
+ * `inference.device` can name a target without one. Only the PyTorch scripts
+ * place a model on MPS; any other framework would train on the CPU and still
+ * label the artifact `mps`.
+ *
+ * @param architecture - The resolved target architecture.
+ * @param framework - The project's ML framework, when declared.
+ * @throws If `architecture` is `mps` and `framework` is not `pytorch`.
+ */
+export function validateTargetFramework(
+  architecture: string,
+  framework?: string
+): void {
+  if (architecture === "mps" && framework !== "pytorch") {
+    throw new Error("MPS architecture is only supported for PyTorch");
+  }
+}
+
+/**
  * Resolve the target architecture from a project's declared hardware.
  *
  * Falls back to `determineDefaultArchitecture` when the project declares no
- * hardware block.
+ * hardware block. PyTorch on Apple Silicon resolves to `mps`; PyTorch on any
+ * other `gpu` hardware resolves to `cuda`.
  *
  * @param projectConfig - The loaded project configuration.
- * @returns One of `cuda`, `gpu` or `cpu`.
+ * @returns One of `cuda`, `mps`, `gpu` or `cpu`.
  */
 export async function determineArchitectureFromHardware(
   projectConfig: ProjectConfig
@@ -37,11 +148,10 @@ export async function determineArchitectureFromHardware(
 
     // Map hardware type to architecture based on framework
     if (projectConfig.framework === "pytorch") {
-      return hardwareType === "cuda"
-        ? "cuda"
-        : hardwareType === "gpu"
-          ? "cuda"
-          : "cpu";
+      if (isAppleSilicon(projectConfig.hardware)) {
+        return "mps";
+      }
+      return hardwareType === "cuda" || hardwareType === "gpu" ? "cuda" : "cpu";
     }
     if (projectConfig.framework === "tensorflow") {
       return hardwareType === "cuda" || hardwareType === "gpu" ? "gpu" : "cpu";
@@ -132,7 +242,15 @@ export async function validateHardwareCompatibility(
   // Check architecture compatibility
   if (targetArch === "cuda" && hardwareConfig.type !== "cuda") {
     validationErrors.push(
-      "CUDA architecture selected but hardware configuration is not CUDA-capable"
+      hardwareConfig.type === "gpu"
+        ? 'CUDA architecture selected but hardware configuration is not CUDA-capable (type "gpu"); use --arch cpu, or --arch mps on Apple Silicon'
+        : "CUDA architecture selected but hardware configuration is not CUDA-capable"
+    );
+  }
+
+  if (targetArch === "mps" && !isAppleSilicon(hardwareConfig)) {
+    validationErrors.push(
+      'MPS architecture selected but hardware configuration is not Apple Silicon (type "gpu", architecture "arm64")'
     );
   }
 

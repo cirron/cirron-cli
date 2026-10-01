@@ -2,10 +2,16 @@ import path from "node:path";
 import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  containerArchitecture,
   determineArchitectureFromHardware,
   determineDefaultArchitecture,
+  isAppleSilicon,
+  isGpuArchitecture,
   loadIndexFile,
+  pytorchDevicePlacement,
+  resolveTargetArchitecture,
   validateHardwareCompatibility,
+  validateTargetFramework,
 } from "../../../src/utils/architecture";
 import { makeTmpDir } from "../../helpers/tmpdir";
 
@@ -50,6 +56,33 @@ function cudaHardware(extra: Record<string, unknown> = {}) {
   });
 }
 
+/**
+ * What the "Apple Silicon" preset writes, with the gpu spec
+ * HardwareDetector.validateHardwareConfig requires for a `gpu` type.
+ */
+function appleSiliconHardware(extra: Record<string, unknown> = {}) {
+  return hardware({
+    type: "gpu",
+    architecture: "arm64",
+    specifications: {
+      cpu: { cores: 10, model: "Apple Silicon", architecture: "arm64" },
+      gpu: { model: "Apple GPU", memoryMb: 16_384 },
+    },
+    ...extra,
+  });
+}
+
+/** A generic, non-Apple GPU: `gpu` type on an x86_64 CPU. */
+function genericGpuHardware() {
+  return hardware({
+    type: "gpu",
+    specifications: {
+      cpu: { cores: 4, model: "x", architecture: "x86_64" },
+      gpu: { model: "Radeon", memoryMb: 8192 },
+    },
+  });
+}
+
 describe("determineDefaultArchitecture", () => {
   it.each([
     ["pytorch", false, "cpu"],
@@ -84,6 +117,19 @@ describe("determineArchitectureFromHardware", () => {
   ])("%s on %s hardware resolves to %s", async (fw, hwType, expected) => {
     const arch = await determineArchitectureFromHardware(
       project({ framework: fw, hardware: hardware({ type: hwType }) })
+    );
+    expect(arch).toBe(expected);
+  });
+
+  it.each([
+    ["pytorch", "mps"],
+    ["tensorflow", "gpu"],
+    ["sklearn", "cpu"],
+  ])("%s on Apple Silicon hardware resolves to %s", async (fw, expected) => {
+    // Before the mps target, pytorch resolved to cuda here, which
+    // validateHardwareCompatibility then rejected.
+    const arch = await determineArchitectureFromHardware(
+      project({ framework: fw, hardware: appleSiliconHardware() })
     );
     expect(arch).toBe(expected);
   });
@@ -191,6 +237,36 @@ describe("validateHardwareCompatibility", () => {
     );
   });
 
+  it("accepts the target pytorch resolves to on Apple Silicon hardware", async () => {
+    // End to end over the two functions that used to disagree: resolution
+    // must produce something validation accepts.
+    const hw = appleSiliconHardware();
+    const arch = await determineArchitectureFromHardware(
+      project({ framework: "pytorch", hardware: hw })
+    );
+    await expect(
+      validateHardwareCompatibility(hw, arch, "pytorch")
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects an mps build on cpu hardware", async () => {
+    await expect(
+      validateHardwareCompatibility(hardware(), "mps", "pytorch")
+    ).rejects.toThrow(/MPS architecture selected but .* not Apple Silicon/);
+  });
+
+  it("rejects an mps build on non-arm64 gpu hardware", async () => {
+    await expect(
+      validateHardwareCompatibility(genericGpuHardware(), "mps", "pytorch")
+    ).rejects.toThrow(/not Apple Silicon/);
+  });
+
+  it("still rejects a cuda build on Apple Silicon, pointing at --arch", async () => {
+    await expect(
+      validateHardwareCompatibility(appleSiliconHardware(), "cuda", "pytorch")
+    ).rejects.toThrow(/not CUDA-capable \(type "gpu"\); use --arch cpu/);
+  });
+
   it("rejects a gpu build on cpu-only hardware", async () => {
     await expect(
       validateHardwareCompatibility(hardware(), "gpu", "pytorch")
@@ -244,5 +320,101 @@ describe("validateHardwareCompatibility", () => {
         "pytorch"
       )
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("isAppleSilicon", () => {
+  it.each([
+    ["gpu", "arm64", true],
+    ["gpu", "x86_64", false],
+    ["cpu", "arm64", false],
+    ["cuda", "arm64", false],
+  ])("type %s on %s is %s", (type, architecture, expected) => {
+    expect(isAppleSilicon(hardware({ type, architecture }))).toBe(expected);
+  });
+});
+
+describe("isGpuArchitecture", () => {
+  it.each([
+    ["cuda", true],
+    ["gpu", true],
+    ["mps", true],
+    ["cpu", false],
+    ["transformer", false],
+  ])("%s is %s", (arch, expected) => {
+    expect(isGpuArchitecture(arch)).toBe(expected);
+  });
+});
+
+describe("containerArchitecture", () => {
+  it.each([
+    ["mps", "cpu"],
+    ["cuda", "cuda"],
+    ["gpu", "gpu"],
+    ["cpu", "cpu"],
+  ])("%s builds as %s", (arch, expected) => {
+    expect(containerArchitecture(arch)).toBe(expected);
+  });
+});
+
+describe("pytorchDevicePlacement", () => {
+  it("places an mps target on MPS, warning when it is unavailable", () => {
+    const py = pytorchDevicePlacement("mps");
+    expect(py).toContain('elif "mps" == "mps":');
+    expect(py).toContain("torch.backends.mps.is_available()");
+    expect(py).toContain('model = model.to("mps")');
+    expect(py).toContain("Warning: MPS not available, using CPU");
+  });
+
+  it("keeps the cuda branch and its CPU fallback warning", () => {
+    const py = pytorchDevicePlacement("cuda");
+    expect(py).toContain('if "cuda" == "cuda":');
+    expect(py).toContain("model = model.cuda()");
+    expect(py).toContain("Warning: CUDA not available, using CPU");
+  });
+});
+
+describe("resolveTargetArchitecture", () => {
+  const appleProject = () =>
+    project({ framework: "pytorch", hardware: appleSiliconHardware() });
+
+  it("prefers an explicit --arch over everything else", async () => {
+    const modelConfig = { inference: { device: "cpu" } } as never;
+    expect(
+      await resolveTargetArchitecture(appleProject(), modelConfig, "cuda")
+    ).toBe("cuda");
+  });
+
+  it("prefers the model config's inference.device over the hardware block", async () => {
+    // plan used to skip this step, so it planned mps where compile used cpu.
+    const modelConfig = { inference: { device: "cpu" } } as never;
+    expect(await resolveTargetArchitecture(appleProject(), modelConfig)).toBe(
+      "cpu"
+    );
+  });
+
+  it("falls back to the hardware block", async () => {
+    expect(await resolveTargetArchitecture(appleProject(), null)).toBe("mps");
+  });
+});
+
+describe("validateTargetFramework", () => {
+  it("accepts mps for pytorch", () => {
+    expect(() => validateTargetFramework("mps", "pytorch")).not.toThrow();
+  });
+
+  it.each([
+    "tensorflow",
+    "sklearn",
+    "custom",
+    undefined,
+  ])("rejects mps for %s, whose scripts have no MPS path", (fw) => {
+    expect(() => validateTargetFramework("mps", fw)).toThrow(
+      /MPS architecture is only supported for PyTorch/
+    );
+  });
+
+  it.each(["cpu", "cuda", "gpu"])("leaves %s alone for tensorflow", (arch) => {
+    expect(() => validateTargetFramework(arch, "tensorflow")).not.toThrow();
   });
 });
