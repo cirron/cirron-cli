@@ -1,3 +1,5 @@
+import path from "node:path";
+import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   planBuildCommand,
@@ -8,12 +10,17 @@ import {
   planSaveCommand,
   planTestCommand,
 } from "../../src/commands/plan";
+import { ModelConfigManager } from "../../src/utils/model-config";
 import { PlanGenerator } from "../../src/utils/plan";
 import { PlanDiffAnalyzer } from "../../src/utils/plan-diff";
 import { PlanFormatter } from "../../src/utils/plan-formatter";
 import { PlanStorage } from "../../src/utils/plan-storage";
 import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
-import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
+import {
+  appleSiliconHardware,
+  writeFileAt,
+  writeProjectConfig,
+} from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 /**
@@ -66,6 +73,10 @@ describe("plan commands", () => {
     vi.spyOn(PlanStorage, "savePlan").mockResolvedValue(
       "/tmp/plans/p.json" as never
     );
+    // Plans resolve the target like compile and build, which read model.yaml.
+    vi.spyOn(ModelConfigManager.prototype, "loadModelConfig").mockResolvedValue(
+      null
+    );
   });
 
   afterEach(() => {
@@ -97,6 +108,58 @@ describe("plan commands", () => {
         null
       );
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/PLAN CONSOLE/);
+    });
+
+    it("plans an mps compile for pytorch on Apple Silicon hardware", async () => {
+      // plan used to resolve from framework defaults alone, ignoring the
+      // declared hardware that compile itself reads.
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      await planCompileCommand({});
+      expect(PlanGenerator.prototype.generatePlan).toHaveBeenCalledWith(
+        "compile",
+        "mps",
+        null
+      );
+    });
+
+    it("prefers model.yaml's inference.device over the hardware block, like compile", async () => {
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      vi.spyOn(
+        ModelConfigManager.prototype,
+        "loadModelConfig"
+      ).mockResolvedValue({
+        name: "m",
+        inference: { device: "cpu" },
+      } as never);
+
+      await planCompileCommand({});
+
+      expect(PlanGenerator.prototype.generatePlan).toHaveBeenCalledWith(
+        "compile",
+        "cpu",
+        null
+      );
+    });
+
+    it("rejects an mps plan for a tensorflow project", async () => {
+      writeProjectConfig(tmp.dir, { framework: "tensorflow" });
+      let caught: unknown;
+      try {
+        await planCompileCommand({ arch: "mps" });
+      } catch (err) {
+        caught = err;
+      }
+      expect(exitCodeFromError(caught)).toBe(36);
+      expect(errorSpy.mock.calls.flat().join(" ")).toContain(
+        "MPS architecture is only supported for PyTorch"
+      );
+      expect(PlanGenerator.prototype.generatePlan).not.toHaveBeenCalled();
     });
 
     it("--json prints JSON", async () => {
@@ -133,7 +196,17 @@ describe("plan commands", () => {
       } catch (err) {
         caught = err;
       }
-      expect(typeof exitCodeFromError(caught)).toBe("number");
+      expect(exitCodeFromError(caught)).toBe(36);
+    });
+
+    it("warns about --validate failures and still generates the plan", async () => {
+      writeProjectConfig(tmp.dir);
+      await planCompileCommand({ arch: "cpu", validate: true });
+      expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toMatch(
+        /Required file missing/
+      );
+      expect(exitStub.spy).not.toHaveBeenCalled();
+      expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/PLAN CONSOLE/);
     });
   });
 
@@ -171,6 +244,25 @@ describe("plan commands", () => {
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/PLAN CONSOLE/);
     });
 
+    it("plans a cpu build for pytorch on Apple Silicon, matching cirron build", async () => {
+      writeProjectConfig(tmp.dir, {
+        framework: "pytorch",
+        hardware: appleSiliconHardware(),
+      });
+      vi.spyOn(PlanGenerator.prototype, "generatePlan").mockResolvedValue(
+        fakePlan("build")
+      );
+      await planBuildCommand({});
+      expect(PlanGenerator.prototype.generatePlan).toHaveBeenCalledWith(
+        "build",
+        "cpu",
+        null
+      );
+      expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toContain(
+        "MPS is not available inside Linux containers; planning for cpu"
+      );
+    });
+
     it("--json + --save", async () => {
       writeProjectConfig(tmp.dir, { framework: "pytorch" });
       vi.spyOn(PlanGenerator.prototype, "generatePlan").mockResolvedValue(
@@ -179,6 +271,21 @@ describe("plan commands", () => {
       await planBuildCommand({ arch: "cpu", json: true, save: true });
       expect(PlanStorage.savePlan).toHaveBeenCalled();
       expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/"plan":true/);
+    });
+
+    it("exits BUILD_FAILED when plan generation throws", async () => {
+      writeProjectConfig(tmp.dir, { framework: "pytorch" });
+      vi.spyOn(PlanGenerator.prototype, "generatePlan").mockRejectedValue(
+        new Error("analysis failed")
+      );
+      let caught: unknown;
+      try {
+        await planBuildCommand({ arch: "cpu" });
+      } catch (err) {
+        caught = err;
+      }
+      expect(exitCodeFromError(caught)).toBe(34);
+      expect(errorSpy.mock.calls.flat().join(" ")).toContain("analysis failed");
     });
   });
 
@@ -338,7 +445,7 @@ describe("plan commands", () => {
   describe("planSaveCommand", () => {
     it("saves a compile plan", async () => {
       writeProjectConfig(tmp.dir);
-      await planSaveCommand("compile", { arch: "cpu" });
+      await planSaveCommand("compile", {});
       expect(PlanStorage.savePlan).toHaveBeenCalled();
     });
 
@@ -350,6 +457,37 @@ describe("plan commands", () => {
         caught = err;
       }
       expect(typeof exitCodeFromError(caught)).toBe("number");
+    });
+
+    it("--all creates the plans directory when it does not exist yet", async () => {
+      writeProjectConfig(tmp.dir);
+      // os.homedir() reads $HOME on POSIX, so this points the save path at a
+      // home with no ~/.cirron/plans — the fresh-machine case. The --all branch
+      // wrote lint/test plans without ensureDir, so writeJson threw here.
+      const origHome = process.env["HOME"];
+      process.env["HOME"] = tmp.dir;
+
+      try {
+        await planSaveCommand("all", { all: true });
+
+        const plansDir = path.join(tmp.dir, ".cirron", "plans");
+        expect(fs.existsSync(plansDir)).toBe(true);
+        const written = fs.readdirSync(plansDir);
+        expect(written.some((f: string) => f.startsWith("lint-plan-"))).toBe(
+          true
+        );
+        expect(written.some((f: string) => f.startsWith("test-plan-"))).toBe(
+          true
+        );
+      } finally {
+        // Assigning undefined would set HOME to the string "undefined", which
+        // os.homedir() would then hand to later tests as a real path.
+        if (origHome === undefined) {
+          delete process.env["HOME"];
+        } else {
+          process.env["HOME"] = origHome;
+        }
+      }
     });
   });
 });

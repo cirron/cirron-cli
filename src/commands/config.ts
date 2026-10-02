@@ -2,7 +2,9 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import type { ConfigCommandOptions, SettingsOptions } from "../types";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
+import { getNestedValue, setNestedValue } from "../utils/nested";
 import { settingsCommand } from "./settings";
 
 interface CliConfigOptions {
@@ -13,7 +15,12 @@ interface CliConfigOptions {
   set?: string;
 }
 
-// Scope-based routing: delegates to cliConfigHandler or settingsCommand
+/**
+ * Entry point for `cirron config`: get, set, list or reset configuration.
+ *
+ * Routes on scope rather than on the operation — a project-scoped invocation
+ * delegates to `settingsCommand`, everything else to the CLI config handler.
+ */
 export async function configCommand(
   options: ConfigCommandOptions
 ): Promise<void> {
@@ -185,7 +192,7 @@ export async function configCommand(
       project: selectedScope === "project",
     });
   } catch (error) {
-    logger.error("Config command failed:", error);
+    reportCommandError(error, "Config command failed");
     process.exit(1);
   }
 }
@@ -207,7 +214,7 @@ function determineScope(
   return options.scope;
 }
 
-// --- CLI config handler (previously configCommand) ---
+// CLI config handler (previously configCommand)
 // Handles CLI-scoped configuration: API URL, timeout, retries
 
 async function cliConfigHandler(options: CliConfigOptions): Promise<void> {
@@ -229,7 +236,7 @@ async function cliConfigHandler(options: CliConfigOptions): Promise<void> {
       await interactiveConfig(config);
     }
   } catch (error) {
-    logger.error("Config command failed:", error);
+    reportCommandError(error, "Config command failed");
     process.exit(1);
   }
 }
@@ -479,27 +486,6 @@ async function interactiveConfig(config: ConfigManager): Promise<void> {
   }
 }
 
-function getNestedValue(obj: any, path: string): any {
-  return path.split(".").reduce((current, key) => current?.[key], obj);
-}
-
-function setNestedValue(obj: any, path: string, value: any): void {
-  const keys = path.split(".");
-  const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
-    if (!(key in current)) {
-      current[key] = {};
-    }
-    return current[key];
-  }, obj);
-  target[lastKey] = value;
-}
-
 function isValidUrl(string: string): boolean {
-  try {
-    new URL(string);
-    return true;
-  } catch {
-    return false;
-  }
+  return URL.canParse(string);
 }

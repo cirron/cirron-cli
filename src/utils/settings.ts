@@ -1,3 +1,12 @@
+/**
+ * Global and project settings.
+ *
+ * Global settings live in `~/.cirron/settings.json`. Project settings come
+ * from an `.cirronrc` file in the project, in JSON or YAML. Every read is
+ * validated against the schemas in `./schema`, so a malformed file surfaces as
+ * an error rather than silently supplying defaults.
+ */
+
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -13,6 +22,8 @@ import type {
   SettingsTemplate,
 } from "../types";
 import { ConfigManager } from "./config";
+import { errorMessage } from "./errors";
+import { getNestedValue } from "./nested";
 import { schemaValidator } from "./schema";
 
 export class SettingsManager {
@@ -77,7 +88,10 @@ export class SettingsManager {
         JSON.stringify(result.data, null, 2)
       );
     } catch (error) {
-      throw new Error(`Failed to save global settings: ${error}`);
+      throw new Error(
+        `Failed to save global settings: ${errorMessage(error)}`,
+        { cause: error }
+      );
     }
   }
 
@@ -156,7 +170,10 @@ export class SettingsManager {
         throw new Error("Project configuration not found");
       }
     } catch (error) {
-      throw new Error(`Could not load project configuration: ${error}`);
+      throw new Error(
+        `Could not load project configuration: ${errorMessage(error)}`,
+        { cause: error }
+      );
     }
 
     config.settings = result.data!;
@@ -179,8 +196,7 @@ export class SettingsManager {
     const defaultGlobal = this.getDefaultGlobalSettings();
     const defaultProject = this.getDefaultProjectSettings();
     const defaultValue =
-      this.getNestedValue(defaultGlobal, key) ??
-      this.getNestedValue(defaultProject, key);
+      getNestedValue(defaultGlobal, key) ?? getNestedValue(defaultProject, key);
 
     sources.push({
       type: "default",
@@ -189,7 +205,7 @@ export class SettingsManager {
 
     // 2. Global settings
     const globalSettings = this.loadGlobalSettings();
-    const globalValue = this.getNestedValue(globalSettings, key);
+    const globalValue = getNestedValue(globalSettings, key);
     if (globalValue !== undefined) {
       sources.push({
         type: "global",
@@ -201,7 +217,7 @@ export class SettingsManager {
     // 3. Project settings
     const projectSettings = this.loadProjectSettings(projectPath);
     if (projectSettings) {
-      const projectValue = this.getNestedValue(projectSettings, key);
+      const projectValue = getNestedValue(projectSettings, key);
       if (projectValue !== undefined) {
         const projectRoot = this.findProjectRoot(projectPath);
         if (projectRoot) {
@@ -434,10 +450,6 @@ export class SettingsManager {
       console.warn(`Could not parse config file ${configPath}:`, error);
       return null;
     }
-  }
-
-  private getNestedValue(obj: any, path: string): any {
-    return path.split(".").reduce((current, key) => current?.[key], obj);
   }
 
   private mergeSettings<T>(target: T, source: Partial<T>): T {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -194,9 +195,9 @@ describe("syncCommand", () => {
 
     const jsonArg = infoSpy.mock.calls
       .flat()
-      .find((s) => typeof s === "string" && s.includes('"localOnly"')) as
-      | string
-      | undefined;
+      .find(
+        (s: unknown) => typeof s === "string" && s.includes('"localOnly"')
+      ) as string | undefined;
     expect(jsonArg).toBeTruthy();
     expect(JSON.parse(jsonArg ?? "{}").summary.toPush).toBe(1);
   });
@@ -384,7 +385,7 @@ describe("syncCommand", () => {
       expect(CirronApi.prototype.downloadFile).toHaveBeenCalled();
     });
 
-    it("keep-both creates .local and .remote copies", async () => {
+    it("refuses to upload a conflict path that escapes the project directory", async () => {
       createAuthenticatedSession(tmp.dir);
       writeProjectConfig(tmp.dir);
       writeFileAt(tmp.dir, "models/m1.pth", "hello world");
@@ -392,13 +393,13 @@ describe("syncCommand", () => {
         syncDiff({
           conflicts: [
             {
-              path: "models/m1.pth",
+              path: "../../../.ssh/id_rsa",
               localChecksum: HELLO_CHECKSUM,
               remoteChecksum: HELLO_CHECKSUM,
               localSize: 11,
               remoteSize: 11,
-              artifactId: "art-1",
-              artifactName: "m1",
+              artifactId: "art-evil",
+              artifactName: "evil",
               type: "model",
               tag: "latest",
             },
@@ -408,6 +409,90 @@ describe("syncCommand", () => {
       vi.spyOn(CirronApi.prototype, "completeSyncMetadata").mockResolvedValue(
         undefined as never
       );
+      const dedupeSpy = vi.spyOn(CirronApi.prototype, "checkDedupe");
+      const uploadSpy = vi.spyOn(CirronApi.prototype, "uploadFile");
+
+      let caught: unknown;
+      try {
+        await syncCommand(undefined, { conflicts: "local-wins" });
+      } catch (err) {
+        caught = err;
+      }
+
+      // local-wins only reads locally and pushes, but the path it reads is
+      // server-supplied: without a guard a hostile response names any
+      // readable file and the CLI uploads it.
+      expect(dedupeSpy).not.toHaveBeenCalled();
+      expect(uploadSpy).not.toHaveBeenCalled();
+      expect(exitCodeFromError(caught)).toBe(1);
+    });
+
+    it("rejects a conflict path that escapes the project directory", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir);
+      writeFileAt(tmp.dir, "models/m1.pth", "hello world");
+      vi.spyOn(CirronApi.prototype, "getSyncDiff").mockResolvedValue(
+        syncDiff({
+          conflicts: [
+            {
+              path: "../escape.txt",
+              localChecksum: HELLO_CHECKSUM,
+              remoteChecksum: HELLO_CHECKSUM,
+              localSize: 11,
+              remoteSize: 11,
+              artifactId: "art-evil",
+              artifactName: "evil",
+              type: "model",
+              tag: "latest",
+            },
+          ],
+        })
+      );
+      vi.spyOn(CirronApi.prototype, "completeSyncMetadata").mockResolvedValue(
+        undefined as never
+      );
+      const downloadSpy = vi.spyOn(CirronApi.prototype, "downloadFile");
+
+      let caught: unknown;
+      try {
+        await syncCommand(undefined, { conflicts: "remote-wins" });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(downloadSpy).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(tmp.dir, "..", "escape.txt"))).toBe(false);
+      expect(exitCodeFromError(caught)).toBe(1);
+    });
+
+    it("keep-both creates .local and .remote copies and keeps the local baseline", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeProjectConfig(tmp.dir);
+      writeFileAt(tmp.dir, "models/m1.pth", "local edit");
+      const localChecksum = createHash("sha256")
+        .update("local edit")
+        .digest("hex");
+      vi.spyOn(CirronApi.prototype, "getSyncDiff").mockResolvedValue(
+        syncDiff({
+          conflicts: [
+            {
+              path: "models/m1.pth",
+              localChecksum,
+              // stubPullChain writes "hello world", so the remote copy verifies.
+              remoteChecksum: HELLO_CHECKSUM,
+              localSize: 10,
+              remoteSize: 11,
+              artifactId: "art-1",
+              artifactName: "m1",
+              type: "model",
+              tag: "latest",
+            },
+          ],
+        })
+      );
+      const complete = vi
+        .spyOn(CirronApi.prototype, "completeSyncMetadata")
+        .mockResolvedValue(undefined as never);
       stubPullChain();
 
       await syncCommand(undefined, { conflicts: "keep-both" });
@@ -417,6 +502,23 @@ describe("syncCommand", () => {
       );
       expect(fs.existsSync(path.join(tmp.dir, "models/m1.remote.pth"))).toBe(
         true
+      );
+      // The original still holds the local bytes, so its baseline must be the
+      // local checksum; the remote one made the next sync report a change.
+      expect(fs.readFileSync(path.join(tmp.dir, "models/m1.pth"), "utf8")).toBe(
+        "local edit"
+      );
+      const { pulled } = (complete.mock.calls[0]?.[0] ?? {}) as {
+        pulled: { path: string; checksum: string }[];
+      };
+      expect(pulled).toContainEqual(
+        expect.objectContaining({
+          path: "models/m1.pth",
+          checksum: localChecksum,
+        })
+      );
+      expect(pulled).not.toContainEqual(
+        expect.objectContaining({ checksum: HELLO_CHECKSUM })
       );
     });
 

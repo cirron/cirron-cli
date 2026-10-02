@@ -4,6 +4,7 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig } from "../types";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import {
   executePythonFile,
   executeScript,
@@ -33,12 +34,12 @@ interface TestOptions {
   watch?: boolean;
 }
 
+/** Entry point for `cirron test`: runs the selected test suites, or a default set when none are named. */
 export async function testCommand(options: TestOptions): Promise<void> {
   const spinner = ora("Preparing tests...").start();
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -49,7 +50,6 @@ export async function testCommand(options: TestOptions): Promise<void> {
 
     const { config: projectConfig } = projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -223,14 +223,14 @@ export async function testCommand(options: TestOptions): Promise<void> {
         }
 
         results.push({ test, status: "pass" });
-        passedTests++;
+        passedTests += 1;
       } catch (error) {
-        const errorMessage =
+        const failureMessage =
           error instanceof Error ? error.message : "Unknown error";
         results.push({
           test,
           status: "fail",
-          message: errorMessage,
+          message: failureMessage,
         });
 
         // Interactive error handling
@@ -244,7 +244,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
             results.filter((r) => r.status === "pass").map((r) => r.test),
             test,
             remainingTests,
-            errorMessage
+            failureMessage
           );
 
           if (!shouldContinue) {
@@ -292,7 +292,7 @@ export async function testCommand(options: TestOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Test execution failed"));
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }
@@ -372,7 +372,8 @@ async function runEnvironmentTests(
       throw error; // Re-throw version requirement errors
     }
     throw new Error(
-      `Python3 not found - please ensure python3 is installed and available. Error: ${String(error)}`
+      `Python3 not found - please ensure python3 is installed and available. Error: ${String(error)}`,
+      { cause: error }
     );
   }
 
@@ -416,8 +417,10 @@ async function runEnvironmentTests(
           }
         }
       }
-    } catch {
-      throw new Error("CUDA/GPU not available but required by project");
+    } catch (error) {
+      throw new Error("CUDA/GPU not available but required by project", {
+        cause: error,
+      });
     }
   }
 
@@ -437,8 +440,8 @@ async function runBuildTests(projectConfig: ProjectConfig): Promise<void> {
 
       // Clean up test image
       execSync(`docker rmi ${projectConfig.name}-test`, { stdio: "pipe" });
-    } catch {
-      throw new Error("Docker build failed");
+    } catch (error) {
+      throw new Error("Docker build failed", { cause: error });
     }
   } else {
     throw new Error("Dockerfile not found");
@@ -466,17 +469,20 @@ async function runRequirementsTests(): Promise<void> {
       execSync("pip install --dry-run -r requirements.txt", { stdio: "pipe" });
     } catch (dryRunError) {
       // Check if it's just missing packages vs real conflicts
-      const errorMessage = String(dryRunError);
-      if (errorMessage.includes("No matching distribution found")) {
-        throw new Error("Some packages in requirements.txt are not available");
+      const dryRunMessage = String(dryRunError);
+      if (dryRunMessage.includes("No matching distribution found")) {
+        throw new Error("Some packages in requirements.txt are not available", {
+          cause: dryRunError,
+        });
       }
       logger.warn(
         "Requirements dry-run failed but may be due to existing environment"
       );
     }
-  } catch {
+  } catch (error) {
     throw new Error(
-      "Requirements validation failed - dependency conflicts detected"
+      "Requirements validation failed - dependency conflicts detected",
+      { cause: error }
     );
   }
 }
@@ -494,8 +500,8 @@ async function runUnitTests(): Promise<void> {
       // Fallback to unittest
       execSync("python3 -m unittest discover tests -v", { stdio: "pipe" });
     }
-  } catch {
-    throw new Error("Unit tests failed");
+  } catch (error) {
+    throw new Error("Unit tests failed", { cause: error });
   }
 }
 
@@ -534,8 +540,8 @@ async function runLintTests(): Promise<void> {
     } catch {
       logger.warn("Linting skipped - linters not available");
     }
-  } catch {
-    throw new Error("Code quality checks failed");
+  } catch (error) {
+    throw new Error("Code quality checks failed", { cause: error });
   }
 }
 
@@ -582,8 +588,8 @@ else:
         fs.unlinkSync(tempScriptPath);
       }
     }
-  } catch {
-    throw new Error("Model loading or instantiation failed");
+  } catch (error) {
+    throw new Error("Model loading or instantiation failed", { cause: error });
   }
 }
 
@@ -636,7 +642,7 @@ else:
     try {
       const result = await executePythonFile(tempScriptPath);
       if (!result.success) {
-        throw new Error(`Model test failed: ${formatExecutionError(result)}`);
+        throw new Error(`Data test failed: ${formatExecutionError(result)}`);
       }
     } finally {
       // Clean up temporary file
@@ -644,8 +650,8 @@ else:
         fs.unlinkSync(tempScriptPath);
       }
     }
-  } catch {
-    throw new Error("Data loading tests failed");
+  } catch (error) {
+    throw new Error("Data loading tests failed", { cause: error });
   }
 }
 
@@ -774,8 +780,8 @@ else:
         fs.unlinkSync(tempScriptPath);
       }
     }
-  } catch {
-    throw new Error("Inference tests failed");
+  } catch (error) {
+    throw new Error("Inference tests failed", { cause: error });
   }
 }
 
@@ -838,11 +844,13 @@ async function watchTests(
               break;
           }
         } catch (error) {
-          logger.error(chalk.red(`✗ ${test} tests failed: ${error}`));
+          logger.error(
+            chalk.red(`✗ ${test} tests failed: ${errorMessage(error)}`)
+          );
         }
       }
     } catch (error) {
-      logger.error("Watch test failed:", error);
+      reportCommandError(error, "Watch test failed");
     }
 
     isRunning = false;
@@ -1055,15 +1063,15 @@ print("Throughput: {:.2f} predictions/second".format(throughput))
       }
     }
   } catch (error) {
-    throw new Error(`Validation testing failed: ${error}`);
+    throw new Error(`Validation testing failed: ${errorMessage(error)}`, {
+      cause: error,
+    });
   }
 }
 
 async function runEndpointTests(endpointUrl: string): Promise<void> {
-  try {
-    // Validate URL format
-    new URL(endpointUrl);
-  } catch {
+  // Validate URL format
+  if (!URL.canParse(endpointUrl)) {
     throw new Error("Invalid endpoint URL format");
   }
 
@@ -1164,7 +1172,9 @@ else:
       }
     }
   } catch (error) {
-    throw new Error(`Endpoint testing failed: ${error}`);
+    throw new Error(`Endpoint testing failed: ${errorMessage(error)}`, {
+      cause: error,
+    });
   }
 }
 
@@ -1221,8 +1231,10 @@ async function runPipelineTests(
         time: endTime - startTime,
         error: error instanceof Error ? error.message : String(error),
       });
-      logger.error(`✗ ${step.name} failed: ${error}`);
-      throw new Error(`Pipeline failed at step: ${step.name}`);
+      logger.error(`✗ ${step.name} failed: ${errorMessage(error)}`);
+      throw new Error(`Pipeline failed at step: ${step.name}`, {
+        cause: error,
+      });
     }
   }
 

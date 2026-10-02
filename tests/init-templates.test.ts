@@ -18,13 +18,14 @@ describe("init TEMPLATES registry", () => {
     );
   });
 
-  it.each(
-    EXPECTED_TEMPLATES
-  )("template %s has name, description, and postInstall", (key) => {
-    const tpl = TEMPLATES[key];
-    expect(tpl).toBeDefined();
-    expect(tpl?.name).toBeTruthy();
-    expect(tpl?.description).toBeTruthy();
-    expect(Array.isArray(tpl?.postInstall)).toBe(true);
-  });
+  it.each(EXPECTED_TEMPLATES)(
+    "template %s has name, description, and postInstall",
+    (key) => {
+      const tpl = TEMPLATES[key];
+      expect(tpl).toBeDefined();
+      expect(tpl?.name).toBeTruthy();
+      expect(tpl?.description).toBeTruthy();
+      expect(Array.isArray(tpl?.postInstall)).toBe(true);
+    }
+  );
 });

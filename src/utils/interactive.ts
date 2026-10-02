@@ -100,7 +100,7 @@ export class InteractiveManager {
     if (!this.interactive) {
       // Return first choice or default if not interactive
       if (options.choices && options.choices.length > 0) {
-        const firstChoice = options.choices[0];
+        const [firstChoice] = options.choices;
         return typeof firstChoice === "object"
           ? firstChoice.value
           : firstChoice;
@@ -202,6 +202,7 @@ export class InteractiveManager {
 
   /**
    * Allow user to select which steps to run from a list
+   * @returns The chosen step names, empty when the user selects none.
    */
   async selectSteps(
     availableSteps: { name: string; description: string; default?: boolean }[],

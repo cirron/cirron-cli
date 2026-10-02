@@ -1,3 +1,11 @@
+/**
+ * Rendering for generated plans.
+ *
+ * Console output is chalk-styled and structured by section; the JSON form is
+ * the machine contract for `--json`. Formatting only — nothing here reads or
+ * writes a plan.
+ */
+
 import chalk from "chalk";
 import type { ArtifactPlan, DependencyInfo, PlanFile } from "./plan";
 
@@ -273,7 +281,7 @@ export class PlanFormatter {
       if (showDetails) {
         sections.push("");
         sections.push(colorize(" Build Steps:", chalk.bold.blue));
-        for (let i = 0; i < plan.buildSteps.length; i++) {
+        for (let i = 0; i < plan.buildSteps.length; i += 1) {
           const step = plan.buildSteps[i];
           sections.push(colorize(`  ${i + 1}. ${step}`, chalk.blue));
         }

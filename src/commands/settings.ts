@@ -2,9 +2,16 @@ import path from "node:path";
 import chalk from "chalk";
 import inquirer from "inquirer";
 import type { SettingsOptions } from "../types";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
+import {
+  deleteNestedValue,
+  getNestedValue,
+  setNestedValue,
+} from "../utils/nested";
 import { settingsManager } from "../utils/settings";
 
+/** Entry point for `cirron settings`: read and write global or project settings. */
 export async function settingsCommand(options: SettingsOptions): Promise<void> {
   try {
     // Determine scope - default to global if not in project
@@ -35,7 +42,7 @@ export async function settingsCommand(options: SettingsOptions): Promise<void> {
       await interactiveSettings(scope, options);
     }
   } catch (error) {
-    logger.error("Settings command failed:", error);
+    reportCommandError(error, "Settings command failed");
     process.exit(1);
   }
 }
@@ -165,7 +172,7 @@ async function getSetting(
       logger.info(`${chalk.cyan(key)}: ${displayValue}`);
     }
   } catch (error) {
-    logger.error(`Failed to get setting '${key}':`, error);
+    reportCommandError(error, `Failed to get setting '${key}'`);
   }
 }
 
@@ -200,7 +207,7 @@ async function setSetting(
       `${chalk.green("✓")} Set ${chalk.cyan(key)} = ${chalk.yellow(value)} (${scope})`
     );
   } catch (error) {
-    logger.error(`Failed to set setting '${key}':`, error);
+    reportCommandError(error, `Failed to set setting '${key}'`);
   }
 }
 
@@ -232,7 +239,7 @@ async function deleteSetting(
       }
     }
   } catch (error) {
-    logger.error(`Failed to delete setting '${key}':`, error);
+    reportCommandError(error, `Failed to delete setting '${key}'`);
   }
 }
 
@@ -510,14 +517,8 @@ async function editAPISettings(settings: any): Promise<void> {
       name: "url",
       message: "API URL:",
       default: settings.api.url,
-      validate: (input: string) => {
-        try {
-          new URL(input);
-          return true;
-        } catch {
-          return "Please enter a valid URL";
-        }
-      },
+      validate: (input: string) =>
+        URL.canParse(input) || "Please enter a valid URL",
     },
     {
       type: "input",
@@ -565,6 +566,7 @@ async function editBuildSettings(settings: any): Promise<void> {
         "cpu",
         "cuda",
         "gpu",
+        "mps",
         "transformer",
         "xgboost",
         "resnet",
@@ -686,7 +688,7 @@ async function exportSettings(
       `${chalk.green("✓")} Settings exported to ${chalk.cyan(filePath)}`
     );
   } catch (error) {
-    logger.error(`Failed to export settings: ${error}`);
+    logger.error(`Failed to export settings: ${errorMessage(error)}`);
   }
 }
 
@@ -701,7 +703,7 @@ async function importSettings(
       `${chalk.green("✓")} Settings imported from ${chalk.cyan(filePath)}`
     );
   } catch (error) {
-    logger.error(`Failed to import settings: ${error}`);
+    logger.error(`Failed to import settings: ${errorMessage(error)}`);
   }
 }
 
@@ -742,7 +744,7 @@ async function applyTemplate(
       logger.info("Template application cancelled");
     }
   } catch (error) {
-    logger.error(`Failed to apply template: ${error}`);
+    logger.error(`Failed to apply template: ${errorMessage(error)}`);
   }
 }
 
@@ -782,7 +784,7 @@ async function explainSetting(
 
     console.log();
   } catch (error) {
-    logger.error(`Failed to explain setting '${key}': ${error}`);
+    logger.error(`Failed to explain setting '${key}': ${errorMessage(error)}`);
   }
 }
 
@@ -815,7 +817,7 @@ async function resetSettings(
       logger.info(`${chalk.green("✓")} Project settings reset to defaults`);
     }
   } catch (error) {
-    logger.error(`Failed to reset settings: ${error}`);
+    logger.error(`Failed to reset settings: ${errorMessage(error)}`);
   }
 }
 
@@ -898,33 +900,6 @@ async function interactiveSettings(
 }
 
 // Utility functions
-function getNestedValue(obj: any, path: string): any {
-  return path.split(".").reduce((current, key) => current?.[key], obj);
-}
-
-function setNestedValue(obj: any, path: string, value: any): void {
-  const keys = path.split(".");
-  const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => {
-    if (!(key in current)) {
-      current[key] = {};
-    }
-    return current[key];
-  }, obj);
-  target[lastKey] = value;
-}
-
-function deleteNestedValue(obj: any, path: string): boolean {
-  const keys = path.split(".");
-  const lastKey = keys.pop()!;
-  const target = keys.reduce((current, key) => current?.[key], obj);
-
-  if (target && lastKey in target) {
-    delete target[lastKey];
-    return true;
-  }
-  return false;
-}
 
 function parseValue(value: string): any {
   // Try to parse as JSON first

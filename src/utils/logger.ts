@@ -1,4 +1,3 @@
-// src/utils/logger.ts
 import chalk from "chalk";
 
 export class Logger {

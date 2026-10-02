@@ -1,10 +1,9 @@
-// src/commands/list.ts
 import chalk from "chalk";
 import Table from "cli-table3";
 import ora from "ora";
 import { CirronApi } from "../utils/api";
-import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
 interface ListOptions {
@@ -14,7 +13,7 @@ interface ListOptions {
   limit?: number;
 }
 
-// Main list command delegator
+/** Entry point for `cirron list`: list a platform resource, chosen by positional argument. */
 export async function listCommand(
   resource: string,
   options: ListOptions
@@ -34,7 +33,6 @@ export async function listCommand(
     return;
   }
 
-  // Check authentication
   const config = new ConfigManager();
   const currentConfig = config.load();
 
@@ -127,8 +125,7 @@ async function listDeployments(
     }
   } catch (error) {
     spinner.fail("Failed to fetch deployments");
-    handlePlatformError(error);
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }
@@ -194,8 +191,7 @@ async function listBuilds(api: CirronApi, options: ListOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Failed to fetch builds");
-    handlePlatformError(error);
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }
@@ -257,8 +253,7 @@ async function listModels(api: CirronApi, options: ListOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Failed to fetch models");
-    handlePlatformError(error);
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }
@@ -314,8 +309,7 @@ async function listImages(api: CirronApi, options: ListOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Failed to fetch images");
-    handlePlatformError(error);
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }
@@ -379,8 +373,7 @@ async function listRegistry(
     }
   } catch (error) {
     spinner.fail("Failed to fetch registry artifacts");
-    handlePlatformError(error);
-    logger.error("Error:", error);
+    reportCommandError(error);
     process.exit(1);
   }
 }

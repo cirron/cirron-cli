@@ -1,53 +1,7 @@
 {
-  "dependencies": {
-    "@dsnp/parquetjs": "^1.8.7",
-    "@iarna/toml": "^2.2.5",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "chalk": "^5.6.2",
-    "chokidar": "^5.0.0",
-    "cli-table3": "^0.6.5",
-    "commander": "^15.0.0",
-    "fs-extra": "^11.3.5",
-    "inquirer": "^14.0.2",
-    "js-yaml": "^5.2.3",
-    "minimatch": "^10.2.5",
-    "open": "^11.0.0",
-    "ora": "^9.4.0"
-  },
-  "devDependencies": {
-    "@auto-it/npm": "^11.3.6",
-    "@biomejs/biome": "^2.4.16",
-    "@types/fs-extra": "^11.0.4",
-    "@types/iarna__toml": "^2.0.5",
-    "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.8",
-    "auto": "^11.3.6",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3",
-    "ultracite": "^7.8.1",
-    "vitest": "^4.1.10"
-  },
   "name": "@cirron/cli",
-  "scripts": {
-    "build": "tsc",
-    "build:watch": "tsc --watch",
-    "bump-deps": "npx npm-check-updates --deep -u && npm install",
-    "dev": "ts-node src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build && npm test",
-    "lint": "ultracite check",
-    "lint:fix": "ultracite fix",
-    "contracts:check": "node scripts/contracts-check.mjs"
-  },
   "version": "0.1.2",
   "description": "Official CLI for Cirron, providing streamlined commands for building, deploying, and managing ML models on and off the platform.",
-  "main": "dist/index.js",
-  "bin": {
-    "cirron": "bin/cirron"
-  },
   "keywords": [
     "cirron",
     "cli",
@@ -57,15 +11,19 @@
     "devops",
     "automation"
   ],
-  "author": "Cirron DX <dx@cirron.com>",
-  "license": "Apache-2.0",
   "homepage": "https://github.com/cirron/cirron-cli#readme",
+  "bugs": {
+    "url": "https://github.com/cirron/cirron-cli/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cirron/cirron-cli.git"
   },
-  "bugs": {
-    "url": "https://github.com/cirron/cirron-cli/issues"
+  "license": "Apache-2.0",
+  "author": "Cirron DX <dx@cirron.com>",
+  "main": "dist/index.js",
+  "bin": {
+    "cirron": "bin/cirron"
   },
   "files": [
     "dist/**/*",
@@ -73,6 +31,49 @@
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "bump-deps": "npx npm-check-updates --deep -u && npm install",
+    "contracts:check": "node scripts/contracts-check.mjs",
+    "dev": "tsx src/index.ts",
+    "lint": "ultracite check",
+    "lint:fix": "ultracite fix",
+    "prepublishOnly": "npm run build && npm test",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@dsnp/parquetjs": "~1.8.9",
+    "@iarna/toml": "^2.2.5",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "chalk": "^6.0.1",
+    "chokidar": "^5.0.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^15.0.0",
+    "fs-extra": "^11.4.1",
+    "inquirer": "^14.2.2",
+    "js-yaml": "^5.4.2",
+    "minimatch": "^10.2.6",
+    "open": "^11.0.4",
+    "ora": "^9.4.1"
+  },
+  "devDependencies": {
+    "@auto-it/npm": "^11.3.6",
+    "@biomejs/biome": "^2.5.15",
+    "@types/fs-extra": "^11.0.4",
+    "@types/iarna__toml": "^2.0.5",
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.3",
+    "auto": "^11.3.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "ultracite": "^7.12.2",
+    "vitest": "^5.0.3"
+  },
   "engines": {
     "node": ">=22.13.0"
   },

@@ -4,6 +4,7 @@ import {
   classifyHttpError,
   handlePlatformError,
   NotAuthenticatedError,
+  PermissionDeniedError,
   PlatformBadRequestError,
   PlatformError,
   PlatformRateLimitError,
@@ -106,22 +107,53 @@ describe("classifyFetchError", () => {
 });
 
 describe("classifyHttpError", () => {
-  it.each([401, 403])("maps HTTP %s to NotAuthenticatedError", (status) => {
-    expect(classifyHttpError(status, "unauthorized")).toBeInstanceOf(
-      NotAuthenticatedError
+  it("maps HTTP 401 to NotAuthenticatedError", () => {
+    const err = classifyHttpError(401, "unauthorized");
+    expect(err).toBeInstanceOf(NotAuthenticatedError);
+    expect(err.exitCode).toBe(2);
+    expect(err.userMessage).toMatch(/Not signed in/);
+  });
+
+  it("maps HTTP 403 to PermissionDeniedError naming the server's permission", () => {
+    const err = classifyHttpError(403, "Forbidden", {
+      permission: "storage:files:upload",
+    });
+    expect(err).toBeInstanceOf(PermissionDeniedError);
+    expect(err).not.toBeInstanceOf(NotAuthenticatedError);
+    expect(err.exitCode).toBe(1);
+    expect((err as PermissionDeniedError).status).toBe(403);
+    expect((err as PermissionDeniedError).permission).toBe(
+      "storage:files:upload"
+    );
+    expect(err.userMessage).toMatch(/Permission denied/);
+    expect(err.userMessage).toContain('"storage:files:upload"');
+    expect(err.userMessage).not.toMatch(/sign|log ?in/i);
+  });
+
+  it("falls back to the server message for a 403 without a permission field", () => {
+    const err = classifyHttpError(
+      403,
+      'Forbidden: Requires permission "pipeline:cancel"'
+    );
+    expect(err).toBeInstanceOf(PermissionDeniedError);
+    expect(err.userMessage).toBe(
+      'Permission denied: Forbidden: Requires permission "pipeline:cancel"'
     );
   });
 
-  it.each([
-    400, 404, 409, 422,
-  ])("maps client error HTTP %s to PlatformBadRequestError", (status) => {
-    const err = classifyHttpError(status, "bad request");
-    expect(err).toBeInstanceOf(PlatformBadRequestError);
-    expect((err as PlatformBadRequestError).status).toBe(status);
-  });
+  it.each([400, 404, 409, 422])(
+    "maps client error HTTP %s to PlatformBadRequestError",
+    (status) => {
+      const err = classifyHttpError(status, "bad request");
+      expect(err).toBeInstanceOf(PlatformBadRequestError);
+      expect((err as PlatformBadRequestError).status).toBe(status);
+    }
+  );
 
   it("maps HTTP 429 to PlatformRateLimitError carrying Retry-After", () => {
-    const err = classifyHttpError(429, "Rate limit exceeded", 7);
+    const err = classifyHttpError(429, "Rate limit exceeded", {
+      retryAfterSeconds: 7,
+    });
     expect(err).toBeInstanceOf(PlatformRateLimitError);
     expect((err as PlatformRateLimitError).retryAfterSeconds).toBe(7);
     expect((err as PlatformRateLimitError).status).toBe(429);
@@ -133,13 +165,14 @@ describe("classifyHttpError", () => {
     expect((err as PlatformRateLimitError).retryAfterSeconds).toBeUndefined();
   });
 
-  it.each([
-    500, 502, 503, 504,
-  ])("maps server error HTTP %s to PlatformServerError", (status) => {
-    const err = classifyHttpError(status, "boom");
-    expect(err).toBeInstanceOf(PlatformServerError);
-    expect((err as PlatformServerError).status).toBe(status);
-  });
+  it.each([500, 502, 503, 504])(
+    "maps server error HTTP %s to PlatformServerError",
+    (status) => {
+      const err = classifyHttpError(status, "boom");
+      expect(err).toBeInstanceOf(PlatformServerError);
+      expect((err as PlatformServerError).status).toBe(status);
+    }
+  );
 });
 
 describe("handlePlatformError", () => {

@@ -5,6 +5,10 @@ import type {
   PullDownloadInfo,
   PushConfirmation,
   PushDedupeResult,
+  PushMultipartComplete,
+  PushMultipartInit,
+  PushMultipartPartRecord,
+  PushMultipartPartUrl,
   PushUploadUrl,
   SyncDiffResult,
 } from "../../src/types";
@@ -128,6 +132,51 @@ export function pushUploadUrl(
     chunkSize: 5 * 1024 * 1024,
     maxChunks: 1,
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    ...overrides,
+  };
+}
+
+export function pushMultipartInit(
+  overrides: Partial<PushMultipartInit> = {}
+): PushMultipartInit {
+  return {
+    sessionId: "sess-1",
+    uploadId: "provider-upload-1",
+    partSize: 64 * 1024 * 1024,
+    partCount: 1,
+    multipartThreshold: 256 * 1024 * 1024,
+    ...overrides,
+  };
+}
+
+export function pushMultipartPartUrl(
+  overrides: Partial<PushMultipartPartUrl> = {}
+): PushMultipartPartUrl {
+  return {
+    url: "https://example.invalid/part/1",
+    partNumber: 1,
+    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    ...overrides,
+  };
+}
+
+export function pushMultipartPartRecord(
+  overrides: Partial<PushMultipartPartRecord> = {}
+): PushMultipartPartRecord {
+  return {
+    partNumber: 1,
+    completedParts: 1,
+    totalParts: 1,
+    ...overrides,
+  };
+}
+
+export function pushMultipartComplete(
+  overrides: Partial<PushMultipartComplete> = {}
+): PushMultipartComplete {
+  return {
+    sessionId: "sess-1",
+    partCount: 1,
     ...overrides,
   };
 }

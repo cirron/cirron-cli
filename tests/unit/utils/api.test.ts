@@ -19,7 +19,10 @@ afterEach(() => {
 
 import type { CirronConfig } from "../../../src/types";
 import { CirronApi } from "../../../src/utils/api";
-import { PlatformRateLimitError } from "../../../src/utils/api-errors";
+import {
+  PermissionDeniedError,
+  PlatformRateLimitError,
+} from "../../../src/utils/api-errors";
 import { ConfigManager } from "../../../src/utils/config";
 import { makeTmpDir } from "../../helpers/tmpdir";
 
@@ -43,7 +46,7 @@ function headerBag(entries: Record<string, string> = {}) {
 function authHeaderOnCall(index: number): string | undefined {
   const call = fetchMock.mock.calls.at(index);
   const init = call?.[1] as { headers?: Record<string, string> } | undefined;
-  return init?.headers?.Authorization;
+  return init?.headers?.["Authorization"];
 }
 
 /** The URL of the Nth fetch call (0-indexed, negatives count from the end). */
@@ -256,6 +259,40 @@ describe("CirronApi auth header precedence", () => {
  * stored refresh token triggers exactly one refresh and one retry, and the
  * rotated tokens must reach disk.
  */
+describe("CirronApi deployment status normalization", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  // GET-by-id lowercases the stored status, so the map must match either case.
+  it.each([
+    ["active", "success"],
+    ["ACTIVE", "success"],
+    ["error", "failed"],
+    ["running", "success"],
+    ["queued", "pending"],
+    ["ROLLED_BACK", "rolled_back"],
+    ["STOPPED", "stopped"],
+  ])("maps %s to %s", async (wire, expected) => {
+    fetchMock.mockResolvedValue(
+      jsonOk({
+        success: true,
+        data: {
+          id: "dep-1",
+          environment: "production",
+          status: wire,
+          createdAt: "2026-10-01T00:00:00Z",
+        },
+      }) as never
+    );
+
+    const api = new CirronApi({ ...BASE_CONFIG, token: "t" });
+    const deployment = await api.getDeployment("dep-1");
+
+    expect(deployment.status).toBe(expected);
+  });
+});
+
 describe("CirronApi 401 refresh and retry", () => {
   let tmp: ReturnType<typeof makeTmpDir>;
 
@@ -326,12 +363,33 @@ describe("CirronApi 401 refresh and retry", () => {
     expect(stored.auth?.accessToken).toBe("old-access");
   });
 
+  it("does not refresh or retry on a 403, and keeps the server's permission", async () => {
+    fetchMock.mockResolvedValue(
+      jsonError(403, {
+        error: "Forbidden",
+        permission: "storage:files:upload",
+      }) as never
+    );
+
+    const api = new CirronApi(authedConfig());
+    const error = await api.verifyAuth().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PermissionDeniedError);
+    expect((error as PermissionDeniedError).permission).toBe(
+      "storage:files:upload"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const stored = new ConfigManager().load();
+    expect(stored.auth?.accessToken).toBe("old-access");
+    expect(stored.auth?.refreshToken).toBe("old-refresh");
+  });
+
   it("does not attempt a refresh without a stored refresh token", async () => {
     fetchMock.mockResolvedValue(jsonError(401) as never);
 
     const api = new CirronApi({
       ...BASE_CONFIG,
-      auth: { accessToken: "old-access" } as CirronConfig["auth"],
+      auth: { accessToken: "old-access" } as NonNullable<CirronConfig["auth"]>,
     });
     await expect(api.verifyAuth()).rejects.toThrow();
 

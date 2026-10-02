@@ -33,7 +33,7 @@ describe("configCommand (cli scope)", () => {
   it("--list shows current configuration including defaults", async () => {
     await configCommand({ scope: "cli", list: true });
     const output = infoSpy.mock.calls.flat().join(" ");
-    expect(output).toContain("https://app.cirron.com");
+    expect(output).toContain("https://api.cirron.com");
     expect(output).toContain("production");
   });
 

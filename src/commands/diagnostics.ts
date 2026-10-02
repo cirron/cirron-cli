@@ -3,6 +3,7 @@ import ora from "ora";
 import type { CirronConfig, GlobalSettings, ProjectSettings } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { settingsManager } from "../utils/settings";
 
@@ -51,6 +52,7 @@ interface DiagnosticsReport {
   warnings: string[];
 }
 
+/** Entry point for `cirron diagnostics`: environment and connectivity report for bug reports. */
 export async function diagnosticsCommand(
   options: DiagnosticsOptions
 ): Promise<void> {
@@ -68,7 +70,7 @@ export async function diagnosticsCommand(
       process.exit(1);
     }
   } catch (error) {
-    logger.error("Diagnostics command failed:", error);
+    reportCommandError(error, "Diagnostics command failed");
     process.exit(1);
   }
 }
@@ -156,7 +158,6 @@ function analyzeTokenStatus(config: CirronConfig): DiagnosticResult {
     }
   }
 
-  // Check legacy token
   if (config.token) {
     return {
       status: "ok",
@@ -336,9 +337,7 @@ function validateConfig(config: CirronConfig): DiagnosticResult {
   const issues: string[] = [];
 
   // Validate API URL
-  try {
-    new URL(config.apiUrl);
-  } catch {
+  if (!URL.canParse(config.apiUrl)) {
     issues.push("Invalid API URL format");
   }
 

@@ -91,7 +91,7 @@ describe("authCommand graceful error handling", () => {
     expect(stderr).toMatch(/cirron\.com\/waitlist/);
   });
 
-  it("exits with code 2 when credentials are rejected (401/403)", async () => {
+  it("exits with code 2 when credentials are rejected (401)", async () => {
     new ConfigManager().save({
       apiUrl: "http://localhost:1",
       defaultEnv: "production",
@@ -421,7 +421,7 @@ describe("loginCommand (device flow)", () => {
           );
         }
 
-        pollCount++;
+        pollCount += 1;
         fakeNow += pollClockStepMs;
         if (pollError) {
           return Promise.reject(pollError);
@@ -454,10 +454,10 @@ describe("loginCommand (device flow)", () => {
     for (const key of ["setRawMode", "resume", "pause", "once"]) {
       orig[key] = stdin[key];
     }
-    stdin.setRawMode = vi.fn();
-    stdin.resume = vi.fn();
-    stdin.pause = vi.fn();
-    stdin.once = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+    stdin["setRawMode"] = vi.fn();
+    stdin["resume"] = vi.fn();
+    stdin["pause"] = vi.fn();
+    stdin["once"] = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       if (event === "data") {
         setImmediate(() => cb(Buffer.from("\n")));
       }
@@ -492,7 +492,7 @@ describe("loginCommand (device flow)", () => {
     // The platform allows 10 minutes. The old poll loop tolerated 5 errors
     // and treated every 400 authorization_pending as one, so it gave up after
     // roughly 35 seconds.
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 12; i += 1) {
       pollQueue.push(errorResponse(400, { error: "authorization_pending" }));
     }
     pollQueue.push(
@@ -569,8 +569,10 @@ describe("loginCommand (device flow)", () => {
     await expect(loginCommand({})).rejects.toThrow();
   });
 
-  it("rewrites a 'null/...' verification URL using the API base", async () => {
-    verificationUrl = "null/activate";
+  // The API origin is not the web origin, so the server's absolute
+  // web-app URL is opened as sent rather than derived from the API base.
+  it("opens the server's verification URL as sent", async () => {
+    verificationUrl = "https://app.cirron.com/cli/authorize";
     pollQueue.push(
       jsonResponse({
         accessToken: "a",
@@ -580,11 +582,10 @@ describe("loginCommand (device flow)", () => {
       })
     );
 
-    await loginCommand({ url: "https://platform.cirron.dev/api" });
+    await loginCommand({ url: "https://api.cirron.com" });
 
-    // base = "https://platform.cirron.dev" (with /api stripped)
     expect(openMock).toHaveBeenCalledWith(
-      "https://platform.cirron.dev/activate"
+      "https://app.cirron.com/cli/authorize"
     );
   });
 

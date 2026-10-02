@@ -3,17 +3,32 @@ import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
-import type { BuildOptions, HardwareConfig, ProjectConfig } from "../types";
+import type { BuildOptions, ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
+import {
+  containerArchitecture,
+  loadIndexFile,
+  pytorchDevicePlacement,
+  resolveTargetArchitecture,
+  validateHardwareCompatibility,
+  validateTargetFramework,
+} from "../utils/architecture";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import { executePythonScript, formatExecutionError } from "../utils/execution";
-import { HardwareDetector } from "../utils/hardware";
 import { CirronIgnore } from "../utils/ignore";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
 import { loadProjectConfig } from "../utils/project-config";
+import {
+  checkCudaPytorch,
+  checkIndexConfig,
+  checkModelCreation,
+  checkPythonVersion,
+  checkRequiredFiles,
+} from "../utils/validation";
 
 interface ValidationResult {
   critical: string[];
@@ -101,11 +116,20 @@ function displayForceWarnings(
   console.log();
 }
 
+/**
+ * Compare a project's recorded metadata against what can be detected now.
+ *
+ * Checks the git commit hash only, and only when `src/model.py` and a metadata
+ * block both exist. Deep model introspection — the fuller comparison behind
+ * `cirron info` — is out of scope here; a build should not pay for it. A
+ * missing git repository is not an error.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @returns Every mismatch found, empty when there are none or nothing to check.
+ */
 async function checkMetadataMismatches(
   projectConfig: ProjectConfig
 ): Promise<MetadataMismatch[]> {
-  // This is a simplified version of metadata checking
-  // In a full implementation, we would import and use the analysis from info.ts
   const mismatches: MetadataMismatch[] = [];
 
   try {
@@ -140,11 +164,11 @@ async function checkMetadataMismatches(
   return mismatches;
 }
 
+/** Entry point for `cirron build`: container or ML build from compiled artifacts. Exits 1 outside a project. */
 export async function buildCommand(options: BuildOptions): Promise<void> {
   const spinner = ora("Preparing build...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -204,7 +228,6 @@ async function handleMLBuild(
 ): Promise<void> {
   const interactive = createInteractiveManager(options.interactive ?? false);
 
-  // Load model configuration
   const modelConfigManager = new ModelConfigManager();
   const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -246,11 +269,11 @@ async function handleMLBuild(
     spinner.start();
   }
 
-  // Determine architecture from options, model config, or hardware detection
-  const architecture =
-    options.arch ||
-    modelConfig?.inference?.device ||
-    (await determineArchitectureFromHardware(projectConfig));
+  let architecture = await resolveTargetArchitecture(
+    projectConfig,
+    modelConfig,
+    options.arch
+  );
 
   // Interactive architecture confirmation
   if (interactive.isInteractive() && !options.arch) {
@@ -263,6 +286,7 @@ async function handleMLBuild(
         { name: "cpu", value: "cpu" },
         { name: "cuda", value: "cuda" },
         { name: "gpu", value: "gpu" },
+        { name: "mps", value: "mps" },
       ],
       description:
         "The architecture determines optimization targets and hardware compatibility",
@@ -272,6 +296,7 @@ async function handleMLBuild(
       logger.info(
         `Architecture changed from ${architecture} to ${confirmedArch}`
       );
+      architecture = confirmedArch;
     }
     spinner.start();
   }
@@ -295,26 +320,37 @@ async function handleMLBuild(
     }
   }
 
-  // Validate hardware compatibility if hardware config exists
-  if (projectConfig.hardware && !options.force) {
-    spinner.text = "Validating hardware compatibility...";
-    try {
+  // Check the target against the framework and, when declared, the hardware.
+  // --force downgrades a failure to a warning rather than skipping the check.
+  try {
+    validateTargetFramework(architecture, projectConfig.framework);
+    if (projectConfig.hardware) {
+      spinner.text = "Validating hardware compatibility...";
       await validateHardwareCompatibility(
         projectConfig.hardware,
         architecture,
         projectConfig.framework
       );
       logger.success("✓ Hardware compatibility validated");
-    } catch (error) {
-      if (options.force) {
-        logger.warn(
-          `Hardware validation failed but continuing with --force: ${error}`
-        );
-      } else {
-        spinner.fail("Hardware validation failed");
-        throw error;
-      }
     }
+  } catch (error) {
+    if (options.force) {
+      logger.warn(
+        `Architecture validation failed but continuing with --force: ${errorMessage(error)}`
+      );
+    } else {
+      spinner.fail("Architecture validation failed");
+      throw error;
+    }
+  }
+
+  // Validated against the declared target above, built for what the image can run.
+  const imageArchitecture = containerArchitecture(architecture);
+  if (imageArchitecture !== architecture) {
+    logger.warn(
+      `MPS is not available inside Linux containers; building for ${imageArchitecture}`
+    );
+    architecture = imageArchitecture;
   }
 
   // Pre-build validation (always run if validate is enabled, force logic is handled inside)
@@ -613,8 +649,9 @@ function generateImageName(
 
   // Generate tag
   let tag = "latest";
-  if (_options.tag) {
-    tag = _options.tag;
+  const { tag: optionTag } = _options;
+  if (optionTag) {
+    tag = optionTag;
   } else if (_options.env !== "development") {
     tag = `${_options.env}-${projectConfig.version}`;
   }
@@ -935,7 +972,7 @@ async function analyzeBuild(
     }
   } catch (error) {
     spinner.fail("Build analysis failed");
-    logger.error("Analysis error:", error);
+    reportCommandError(error, "Analysis error");
   }
 }
 
@@ -956,7 +993,7 @@ async function getBuildStats(
         await walk(itemPath);
       } else {
         totalSize += stat.size;
-        fileCount++;
+        fileCount += 1;
       }
     }
   };
@@ -1076,216 +1113,38 @@ function formatBytes(bytes: number): string {
   return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
 
-// ML-specific build functions
-async function determineArchitectureFromHardware(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  // First check if hardware configuration exists in project
-  if (projectConfig.hardware) {
-    const hardwareType = projectConfig.hardware.type;
-
-    // Map hardware type to architecture based on framework
-    if (projectConfig.framework === "pytorch") {
-      return hardwareType === "cuda"
-        ? "cuda"
-        : hardwareType === "gpu"
-          ? "cuda"
-          : "cpu";
-    }
-    if (projectConfig.framework === "tensorflow") {
-      return hardwareType === "cuda" || hardwareType === "gpu" ? "gpu" : "cpu";
-    }
-    return "cpu"; // sklearn and custom default to CPU
-  }
-
-  // Fallback to legacy logic
-  return await determineDefaultArchitecture(projectConfig);
-}
-
-async function determineDefaultArchitecture(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  if (projectConfig.framework === "pytorch") {
-    return projectConfig.gpuRequired ? "cuda" : "cpu";
-  }
-  if (projectConfig.framework === "tensorflow") {
-    return projectConfig.gpuRequired ? "gpu" : "cpu";
-  }
-  if (projectConfig.framework === "sklearn") {
-    return "cpu";
-  }
-  return "cpu";
-}
-
-async function validateHardwareCompatibility(
-  hardwareConfig: HardwareConfig,
-  targetArch: string,
-  framework?: string
-): Promise<void> {
-  const validationErrors: string[] = [];
-
-  // Validate hardware configuration
-  const validation = HardwareDetector.validateHardwareConfig(hardwareConfig);
-  if (!validation.valid) {
-    validationErrors.push(...validation.errors);
-  }
-
-  // Check architecture compatibility
-  if (targetArch === "cuda" && hardwareConfig.type !== "cuda") {
-    validationErrors.push(
-      "CUDA architecture selected but hardware configuration is not CUDA-capable"
-    );
-  }
-
-  if (targetArch === "gpu" && hardwareConfig.type === "cpu") {
-    validationErrors.push(
-      "GPU architecture selected but hardware configuration is CPU-only"
-    );
-  }
-
-  // Framework-specific validation
-  if (framework) {
-    const frameworkCompatible =
-      hardwareConfig.compatibility[
-        framework as keyof typeof hardwareConfig.compatibility
-      ];
-    if (typeof frameworkCompatible === "boolean" && !frameworkCompatible) {
-      validationErrors.push(
-        `Hardware not compatible with ${framework} framework`
-      );
-    }
-  }
-
-  // Check for compatibility warnings
-  if (
-    hardwareConfig.compatibility.warnings &&
-    hardwareConfig.compatibility.warnings.length > 0
-  ) {
-    for (const warning of hardwareConfig.compatibility.warnings) {
-      logger.warn(`Hardware warning: ${warning}`);
-    }
-  }
-
-  if (validationErrors.length > 0) {
-    throw new Error(
-      `Hardware compatibility validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
-    );
-  }
-}
-
-async function loadIndexFile(indexPath: string): Promise<any> {
-  try {
-    const ext = path.extname(indexPath).toLowerCase();
-
-    if (ext === ".json") {
-      return await fs.readJSON(indexPath);
-    }
-    if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
-      const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
-    }
-    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
-  } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
-  }
-}
-
 async function runValidationChecks(
   projectConfig: ProjectConfig,
   indexConfig: any,
   architecture: string,
   options: BuildOptions
 ): Promise<void> {
-  const validationErrors: string[] = [];
+  const validationErrors: string[] = [
+    ...checkRequiredFiles(),
+    ...checkPythonVersion(projectConfig.pythonVersion),
+  ];
 
-  const requiredFiles = ["src/model.py", "requirements.txt"];
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(file)) {
-      validationErrors.push(`Required file missing: ${file}`);
-    }
-  }
-
-  try {
-    const pythonVersion = execSync("python3 --version", {
-      encoding: "utf8",
-    }).trim();
-    const versionMatch = pythonVersion.match(/Python (\d+\.\d+\.\d+)/);
-
-    if (versionMatch && versionMatch[1]) {
-      const versionParts = versionMatch[1].split(".");
-      const major = Number.parseInt(versionParts[0] || "0", 10);
-      const minor = Number.parseInt(versionParts[1] || "0", 10);
-      const requiredParts = (projectConfig.pythonVersion || "3.9").split(".");
-      const requiredMajor = Number.parseInt(requiredParts[0] || "3", 10);
-      const requiredMinor = Number.parseInt(requiredParts[1] || "9", 10);
-
-      if (
-        major < requiredMajor ||
-        (major === requiredMajor && minor < requiredMinor)
-      ) {
-        validationErrors.push(
-          `Python ${projectConfig.pythonVersion || "3.9"}+ required, found ${major}.${minor}`
-        );
-      }
-    }
-  } catch {
-    validationErrors.push("Python3 not available");
-  }
-
+  // An mps target is already cpu here, so there is no MPS probe to run.
   if (
     (architecture === "cuda" || architecture === "gpu") &&
     projectConfig.framework === "pytorch"
   ) {
-    try {
-      const testScript = "import torch; assert torch.cuda.is_available()";
-      const result = await executePythonScript(testScript);
-      if (!result.success) {
-        validationErrors.push("CUDA not available for PyTorch");
-        if (
-          result.parsedErrors &&
-          result.parsedErrors.length > 0 &&
-          result.parsedErrors[0]
-        ) {
-          logger.debug(
-            "CUDA validation details:",
-            result.parsedErrors[0].message
-          );
-        }
-      }
-    } catch {
-      validationErrors.push("CUDA not available for PyTorch");
-    }
+    // build does not thread strict mode into this probe, where compile and
+    // plan do. Long-standing, and preserved rather than quietly unified.
+    validationErrors.push(...(await checkCudaPytorch({ debugLog: true })));
   }
 
-  if (
-    indexConfig &&
-    !(indexConfig.features && Array.isArray(indexConfig.features))
-  ) {
-    validationErrors.push("Index file missing or invalid features array");
-  }
+  validationErrors.push(
+    ...checkIndexConfig(indexConfig, { requireDataTypes: false })
+  );
 
-  try {
-    const testScript =
-      'import sys; sys.path.append("src"); from model import create_model; create_model()';
-    const result = await executePythonScript(testScript);
-    if (!result.success) {
-      validationErrors.push("Model creation failed during validation");
-      if (result.parsedErrors && result.parsedErrors.length > 0) {
-        const firstError = result.parsedErrors[0];
-        if (firstError) {
-          logger.debug("Model validation error:", firstError.message);
-          if (firstError.file && firstError.line) {
-            logger.debug(
-              `Error location: ${firstError.file}:${firstError.line}`
-            );
-          }
-        }
-      }
-    }
-  } catch {
-    validationErrors.push("Model creation failed during validation");
-  }
+  validationErrors.push(
+    ...(await checkModelCreation({
+      script:
+        'import sys; sys.path.append("src"); from model import create_model; create_model()',
+      debugLog: true,
+    }))
+  );
 
   // Categorize validation errors
   const { critical, nonCritical } =
@@ -1402,12 +1261,7 @@ print("Model created successfully")
     script += `
 import torch
 
-if "${architecture}" == "cuda":
-    if torch.cuda.is_available():
-        model = model.cuda()
-        print("Model moved to CUDA")
-    else:
-        print("Warning: CUDA not available, using CPU")
+${pytorchDevicePlacement(architecture)}
 
 os.makedirs('models', exist_ok=True)
 torch.save(model.state_dict(), 'models/model_${architecture}.pth')
@@ -1481,22 +1335,13 @@ elif "${framework}" == "sklearn":
 print("Integrity tests completed successfully")
 `;
 
-  const tempScriptPath = "temp_integrity_test.py";
-
-  try {
-    await fs.writeFile(tempScriptPath, testScript);
-    const result = await executePythonScript(testScript, {
-      cwd: process.cwd(),
-    });
-    if (!result.success) {
-      throw new Error(
-        `Architecture test failed: ${formatExecutionError(result)}`
-      );
-    }
-  } finally {
-    if (fs.existsSync(tempScriptPath)) {
-      await fs.remove(tempScriptPath);
-    }
+  const result = await executePythonScript(testScript, {
+    cwd: process.cwd(),
+  });
+  if (!result.success) {
+    throw new Error(
+      `Architecture test failed: ${formatExecutionError(result)}`
+    );
   }
 }
 

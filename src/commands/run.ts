@@ -18,10 +18,11 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { ConfigManager } from "../utils/config";
+import { errorMessage, reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { getLevelColor } from "./logs";
 
-// --- Helpers ---
+// Helpers
 
 function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
@@ -54,7 +55,9 @@ async function loadPipelineConfig(configPath: string): Promise<PipelineConfig> {
     return JSON.parse(content) as PipelineConfig;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to parse config file '${configPath}': ${message}`);
+    throw new Error(`Failed to parse config file '${configPath}': ${message}`, {
+      cause: error,
+    });
   }
 }
 
@@ -86,10 +89,10 @@ async function monitorRun(
       }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      attempts++;
+      attempts += 1;
     } catch (error) {
-      logger.warn("Error checking run status:", error);
-      attempts++;
+      logger.warn(`Error checking run status: ${errorMessage(error)}`);
+      attempts += 1;
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
@@ -151,8 +154,9 @@ function getStatusColor(status: string): (text: string) => string {
   }
 }
 
-// --- Command Handlers ---
+// Command Handlers
 
+/** Entry point for `cirron run pipeline`: trigger a pipeline run and optionally follow it. */
 export async function runPipelineCommand(
   nameOrId: string | undefined,
   options: RunPipelineOptions
@@ -316,6 +320,7 @@ export async function runPipelineCommand(
   }
 }
 
+/** Entry point for `cirron run list`: list recent runs. */
 export async function runListCommand(options: RunListOptions): Promise<void> {
   const auth = checkAuth();
   if (!auth) {
@@ -390,12 +395,14 @@ export async function runListCommand(options: RunListOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Failed to fetch runs");
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
-// --- Enhanced Stubs ---
+// Enhanced Stubs
 
+/** Entry point for `cirron run job`. Not implemented — prints a placeholder and returns. */
 export async function runJobCommand(options: RunJobOptions): Promise<void> {
   logger.info(`${chalk.yellow("run job")} is not yet implemented.`);
   logger.info("This command will execute a single-task job.");
@@ -404,6 +411,7 @@ export async function runJobCommand(options: RunJobOptions): Promise<void> {
   }
 }
 
+/** Entry point for `cirron run inference`. Not implemented — prints a placeholder and returns. */
 export async function runInferenceCommand(
   deployment: string | undefined,
   options: RunInferenceOptions
@@ -418,6 +426,7 @@ export async function runInferenceCommand(
   }
 }
 
+/** Entry point for `cirron run sweep`. Not implemented — prints a placeholder and returns. */
 export async function runSweepCommand(options: RunSweepOptions): Promise<void> {
   logger.info(`${chalk.yellow("run sweep")} is not yet implemented.`);
   logger.info("This command will trigger a hyperparameter sweep.");
@@ -426,6 +435,7 @@ export async function runSweepCommand(options: RunSweepOptions): Promise<void> {
   }
 }
 
+/** Entry point for `cirron run status`: report one run's state. */
 export async function runStatusCommand(
   runId: string,
   options: RunStatusOptions
@@ -512,6 +522,7 @@ export async function runStatusCommand(
   }
 }
 
+/** Entry point for `cirron run cancel`: cancel a run. */
 export async function runCancelCommand(
   runId: string,
   options: RunCancelOptions
@@ -544,6 +555,7 @@ export async function runCancelCommand(
   }
 }
 
+/** Entry point for `cirron run logs`: fetch a run's logs. */
 export async function runLogsCommand(
   runId: string,
   options: RunLogsOptions

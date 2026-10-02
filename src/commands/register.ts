@@ -1,4 +1,3 @@
-// src/commands/register.ts
 import chalk from "chalk";
 import ora from "ora";
 import { CirronApi } from "../utils/api";
@@ -6,6 +5,7 @@ import { handlePlatformError } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
+import { webOriginFor } from "../utils/web-origin";
 
 interface RegisterOptions {
   dir?: string;
@@ -17,15 +17,13 @@ interface RegisterOptions {
 
 function deriveAppUrl(apiUrl: string, modelId: string): string {
   try {
-    const url = new URL(apiUrl);
-    url.hostname = url.hostname.replace(/^api\./, "app.");
-    url.pathname = `/models/${modelId}`;
-    return url.toString();
+    return new URL(`/models/${modelId}`, webOriginFor(apiUrl)).toString();
   } catch {
     return "";
   }
 }
 
+/** Entry point for `cirron register`: register the local project with the platform. */
 export async function registerCommand(
   options: RegisterOptions = {}
 ): Promise<void> {

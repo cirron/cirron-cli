@@ -10,24 +10,60 @@ import type {
   PlanSaveOptions,
   ProjectConfig,
 } from "../types";
-import { CLIError, CLIErrorCode, handleCLIError } from "../utils/errors";
-import { executePythonScript, handleExecutionResult } from "../utils/execution";
+import {
+  containerArchitecture,
+  isGpuArchitecture,
+  loadIndexFile,
+  resolveTargetArchitecture,
+  validateTargetFramework,
+} from "../utils/architecture";
+import {
+  CLIError,
+  CLIErrorCode,
+  type CLIErrorDetails,
+  handleCLIError,
+} from "../utils/errors";
 import { createInteractiveManager } from "../utils/interactive";
 import { logger } from "../utils/logger";
+import { ModelConfigManager } from "../utils/model-config";
 import { PlanGenerator } from "../utils/plan";
 import { PlanDiffAnalyzer } from "../utils/plan-diff";
 import { PlanFormatter } from "../utils/plan-formatter";
 import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
+import {
+  checkCudaPytorch,
+  checkMpsPytorch,
+  checkRequiredFiles,
+} from "../utils/validation";
 
-// Plan compile subcommand
+/**
+ * The architecture `cirron compile` or `cirron build` would target, for `plan save`.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param planType - Which command the plan previews.
+ * @throws If the resolved target is not supported for the project's framework.
+ */
+async function savedPlanArchitecture(
+  projectConfig: ProjectConfig,
+  planType: "compile" | "build"
+): Promise<string> {
+  const architecture = await resolveTargetArchitecture(
+    projectConfig,
+    await new ModelConfigManager().loadModelConfig()
+  );
+  validateTargetFramework(architecture, projectConfig.framework);
+  return planType === "build"
+    ? containerArchitecture(architecture)
+    : architecture;
+}
+
+/** Entry point for `cirron plan compile`: preview a compilation without running it. */
 export async function planCompileCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating compilation plan...").start();
-  const strictMode = false; // Plans don't use strict mode
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -58,9 +94,11 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       spinner.start();
     }
 
-    // Determine architecture
-    let architecture =
-      options.arch || (await determineDefaultArchitecture(projectConfig));
+    let architecture = await resolveTargetArchitecture(
+      projectConfig,
+      await new ModelConfigManager().loadModelConfig(),
+      options.arch
+    );
 
     // Interactive architecture selection
     if (interactive.isInteractive() && !options.arch) {
@@ -76,12 +114,15 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
           { name: "cpu (CPU optimized)", value: "cpu" },
           { name: "cuda (NVIDIA GPU)", value: "cuda" },
           { name: "gpu (General GPU)", value: "gpu" },
+          { name: "mps (Apple Silicon GPU)", value: "mps" },
         ],
         description:
           "This affects the planned optimization strategy and resource requirements",
       });
       spinner.start();
     }
+
+    validateTargetFramework(architecture, projectConfig.framework);
 
     spinner.text = `Planning compilation for architecture: ${architecture}`;
     logger.info(`Target architecture: ${chalk.cyan(architecture)}`);
@@ -113,26 +154,14 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
         if (shouldValidate) {
           spinner.start();
           spinner.text = "Running validation checks...";
-          await runValidationChecks(
-            projectConfig,
-            indexConfig,
-            architecture,
-            strictMode
-          );
-          logger.success("✓ Validation checks passed");
+          await runValidationChecks(projectConfig, architecture);
         } else {
           logger.warn("Skipping validation during planning");
           spinner.start();
         }
       } else {
         spinner.text = "Running validation checks...";
-        await runValidationChecks(
-          projectConfig,
-          indexConfig,
-          architecture,
-          strictMode
-        );
-        logger.success("✓ Validation checks passed");
+        await runValidationChecks(projectConfig, architecture);
       }
     }
 
@@ -210,7 +239,7 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
     spinner.fail(chalk.red("Plan generation failed"));
 
     if (error instanceof CLIError) {
-      handleCLIError(error, strictMode, options.verbose);
+      handleCLIError(error, options.verbose);
     } else {
       const errorDetails: any = {
         code: CLIErrorCode.COMPILE_FAILED,
@@ -220,7 +249,6 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
           "Verify that model files exist",
           "Try running with --validate flag",
         ],
-        recoverable: true,
       };
 
       if (error instanceof Error) {
@@ -228,18 +256,17 @@ export async function planCompileCommand(options: PlanOptions): Promise<void> {
       }
 
       const planError = new CLIError(errorDetails);
-      handleCLIError(planError, strictMode, options.verbose);
+      handleCLIError(planError, options.verbose);
     }
   }
 }
 
-// Plan build subcommand
+/** Entry point for `cirron plan build`: preview a build without running it. */
 export async function planBuildCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Generating build plan...").start();
   const interactive = createInteractiveManager(options.interactive ?? false);
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -285,9 +312,11 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
       spinner.start();
     }
 
-    // Determine architecture
-    let architecture =
-      options.arch || (await determineDefaultArchitecture(projectConfig));
+    let architecture = await resolveTargetArchitecture(
+      projectConfig,
+      await new ModelConfigManager().loadModelConfig(),
+      options.arch
+    );
 
     // Interactive architecture selection
     if (interactive.isInteractive() && !options.arch) {
@@ -303,11 +332,23 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
           { name: "cpu (CPU optimized)", value: "cpu" },
           { name: "cuda (NVIDIA GPU)", value: "cuda" },
           { name: "gpu (General GPU)", value: "gpu" },
+          { name: "mps (Apple Silicon GPU)", value: "mps" },
         ],
         description:
           "This affects containerization strategy and resource allocation planning",
       });
       spinner.start();
+    }
+
+    validateTargetFramework(architecture, projectConfig.framework);
+
+    // Match `cirron build`, whose Linux image cannot run an mps target.
+    const imageArchitecture = containerArchitecture(architecture);
+    if (imageArchitecture !== architecture) {
+      logger.warn(
+        `MPS is not available inside Linux containers; planning for ${imageArchitecture}`
+      );
+      architecture = imageArchitecture;
     }
 
     spinner.text = `Planning build for architecture: ${architecture}`;
@@ -327,13 +368,7 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
     // Pre-build validation if requested
     if (options.validate) {
       spinner.text = "Running validation checks...";
-      await runValidationChecks(
-        projectConfig,
-        indexConfig,
-        architecture,
-        false
-      );
-      logger.success("✓ Validation checks passed");
+      await runValidationChecks(projectConfig, architecture);
     }
 
     // Generate comprehensive build plan
@@ -409,22 +444,33 @@ export async function planBuildCommand(options: PlanOptions): Promise<void> {
   } catch (error) {
     spinner.fail(chalk.red("Build plan generation failed"));
 
-    if (error instanceof Error) {
-      logger.error(error.message);
+    if (error instanceof CLIError) {
+      handleCLIError(error, options.verbose);
     } else {
-      logger.error("Unknown error occurred");
-    }
+      const errorDetails: CLIErrorDetails = {
+        code: CLIErrorCode.BUILD_FAILED,
+        message: error instanceof Error ? error.message : String(error),
+        suggestions: [
+          "Check project configuration and dependencies",
+          "Verify that model files exist",
+          "Try running with --validate flag",
+        ],
+      };
 
-    process.exit(1);
+      if (error instanceof Error) {
+        errorDetails.cause = error;
+      }
+
+      handleCLIError(new CLIError(errorDetails), options.verbose);
+    }
   }
 }
 
-// Plan lint subcommand
+/** Entry point for `cirron plan lint`: preview what lint would check. */
 export async function planLintCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing linting scope...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -465,12 +511,11 @@ export async function planLintCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan test subcommand
+/** Entry point for `cirron plan test`: preview which tests would run. */
 export async function planTestCommand(options: PlanOptions): Promise<void> {
   const spinner = ora("Analyzing test suite...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -511,7 +556,7 @@ export async function planTestCommand(options: PlanOptions): Promise<void> {
   }
 }
 
-// Plan diff subcommand
+/** Entry point for `cirron plan diff`: compare two saved plans. */
 export async function planDiffCommand(
   planFileA: string,
   planFileB: string,
@@ -573,78 +618,46 @@ export async function planDiffCommand(
   }
 }
 
-// Helper functions (moved from compile.ts and build.ts)
-async function determineDefaultArchitecture(
-  projectConfig: ProjectConfig
-): Promise<string> {
-  if (projectConfig.framework === "pytorch") {
-    return projectConfig.gpuRequired ? "cuda" : "cpu";
-  }
-  if (projectConfig.framework === "tensorflow") {
-    return projectConfig.gpuRequired ? "gpu" : "cpu";
-  }
-  if (projectConfig.framework === "sklearn") {
-    return "cpu";
-  }
-  return "cpu";
-}
-
-async function loadIndexFile(indexPath: string): Promise<any> {
-  try {
-    const ext = path.extname(indexPath).toLowerCase();
-
-    if (ext === ".json") {
-      return await fs.readJSON(indexPath);
-    }
-    if (ext === ".yaml" || ext === ".yml") {
-      const yaml = require("js-yaml");
-      const content = await fs.readFile(indexPath, "utf8");
-      return yaml.load(content);
-    }
-    throw new Error(`Unsupported index file format: ${ext}. Use JSON or YAML.`);
-  } catch (error) {
-    throw new Error(`Failed to load index file: ${error}`);
-  }
-}
-
+/**
+ * Run the pre-flight checks for plan generation.
+ *
+ * This runs a narrower set than `build` and `compile`: required files plus a
+ * CUDA check, with no Python-version probe. That gap is long-standing rather
+ * than considered — it was preserved through the extraction of the shared
+ * validation primitives instead of being quietly widened, so the behavior is
+ * unchanged and the divergence stays visible.
+ *
+ * A plan is a preview with no `--strict`, so failures are logged as warnings
+ * and planning continues.
+ *
+ * @param projectConfig - The loaded project configuration.
+ * @param architecture - Target architecture, which selects the CUDA or MPS check.
+ */
 async function runValidationChecks(
   projectConfig: ProjectConfig,
-  _indexConfig: any,
-  architecture: string,
-  strictMode: boolean
+  architecture: string
 ): Promise<void> {
-  const validationErrors: string[] = [];
-
-  // Check required files
-  const requiredFiles = ["src/model.py", "requirements.txt"];
-  for (const file of requiredFiles) {
-    if (!fs.existsSync(file)) {
-      validationErrors.push(`Required file missing: ${file}`);
-    }
-  }
+  const validationErrors: string[] = [...checkRequiredFiles()];
 
   // Architecture-specific validation
   if (
-    (architecture === "cuda" || architecture === "gpu") &&
+    isGpuArchitecture(architecture) &&
     projectConfig.framework === "pytorch"
   ) {
-    try {
-      const testScript = "import torch; assert torch.cuda.is_available()";
-      const result = await executePythonScript(testScript, { strictMode });
-      handleExecutionResult(result, strictMode);
-      if (!result.success) {
-        validationErrors.push("CUDA not available for PyTorch");
-      }
-    } catch {
-      validationErrors.push("CUDA not available for PyTorch");
-    }
-  }
-
-  if (validationErrors.length > 0) {
-    throw new Error(
-      `Validation failed:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
+    const probe = architecture === "mps" ? checkMpsPytorch : checkCudaPytorch;
+    validationErrors.push(
+      ...(await probe({ strictMode: false, handleResult: true }))
     );
   }
+
+  if (validationErrors.length === 0) {
+    logger.success("✓ Validation checks passed");
+    return;
+  }
+
+  logger.warn(
+    `Validation found issues:\n${validationErrors.map((err) => `  • ${err}`).join("\n")}`
+  );
 }
 
 async function simulateCompilation(
@@ -934,13 +947,18 @@ function formatTestPlan(testPlan: any, options: PlanOptions): void {
   if (Object.keys(testPlan.dataPaths).length > 0) {
     console.log("");
     console.log(colorize("Data Paths:", chalk.bold.magenta));
-    for (const [type, path] of Object.entries(testPlan.dataPaths)) {
-      console.log(colorize(`  • ${type}: ${path}`, chalk.gray));
+    for (const [type, dataPath] of Object.entries(testPlan.dataPaths)) {
+      console.log(colorize(`  • ${type}: ${dataPath}`, chalk.gray));
     }
   }
 }
 
-// Plan compare command (interactive)
+/**
+ * Entry point for `cirron plan compare`: compare two saved plans side by side.
+ *
+ * Prompts for the pair interactively when they are not named. Exits when fewer
+ * than two saved plans exist.
+ */
 export async function planCompareCommand(
   planA?: string,
   planB?: string,
@@ -1039,7 +1057,7 @@ export async function planCompareCommand(
   }
 }
 
-// Plan save command
+/** Entry point for `cirron plan save`: generate and store plans, or list and clean up stored ones. */
 export async function planSaveCommand(
   type?: string,
   options: PlanSaveOptions = {}
@@ -1103,7 +1121,6 @@ export async function planSaveCommand(
     }
   }
 
-  // Load project configuration
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {
@@ -1145,8 +1162,10 @@ export async function planSaveCommand(
           | Awaited<ReturnType<typeof generateTestPlan>>
           | undefined;
         if (planType === "compile" || planType === "build") {
-          const architecture =
-            await determineDefaultArchitecture(projectConfig);
+          const architecture = await savedPlanArchitecture(
+            projectConfig,
+            planType
+          );
           plan = await planGenerator.generatePlan(
             planType as "compile" | "build",
             architecture
@@ -1199,6 +1218,7 @@ export async function planSaveCommand(
               "plans",
               filename
             );
+            await fs.ensureDir(path.dirname(filePath));
             await fs.writeJson(filePath, plan, { spaces: 2 });
             savedPaths.push(filePath);
           }
@@ -1251,7 +1271,7 @@ export async function planSaveCommand(
       | undefined;
 
     if (type === "compile" || type === "build") {
-      const architecture = await determineDefaultArchitecture(projectConfig);
+      const architecture = await savedPlanArchitecture(projectConfig, type);
       const planGenerator = new PlanGenerator(projectConfig, process.cwd());
       plan = await planGenerator.generatePlan(
         type as "compile" | "build",

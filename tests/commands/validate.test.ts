@@ -83,7 +83,7 @@ describe("validateCommand", () => {
 
   it("fails a single-model config that is missing a required field", async () => {
     const cfg = model({ name: "solo" });
-    delete cfg.version;
+    delete cfg["version"];
     writeConfig(tmp.dir, "cirron.json", cfg);
     let code: number | null = null;
     try {

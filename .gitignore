@@ -163,3 +163,4 @@ tmp/
 config.local.json
 .cirron/
 CLAUDE.md
+skills-lock.json

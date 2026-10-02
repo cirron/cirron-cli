@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { accessGetCommand, accessSetCommand } from "./commands/access";
 import {
   authCommand,
   loginCommand,
@@ -16,6 +17,12 @@ import { doctorCommand } from "./commands/doctor";
 import { hardwareCommand } from "./commands/hardware";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
+import {
+  keysIssueCommand,
+  keysListCommand,
+  keysRevokeCommand,
+  keysRotateCommand,
+} from "./commands/keys";
 import { lintCommand } from "./commands/lint";
 import { listCommand } from "./commands/list";
 import {
@@ -53,6 +60,7 @@ import {
   tracesViewCommand,
 } from "./commands/traces";
 import { handlePlatformError } from "./utils/api-errors";
+import { reportCommandError } from "./utils/errors";
 import { logger } from "./utils/logger";
 import { CLI_VERSION } from "./utils/version";
 
@@ -72,7 +80,7 @@ process.on("unhandledRejection", (error) => {
   if (handlePlatformError(error)) {
     return;
   }
-  logger.error("Unhandled rejection:", error);
+  reportCommandError(error, "Unhandled rejection");
   process.exit(1);
 });
 
@@ -86,6 +94,8 @@ program
     const options = thisCommand.opts();
     if (options["verbose"]) {
       process.env["CIRRON_VERBOSE"] = "true";
+      // The logger read the env var at import, before this hook ran.
+      logger.setVerbose(true);
     }
   });
 
@@ -96,7 +106,7 @@ authCmd
   .command("login")
   .description("Login to Cirron")
   .option("-t, --token <token>", "API token")
-  .option("-u, --url <url>", "API URL (default: https://app.cirron.com)")
+  .option("-u, --url <url>", "API URL (default: https://api.cirron.com)")
   .action(loginCommand);
 
 authCmd
@@ -145,8 +155,7 @@ program
       const { registerCommand } = await import("./commands/register");
       await registerCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load register command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -186,7 +195,10 @@ program
 program
   .command("compile")
   .description("Compile the model (build the model locally)")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run data/model integrity checks")
   .option(
@@ -212,7 +224,10 @@ program
   .option("--clean", "Clean build (no cache)")
   .option("--push", "Push image to registry after build")
   .option("--analyze", "Analyze build output")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run data/model integrity checks")
   .option(
@@ -236,6 +251,53 @@ program
   .option("--rollback", "Rollback to previous deployment")
   .option("-m, --message <message>", "Deployment message")
   .action(deployCommand);
+
+// Deployment public-access command group
+const accessCmd = program
+  .command("access")
+  .description("Manage a deployment's public-access posture");
+
+accessCmd
+  .command("get <deploymentId>")
+  .description("Show whether the managed URL requires an inference key")
+  .action(accessGetCommand);
+
+accessCmd
+  .command("set <deploymentId>")
+  .description("Make a deployment public (keyless) or private (the default)")
+  .option("--public", "Allow keyless access to the managed URL")
+  .option("--private", "Require an inference key (the default posture)")
+  .option("-y, --yes", "Skip the make-public confirmation")
+  .action(accessSetCommand);
+
+// Inference keys command group
+const keysCmd = program
+  .command("keys")
+  .description("Manage inference keys for managed deployment URLs");
+
+keysCmd
+  .command("issue <deploymentId>")
+  .description("Issue an inference key (the raw key is shown exactly once)")
+  .option("-n, --name <name>", "Key name")
+  .option("--expires-at <date>", "ISO expiry date")
+  .action(keysIssueCommand);
+
+keysCmd
+  .command("list <deploymentId>")
+  .description("List inference keys (prefixes and metadata, never the key)")
+  .action(keysListCommand);
+
+keysCmd
+  .command("rotate <deploymentId> <keyId>")
+  .description("Issue a replacement key, then revoke the old one")
+  .option("-n, --name <name>", "Rename the replacement key")
+  .action(keysRotateCommand);
+
+keysCmd
+  .command("revoke <deploymentId> <keyId>")
+  .description("Revoke an inference key")
+  .option("-y, --yes", "Skip confirmation")
+  .action(keysRevokeCommand);
 
 // Config command (merged: CLI config + settings + hardware subcommand)
 const configCmd = program
@@ -345,7 +407,7 @@ program
       const { validateCommand } = await import("./commands/validate");
       await validateCommand(options);
     } catch (error) {
-      logger.error("Failed to load validate command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -361,7 +423,10 @@ const planCmd = program
 planCmd
   .command("compile")
   .description("Preview model compilation with artifact paths and dependencies")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run validation checks during planning")
   .option("--save [filename]", "Save plan to file")
@@ -376,7 +441,10 @@ planCmd
 planCmd
   .command("build")
   .description("Preview build artifacts, model shape, and resource usage")
-  .option("-a, --arch <architecture>", "Select a specific architecture")
+  .option(
+    "-a, --arch <architecture>",
+    "Target architecture (cpu, cuda, gpu, mps)"
+  )
   .option("--index <file>", "Path to index/manifest file")
   .option("--validate", "Run validation checks during planning")
   .option("--save [filename]", "Save plan to file")
@@ -508,7 +576,10 @@ program
   .option("-m, --message <message>", "Push message for audit log")
   .option("--all", "Push all files defined in cirron.json")
   .option("--ignore <patterns>", "Glob patterns to exclude")
-  .option("--registry <url>", "Override registry URL")
+  .option(
+    "--platform <slug>",
+    "Platform to push to (overrides the project config)"
+  )
   .option("-f, --force", "Overwrite existing version / skip dedupe")
   .option("--dry-run", "Show what would be pushed")
   .option("--json", "Output in JSON format")
@@ -523,7 +594,6 @@ program
   .option("--all", "Pull all resources for current project")
   .option("--type <type>", "Filter --all by resource type")
   .option("--ignore <patterns>", "Glob patterns to exclude")
-  .option("--registry <url>", "Override registry URL")
   .option("-f, --force", "Overwrite local files without prompting")
   .option("-i, --interactive", "Guided pull flow")
   .option("--json", "Output in JSON format")
@@ -581,8 +651,7 @@ program
       const { statusCommand } = await import("./commands/status");
       await statusCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load status command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -599,8 +668,7 @@ program
       const { logsCommand } = await import("./commands/logs");
       await logsCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load logs command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -619,8 +687,7 @@ envCmd
       const { envListCommand } = await import("./commands/env");
       await envListCommand(options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load env list command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -636,8 +703,7 @@ envCmd
       const { envSetCommand } = await import("./commands/env");
       await envSetCommand(key, value, options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load env set command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -652,8 +718,7 @@ envCmd
       const { envDeleteCommand } = await import("./commands/env");
       await envDeleteCommand(key, options);
     } catch (error) {
-      handlePlatformError(error);
-      logger.error("Failed to load env delete command:", error);
+      reportCommandError(error);
       process.exit(1);
     }
   });
@@ -683,10 +748,10 @@ spoolCmd
   .option("--force", "Skip confirmation prompt")
   .action(spoolClearCommand);
 
-// Traces command group (SDK-51) — semantic view of local spool sessions,
-// plus export to Parquet / OpenTelemetry / CSV / JSON. Reads the same
-// files as `cirron spool` but reconstructs the scope tree and handles
-// snapshot directories. See features/sdk-launch-stories.md SDK-51.
+// Traces command group — semantic view of local spool sessions, plus export
+// to Parquet / OpenTelemetry / CSV / JSON. Reads the same files as
+// `cirron spool` but reconstructs the scope tree and handles snapshot
+// directories.
 const tracesCmd = program
   .command("traces")
   .description("View and export local trace sessions");

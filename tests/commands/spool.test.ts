@@ -169,6 +169,28 @@ describe("spool commands", () => {
       expect(fs.readdirSync(spoolDir)).toHaveLength(2);
     });
 
+    it("reports a 403 as a permission problem, not a sign-in problem", async () => {
+      writeSpoolFile(1_700_000_000_000_000_000n, "{}");
+      createAuthenticatedSession(tmp.dir);
+      vi.spyOn(CirronApi.prototype, "verifyAuth").mockResolvedValue({
+        valid: true,
+      } as never);
+
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        text: async () => "",
+      } as never);
+
+      await spoolFlushCommand({});
+
+      const stderr = errorSpy.mock.calls.flat().join(" ");
+      expect(stderr).toMatch(/Permission denied \(403\)/);
+      expect(stderr).not.toMatch(/auth login/);
+      expect(fs.readdirSync(spoolDir)).toHaveLength(1);
+    });
+
     it("treats 404 as fatal", async () => {
       writeSpoolFile(1_700_000_000_000_000_000n, "{}");
       createAuthenticatedSession(tmp.dir);

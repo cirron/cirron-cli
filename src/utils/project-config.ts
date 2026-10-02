@@ -23,6 +23,8 @@ export interface ProjectConfigResult {
  * Finds and loads the project config from the given directory.
  * Tries cirron.yaml, cirron.yml, cirron.json in order.
  * Returns null if no config file is found.
+ * @returns The path, filename and parsed config, or null when the directory
+ * holds no project config.
  */
 export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
   const projectDir = path.resolve(dir || process.cwd());
@@ -39,7 +41,7 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
         return { configPath, filename, config };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Failed to parse ${filename}: ${msg}`);
+        throw new Error(`Failed to parse ${filename}: ${msg}`, { cause: err });
       }
     }
   }
@@ -48,8 +50,22 @@ export function loadProjectConfig(dir?: string): ProjectConfigResult | null {
 }
 
 /**
+ * Convenience: the parsed config only, or null when no project config exists.
+ *
+ * Most commands only ever want the config body and discard the path/filename,
+ * and each was carrying its own identical wrapper for it.
+ * @returns The parsed config, or null when no project config exists.
+ */
+export function loadProjectConfigOrNull(dir?: string): ProjectConfig | null {
+  const result = loadProjectConfig(dir);
+  return result ? result.config : null;
+}
+
+/**
  * Finds the project config path without loading it.
  * Returns the path to the first config file found, or null.
+ * @returns The path to the first config file found, or null when there is
+ * none.
  */
 export function findProjectConfigPath(dir?: string): string | null {
   const projectDir = path.resolve(dir || process.cwd());

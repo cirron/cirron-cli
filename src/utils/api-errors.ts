@@ -38,7 +38,7 @@ export class PlatformUnavailableError extends PlatformError {
 }
 
 /**
- * No credentials, expired credentials, or rejected credentials (401/403).
+ * No credentials, expired credentials, or rejected credentials (401).
  * Exit code 2.
  */
 export class NotAuthenticatedError extends PlatformError {
@@ -48,8 +48,8 @@ export class NotAuthenticatedError extends PlatformError {
 }
 
 /**
- * The server returned a 4xx (other than 401/403). Usually a request the user
- * can fix. Exit code 1; surfaces the server-provided message.
+ * The server returned a 4xx (other than 401 and 429). Usually a request the
+ * user can fix. Exit code 1; surfaces the server-provided message.
  */
 export class PlatformBadRequestError extends PlatformError {
   readonly exitCode = 1;
@@ -64,6 +64,32 @@ export class PlatformBadRequestError extends PlatformError {
     super(serverMessage, options);
     this.status = status;
     this.userMessage = serverMessage;
+  }
+}
+
+/**
+ * The server refused the request (403): the user is signed in, but their role
+ * in the active organization lacks the permission the route requires. Signing
+ * in again cannot fix this, so it never triggers a token refresh. Exit code 1.
+ *
+ * `permission` carries the server's `permission` field when it sent one.
+ */
+export class PermissionDeniedError extends PlatformBadRequestError {
+  readonly permission: string | undefined;
+
+  constructor(
+    serverMessage: string,
+    permission?: string,
+    options?: { cause?: unknown }
+  ) {
+    super(
+      403,
+      permission
+        ? `Permission denied: your role does not have the "${permission}" permission in the active organization.`
+        : `Permission denied: ${serverMessage}`,
+      options
+    );
+    this.permission = permission;
   }
 }
 
@@ -130,7 +156,7 @@ export function classifyFetchError(error: unknown): PlatformError | unknown {
 
   // `Error.cause` isn't in the ES2020 lib this project targets, so read it
   // through a cast the same way PlatformError writes it.
-  const cause = (error as { cause?: unknown }).cause;
+  const { cause } = error as { cause?: unknown };
   const code =
     (error as NodeJS.ErrnoException).code ??
     (cause as NodeJS.ErrnoException | undefined)?.code;
@@ -163,21 +189,33 @@ export function classifyFetchError(error: unknown): PlatformError | unknown {
 
 /**
  * Map an HTTP status + server body into a typed PlatformError.
- * 401/403 → NotAuthenticatedError
- * 429     → PlatformRateLimitError (carrying Retry-After, when sent)
- * 4xx     → PlatformBadRequestError
- * 5xx     → PlatformServerError
+ * 401 → NotAuthenticatedError
+ * 403 → PermissionDeniedError (carrying the server's `permission`, when sent)
+ * 429 → PlatformRateLimitError (carrying Retry-After, when sent)
+ * 4xx → PlatformBadRequestError
+ * 5xx → PlatformServerError
+ *
+ * @param status - The HTTP status code.
+ * @param serverMessage - The server's `message` or `error` field, or a status line.
+ * @param details - Optional extras read from the response: the `Retry-After`
+ *   header in seconds, and the body's `permission` field.
  */
 export function classifyHttpError(
   status: number,
   serverMessage: string,
-  retryAfterSeconds?: number
+  details: {
+    retryAfterSeconds?: number | undefined;
+    permission?: string | undefined;
+  } = {}
 ): PlatformError {
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return new NotAuthenticatedError(serverMessage);
   }
+  if (status === 403) {
+    return new PermissionDeniedError(serverMessage, details.permission);
+  }
   if (status === 429) {
-    return new PlatformRateLimitError(serverMessage, retryAfterSeconds);
+    return new PlatformRateLimitError(serverMessage, details.retryAfterSeconds);
   }
   if (status >= 500) {
     return new PlatformServerError(status, serverMessage);

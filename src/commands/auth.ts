@@ -9,6 +9,7 @@ import {
   PlatformRateLimitError,
 } from "../utils/api-errors";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 
 interface LoginOptions {
@@ -16,6 +17,7 @@ interface LoginOptions {
   url?: string;
 }
 
+/** Entry point for `cirron auth login`: device flow by default, or a direct token with `--token`. */
 export async function loginCommand(options: LoginOptions): Promise<void> {
   try {
     const config = new ConfigManager();
@@ -26,7 +28,7 @@ export async function loginCommand(options: LoginOptions): Promise<void> {
       currentConfig.apiUrl = options.url;
     }
 
-    // Support legacy --token option for CI/CD workflows
+    // --token is the non-interactive path for CI/CD workflows.
     if (options.token) {
       return legacyTokenLogin(options, currentConfig, config);
     }
@@ -68,7 +70,6 @@ async function legacyTokenLogin(
       throw new Error("Invalid token");
     }
 
-    // Save configuration with legacy token
     currentConfig.token = options.token!;
     config.save(currentConfig);
 
@@ -130,11 +131,8 @@ async function deviceFlowLogin(
       });
     });
 
-    // 3. Open browser (fix URL if server returns null)
-    const baseUrl = currentConfig.apiUrl.replace("/api", "").replace(/\/$/, ""); // Remove trailing slash
-    const verificationUrl = deviceAuth.verificationUrl.startsWith("null/")
-      ? deviceAuth.verificationUrl.replace("null/", `${baseUrl}/`)
-      : deviceAuth.verificationUrl;
+    // 3. Open browser; the server sends an absolute web-app URL
+    const { verificationUrl } = deviceAuth;
 
     console.log(`\nOpening ${verificationUrl} in your browser...`);
     await open(verificationUrl);
@@ -239,17 +237,18 @@ async function pollForAuthorization(
         }
 
         if (error.message === "access_denied") {
-          throw new Error("Authorization was denied.");
+          throw new Error("Authorization was denied.", { cause: error });
         }
 
         // expired_token, or invalid_request once the server has dropped the
         // record (which is also what a denial looks like from here).
         throw new Error(
-          "Authorization expired. Run cirron auth login to start again."
+          "Authorization expired. Run cirron auth login to start again.",
+          { cause: error }
         );
       }
 
-      consecutiveTransportErrors++;
+      consecutiveTransportErrors += 1;
       if (consecutiveTransportErrors > MAX_CONSECUTIVE_TRANSPORT_ERRORS) {
         throw error;
       }
@@ -280,6 +279,7 @@ async function saveTokens(
   config.save(currentConfig);
 }
 
+/** Entry point for `cirron auth logout`: clears stored credentials. */
 export async function logoutCommand(): Promise<void> {
   const spinner = ora("Logging out...").start();
 
@@ -292,7 +292,6 @@ export async function logoutCommand(): Promise<void> {
       return;
     }
 
-    // Clear both JWT and legacy tokens
     delete currentConfig.token;
     delete currentConfig.auth;
     config.save(currentConfig);
@@ -300,12 +299,12 @@ export async function logoutCommand(): Promise<void> {
     spinner.succeed(chalk.green("Successfully logged out"));
   } catch (error) {
     spinner.fail(chalk.red("Logout failed"));
-    handlePlatformError(error);
-    logger.error("Error during logout:", error);
+    reportCommandError(error, "Error during logout");
     process.exit(1);
   }
 }
 
+/** Entry point for `cirron auth status`: reports who the stored credentials belong to. */
 export async function authCommand(): Promise<void> {
   try {
     const config = new ConfigManager();
@@ -370,17 +369,16 @@ export async function authCommand(): Promise<void> {
       }
     } catch (error) {
       spinner.fail(chalk.red("Failed to verify authentication"));
-      handlePlatformError(error);
-      logger.error("Error verifying token:", error);
+      reportCommandError(error, "Error verifying token");
       logger.info(`Run ${chalk.cyan("cirron auth login")} to re-authenticate`);
     }
   } catch (error) {
-    handlePlatformError(error);
-    logger.error("Error checking authentication status:", error);
+    reportCommandError(error, "Error checking authentication status");
     process.exit(1);
   }
 }
 
+/** Entry point for `cirron auth refresh`: exchanges the refresh token for a new access token. */
 export async function refreshCommand(): Promise<void> {
   const spinner = ora("Refreshing authentication...").start();
 

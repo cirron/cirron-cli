@@ -1,5 +1,3 @@
-// src/commands/spool.ts
-
 import zlib from "node:zlib";
 import chalk from "chalk";
 import Table from "cli-table3";
@@ -17,10 +15,10 @@ import {
   type SpoolFile,
 } from "../utils/spool";
 import { CLI_VERSION, USER_AGENT } from "../utils/version";
+import { webOriginFor } from "../utils/web-origin";
 
-// TODO allow the user to configure the api path/endpoint for flushing and ingesting to keep the platform-agnostic theme.
-// Also, if the user isn't authenticated and the data doesn't upload anywhere, add a warning and allow the user to flush --force
-// or something similar to clear out the data without uploading and confirming that they understand it won't be uploaded and will delete
+// TODO: make the ingest endpoint configurable, and add `flush --force` so an
+// unauthenticated user can clear the spool without silently discarding data.
 
 const INGEST_PATH = "/api/traces";
 const GZIP_MIN_BYTES = 1024;
@@ -39,6 +37,7 @@ async function drainResponse(response: Response): Promise<void> {
   }
 }
 
+/** Entry point for `cirron spool inspect`: summarize the local spool directory. */
 export async function spoolInspectCommand(
   options: SpoolOptions
 ): Promise<void> {
@@ -138,10 +137,11 @@ async function flushBatch(
     headers["Content-Encoding"] = "gzip";
   }
 
-  const url = new URL(INGEST_PATH, apiUrl).toString();
+  // Trace ingest is a web-app route, not a CLI route on the API origin.
+  const url = new URL(INGEST_PATH, webOriginFor(apiUrl)).toString();
   const maxAttempts = 3;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response | null = null;
@@ -157,10 +157,17 @@ async function flushBatch(
         return "ok";
       }
 
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         await drainResponse(response);
         logger.error(
-          `Auth rejected (${response.status}) for ${file.name}. Run ${chalk.cyan("cirron auth login")}.`
+          `Auth rejected (401) for ${file.name}. Run ${chalk.cyan("cirron auth login")}.`
+        );
+        return "fatal";
+      }
+      if (response.status === 403) {
+        await drainResponse(response);
+        logger.error(
+          `Permission denied (403) for ${file.name}: your role in the active organization cannot upload traces.`
         );
         return "fatal";
       }
@@ -218,6 +225,7 @@ async function flushBatch(
   return "retryable";
 }
 
+/** Entry point for `cirron spool flush`: upload spooled batches, then delete the ones that landed. */
 export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.dir);
   const files = await listSpoolFiles(spoolDir);
@@ -237,9 +245,8 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
     return;
   }
 
-  // Exercise token refresh via CirronApi — if the access token is near expiry
-  // and a refresh token is present, this will transparently refresh and persist
-  // the new token to ~/.cirron/config.json before we read auth out.
+  // Exercising CirronApi refreshes a near-expiry token and persists it to
+  // ~/.cirron/config.json before the auth header is read out below.
   const api = new CirronApi(config);
   try {
     await api.verifyAuth();
@@ -269,7 +276,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   ).start();
   const result: FlushResult = { uploaded: 0, failed: 0, skipped: 0 };
 
-  for (let i = 0; i < files.length; i++) {
+  for (let i = 0; i < files.length; i += 1) {
     const file = files[i]!;
     spinner.text = `Flushing ${i + 1}/${files.length}: ${file.name}`;
     const outcome = await flushBatch(
@@ -281,15 +288,15 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
     if (outcome === "ok") {
       try {
         await fs.unlink(file.fullPath);
-        result.uploaded++;
+        result.uploaded += 1;
       } catch (error) {
-        result.failed++;
+        result.failed += 1;
         logger.error(
           `Uploaded ${file.name} but failed to delete local spool file ${file.fullPath}: ${(error as Error).message}. It may be re-uploaded on next flush.`
         );
       }
     } else if (outcome === "fatal") {
-      result.failed++;
+      result.failed += 1;
       result.skipped = files.length - i - 1;
       spinner.stop();
       logger.warn(
@@ -297,7 +304,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
       );
       break;
     } else {
-      result.failed++;
+      result.failed += 1;
     }
   }
 
@@ -309,6 +316,7 @@ export async function spoolFlushCommand(options: SpoolOptions): Promise<void> {
   );
 }
 
+/** Entry point for `cirron spool clear`: delete spooled batches without uploading. */
 export async function spoolClearCommand(options: SpoolOptions): Promise<void> {
   const spoolDir = resolveSpoolDir(options.dir);
   const files = await listSpoolFiles(spoolDir);
@@ -339,7 +347,7 @@ export async function spoolClearCommand(options: SpoolOptions): Promise<void> {
   for (const file of files) {
     try {
       await fs.unlink(file.fullPath);
-      deleted++;
+      deleted += 1;
     } catch (error) {
       logger.error(
         `Failed to delete ${file.name}: ${(error as Error).message}`

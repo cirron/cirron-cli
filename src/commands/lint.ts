@@ -4,9 +4,9 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig } from "../types";
+import { reportCommandError } from "../utils/errors";
 import { executeScript } from "../utils/execution";
 import { CirronIgnore } from "../utils/ignore";
-import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 
 interface LintOptions {
@@ -38,6 +38,7 @@ interface LintSummary {
   warnings: number;
 }
 
+/** Entry point for `cirron lint`: config, structure, dependency and code checks. */
 export async function lintCommand(options: LintOptions): Promise<void> {
   const spinner = ora("Starting project linting...").start();
 
@@ -99,7 +100,7 @@ export async function lintCommand(options: LintOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail("Linting failed");
-    logger.error("Lint error:", error);
+    reportCommandError(error, "Lint error");
     process.exit(1);
   }
 }
@@ -175,13 +176,21 @@ async function lintProjectConfig(
   }
 }
 
+/**
+ * Check the project layout against the reference structure.
+ *
+ * The expected shape mirrors the `cirron-sample-models` reference: a config
+ * (`cirron.yaml`), `requirements.txt`, `train.py` and an `artifacts/`
+ * directory at the project root. `serve.py` is recommended rather than
+ * required — it only matters for local serving.
+ *
+ * @param summary - Accumulates findings; mutated in place.
+ * @param _options - Lint options; unused by this check.
+ */
 async function lintProjectStructure(
   summary: LintSummary,
   _options: LintOptions
 ): Promise<void> {
-  // Structure mirrors the cirron-sample-models reference: cirron.yaml,
-  // requirements.txt, train.py, and an artifacts/ directory at the
-  // project root. serve.py is recommended for local serving.
   const requiredFiles = [
     { path: "requirements.txt", required: true },
     { path: "train.py", required: true },
@@ -362,7 +371,7 @@ function validateFrameworkConfig(
   config: ProjectConfig,
   summary: LintSummary
 ): void {
-  const framework = config.framework;
+  const { framework } = config;
 
   // Framework-specific config validation has no current rules; the
   // canonical cirron.yaml shape doesn't carry pythonVersion/gpuRequired.
@@ -476,7 +485,7 @@ node_modules/
     spinner.succeed("Fixes applied successfully");
   } catch (error) {
     spinner.fail("Failed to apply fixes");
-    logger.error("Fix error:", error);
+    reportCommandError(error, "Fix error");
   }
 }
 
@@ -485,13 +494,13 @@ function addResult(summary: LintSummary, result: LintResult): void {
 
   switch (result.severity) {
     case "error":
-      summary.errors++;
+      summary.errors += 1;
       break;
     case "warning":
-      summary.warnings++;
+      summary.warnings += 1;
       break;
     case "info":
-      summary.infos++;
+      summary.infos += 1;
       break;
     default:
       break;

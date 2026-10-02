@@ -7,6 +7,7 @@ import type { InitOptions, ProjectConfig, Template } from "../types";
 import { CirronApi } from "../utils/api";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { executeScript, formatExecutionError } from "../utils/execution";
 import { logger } from "../utils/logger";
 import { findProjectConfigPath } from "../utils/project-config";
@@ -78,6 +79,36 @@ const MODEL_TYPES = {
   custom: "Custom",
 };
 
+/**
+ * Ask what to do about a directory that already has a Cirron config.
+ *
+ * Both entry points (running inside an existing project, and targeting an
+ * existing directory by name) offer the same three choices; only the message
+ * differs.
+ */
+async function promptExistingProjectAction(
+  message: string
+): Promise<"register" | "overwrite" | "cancel"> {
+  const { action } = await inquirer.prompt([
+    {
+      type: "select",
+      name: "action",
+      message,
+      choices: [
+        {
+          name: "Register existing project with Cirron (no file changes)",
+          value: "register",
+        },
+        { name: "Overwrite and reinitialize", value: "overwrite" },
+        { name: "Cancel", value: "cancel" },
+      ],
+      loop: false,
+    },
+  ]);
+  return action;
+}
+
+/** Entry point for `cirron init`: scaffold a project from a framework template. */
 export async function initCommand(
   projectName?: string,
   options: InitOptions = { template: "pytorch" }
@@ -86,22 +117,9 @@ export async function initCommand(
     // Check if running from a directory that already has a cirron config
     const existingConfigInCwd = findProjectConfigPath(process.cwd());
     if (existingConfigInCwd) {
-      const { action } = await inquirer.prompt([
-        {
-          type: "select",
-          name: "action",
-          message: `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`,
-          choices: [
-            {
-              name: "Register existing project with Cirron (no file changes)",
-              value: "register",
-            },
-            { name: "Overwrite and reinitialize", value: "overwrite" },
-            { name: "Cancel", value: "cancel" },
-          ],
-          loop: false,
-        },
-      ]);
+      const action = await promptExistingProjectAction(
+        `Current directory already has a Cirron config (${path.basename(existingConfigInCwd)}). What would you like to do?`
+      );
 
       if (action === "cancel") {
         logger.info("Initialization cancelled");
@@ -156,22 +174,9 @@ export async function initCommand(
 
       if (cirronConfigExists) {
         // Existing project with config - offer to register instead of overwrite
-        const { action } = await inquirer.prompt([
-          {
-            type: "select",
-            name: "action",
-            message: `Directory "${resolvedName}" already has a Cirron config. What would you like to do?`,
-            choices: [
-              {
-                name: "Register existing project with Cirron (no file changes)",
-                value: "register",
-              },
-              { name: "Overwrite and reinitialize", value: "overwrite" },
-              { name: "Cancel", value: "cancel" },
-            ],
-            loop: false,
-          },
-        ]);
+        const action = await promptExistingProjectAction(
+          `Directory "${resolvedName}" already has a Cirron config. What would you like to do?`
+        );
 
         if (action === "cancel") {
           logger.info("Initialization cancelled");
@@ -201,7 +206,7 @@ export async function initCommand(
     }
 
     // Template and model type selection
-    let template = options.template;
+    let { template } = options;
     let modelType = "classification";
     let includeSampleData = true; // Default to true for better testing
     let includeNotebook = true; // Default to true for better development experience
@@ -212,8 +217,8 @@ export async function initCommand(
           type: "select",
           name: "template",
           message: "Choose a framework:",
-          choices: Object.entries(TEMPLATES).map(([key, template]) => ({
-            name: `${template.name} - ${template.description}`,
+          choices: Object.entries(TEMPLATES).map(([key, entry]) => ({
+            name: `${entry.name} - ${entry.description}`,
             value: key,
           })),
         },
@@ -240,10 +245,8 @@ export async function initCommand(
         },
       ]);
 
-      template = templateAnswers.template;
-      modelType = templateAnswers.modelType;
-      includeSampleData = templateAnswers.includeSampleData;
-      includeNotebook = templateAnswers.includeNotebook;
+      ({ template, modelType, includeSampleData, includeNotebook } =
+        templateAnswers);
     }
 
     const selectedTemplate = TEMPLATES[template];
@@ -379,7 +382,7 @@ export async function initCommand(
       throw error;
     }
   } catch (error) {
-    logger.error("Failed to initialize project:", error);
+    reportCommandError(error, "Failed to initialize project");
     process.exit(1);
   }
 }
@@ -398,7 +401,7 @@ function deriveFramework(template: string): ProjectConfig["framework"] {
 }
 
 function deriveType(modelType: string): string {
-  // The picker uses kebab-case keys already; normalize anything legacy.
+  // The picker already emits kebab-case; normalize anything else.
   return modelType.replace(/_/g, "-");
 }
 

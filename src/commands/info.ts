@@ -2,6 +2,7 @@ import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import type { ModelConfig, ProjectConfig } from "../types";
+import { reportCommandError } from "../utils/errors";
 import { getRepositoryInfo, getShortCommitHash } from "../utils/git";
 import { logger } from "../utils/logger";
 import { ModelConfigManager } from "../utils/model-config";
@@ -42,6 +43,7 @@ interface InfoOptions {
   update?: string;
 }
 
+/** Entry point for `cirron info`: project, model and metadata summary, dispatched on flags. */
 export async function infoCommand(options: InfoOptions = {}): Promise<void> {
   try {
     // Check if we're in a Cirron project
@@ -53,11 +55,9 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
       process.exit(1);
     }
 
-    // Load project configuration
     const { configPath: cirronJsonPath, config: projectConfig } =
       projectConfigResult;
 
-    // Load model configuration
     const modelConfigManager = new ModelConfigManager();
     const modelConfig = await modelConfigManager.loadModelConfig();
 
@@ -109,7 +109,7 @@ export async function infoCommand(options: InfoOptions = {}): Promise<void> {
       displayMismatchWarnings(mismatches);
     }
   } catch (error) {
-    logger.error("Failed to get model info:", error);
+    reportCommandError(error, "Failed to get model info");
     process.exit(1);
   }
 }
@@ -373,7 +373,7 @@ function extractModelInfo(
   if (modelAnalysis) {
     // Extract model class name
     if (modelAnalysis.modelClassNames.length > 0) {
-      const className = modelAnalysis.modelClassNames[0];
+      const [className] = modelAnalysis.modelClassNames;
       if (className) {
         info.modelClassName = className; // Use the first model class found
       }
@@ -443,13 +443,22 @@ function extractModelInfo(
   return info;
 }
 
+/**
+ * Guess a model's parameter count from its framework.
+ *
+ * These are fixed per-framework constants, not a measurement: the only input
+ * that matters is whether any model definition was found at all. Treat the
+ * result as an order-of-magnitude hint. Real counts need static analysis or
+ * loading the model and introspecting it.
+ *
+ * @param framework - The project's ML framework.
+ * @param analysis - Source analysis; only `modelDefinitions` is read.
+ * @returns A rough parameter-count estimate, or 0 when nothing was found.
+ */
 function estimateParameterCount(
   framework: string,
   analysis: ModelAnalysis
 ): number {
-  // This is a rough estimation based on common patterns
-  // In a real implementation, you'd want to use static analysis or model introspection
-
   switch (framework) {
     case "pytorch":
       if (analysis.modelDefinitions.length > 0) {
@@ -726,7 +735,7 @@ async function handleMetadataUpdate(
       )
     );
   } catch (error) {
-    logger.error("Failed to update metadata:", error);
+    reportCommandError(error, "Failed to update metadata");
     process.exit(1);
   }
 }
@@ -879,11 +888,11 @@ function detectMetadataMismatches(
   }
 
   const mismatches: MetadataMismatch[] = [];
-  const metadata = projectConfig.metadata;
+  const { metadata } = projectConfig;
 
   // Check model class name mismatch
   if (modelAnalysis.modelClassNames.length > 0) {
-    const detectedClassName = modelAnalysis.modelClassNames[0];
+    const [detectedClassName] = modelAnalysis.modelClassNames;
     const storedClassName = metadata.modelClassName;
 
     if (

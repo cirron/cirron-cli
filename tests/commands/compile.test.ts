@@ -15,8 +15,13 @@ import { execSync } from "node:child_process";
 import { compileCommand } from "../../src/commands/compile";
 // biome-ignore lint/performance/noNamespaceImport: needed for vi.spyOn
 import * as executionMod from "../../src/utils/execution";
+import { InteractiveManager } from "../../src/utils/interactive";
 import { ModelConfigManager } from "../../src/utils/model-config";
-import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
+import {
+  appleSiliconHardware,
+  writeFileAt,
+  writeProjectConfig,
+} from "../helpers/project-fixture";
 import { makeTmpDir } from "../helpers/tmpdir";
 
 const execSyncMock = vi.mocked(execSync);
@@ -73,6 +78,14 @@ describe("compileCommand", () => {
     expect(exitSpy.mock.calls[0]?.[0]).toBe(31);
   });
 
+  it("exits with PROJECT_NOT_FOUND, not INTERNAL_ERROR, under --strict", async () => {
+    await compileCommand({ strict: true });
+    expect(exitSpy.mock.calls[0]?.[0]).toBe(31);
+    expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toMatch(
+      /Project configuration not found \(code 31\)/
+    );
+  });
+
   it("compiles a pytorch project end-to-end", async () => {
     mlProject("pytorch");
     await compileCommand({ arch: "cpu" });
@@ -86,6 +99,50 @@ describe("compileCommand", () => {
       /Compilation Results|compilation completed/i
     );
     expect(exitSpy.mock.calls[0]?.[0]).not.toBe(31);
+  });
+
+  it("compiles a pytorch project on Apple Silicon hardware for mps", async () => {
+    writeProjectConfig(tmp.dir, {
+      framework: "pytorch",
+      hardware: appleSiliconHardware(),
+    });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    writeFileAt(tmp.dir, "requirements.txt", "torch\n");
+    // Keep the generated script; performCompilation deletes it afterwards.
+    let compileScript = "";
+    execSyncMock.mockImplementation(((cmd: string) => {
+      if (cmd.includes("temp_compile.py")) {
+        compileScript = require("fs-extra").readFileSync(
+          "temp_compile.py",
+          "utf8"
+        );
+      }
+      return "Python 3.10.0\n";
+    }) as never);
+
+    await compileCommand({});
+
+    // Before the mps target this resolved to cuda and failed validation.
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Compilation Results/i);
+    expect(compileScript).toContain('model = model.to("mps")');
+    expect(compileScript).toContain("models/model_mps.pth");
+  });
+
+  it("rejects an mps compile for a tensorflow project with no hardware block", async () => {
+    // The framework check used to live in the hardware validator, which only
+    // runs when a hardware block exists, so this compiled a CPU model_mps.
+    mlProject("tensorflow");
+
+    await compileCommand({ arch: "mps" });
+
+    expect(exitSpy).toHaveBeenCalled();
+    expect(execSyncMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("temp_compile.py"),
+      expect.anything()
+    );
+    expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toContain(
+      "MPS architecture is only supported for PyTorch"
+    );
   });
 
   it("compiles a tensorflow project", async () => {
@@ -127,8 +184,31 @@ describe("compileCommand", () => {
       throw new Error("compile crashed");
     });
     await compileCommand({ arch: "cpu" });
-    // catch path calls process.exit
-    expect(exitSpy).toHaveBeenCalled();
+    expect(exitSpy.mock.calls[0]?.[0]).toBe(36);
+    expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).not.toMatch(
+      /Continuing/
+    );
+  });
+
+  it("warns about validation failures without --strict and keeps compiling", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    await compileCommand({ arch: "cpu", validate: true });
+    expect(vi.mocked(console.warn).mock.calls.flat().join(" ")).toMatch(
+      /Required file missing: requirements\.txt/
+    );
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(infoSpy.mock.calls.flat().join(" ")).toMatch(/Compilation Results/i);
+  });
+
+  it("exits VALIDATION_FAILED on validation failures under --strict", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    writeFileAt(tmp.dir, "src/model.py", "def create_model():\n    return 1\n");
+    await compileCommand({ arch: "cpu", validate: true, strict: true });
+    expect(exitSpy.mock.calls[0]?.[0]).toBe(35);
+    expect(vi.mocked(console.error).mock.calls.flat().join(" ")).toMatch(
+      /Required file missing: requirements\.txt/
+    );
   });
 
   it("validates hardware compatibility when hardware config is present", async () => {
@@ -154,5 +234,34 @@ describe("compileCommand", () => {
     await compileCommand({ arch: "cpu" });
     // Should complete one way or another without PROJECT_NOT_FOUND
     expect(exitSpy.mock.calls[0]?.[0]).not.toBe(31);
+  });
+
+  it("compiles for the interactively selected architecture, not the detected one", async () => {
+    mlProject("pytorch");
+    vi.spyOn(ModelConfigManager.prototype, "loadModelConfig").mockResolvedValue(
+      {
+        name: "m",
+        framework: "pytorch",
+        inference: { device: "cuda" },
+      } as never
+    );
+    vi.spyOn(InteractiveManager.prototype, "isInteractive").mockReturnValue(
+      true
+    );
+    vi.spyOn(InteractiveManager.prototype, "confirmStep").mockResolvedValue(
+      true
+    );
+    vi.spyOn(InteractiveManager.prototype, "selectOption").mockResolvedValue(
+      "gpu"
+    );
+
+    await compileCommand({ interactive: true });
+
+    // The bug: `architecture` was const, so the selection was logged and then
+    // discarded. Assert on the value the compilation actually used.
+    const logged = infoSpy.mock.calls.flat().join(" ");
+    expect(logged).toContain("Architecture changed from cuda to gpu");
+    expect(logged).toContain("Target architecture: gpu");
+    expect(logged).not.toContain("Target architecture: cuda");
   });
 });

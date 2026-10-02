@@ -10,31 +10,22 @@ const entryPoint = isDev
   : path.join(__dirname, '..', 'dist', 'index.js');
 
 if (isDev) {
-  // Use ts-node for development
-  try {
-    // Add the CLI's node_modules to the module search path
-    const Module = require('module');
-    const cliNodeModules = path.join(__dirname, '..', 'node_modules');
-    const originalPaths = Module._nodeModulePaths(process.cwd());
-    Module._nodeModulePaths = function() {
-      return [cliNodeModules, ...originalPaths];
-    };
+  // Add the CLI's node_modules to the module search path
+  const Module = require('module');
+  const cliNodeModules = path.join(__dirname, '..', 'node_modules');
+  const originalPaths = Module._nodeModulePaths(process.cwd());
+  Module._nodeModulePaths = function() {
+    return [cliNodeModules, ...originalPaths];
+  };
 
-    // Register ts-node with proper configuration
-    require('ts-node').register({
-      project: path.join(__dirname, '..', 'tsconfig.json'),
-      transpileOnly: true,
-      compilerOptions: {
-        module: 'commonjs'
-      }
+  // Same hooks as `node --import tsx`; they also cover the source's dynamic import() calls
+  import('tsx')
+    .then(() => import(require('url').pathToFileURL(entryPoint).href))
+    .catch((error) => {
+      console.error('Development mode requires tsx. Run: npm install');
+      console.error('Error details:', error.message);
+      process.exit(1);
     });
-
-    require(entryPoint);
-  } catch (error) {
-    console.error('Development mode requires ts-node. Run: npm install -g ts-node');
-    console.error('Error details:', error.message);
-    process.exit(1);
-  }
 } else {
   // Use compiled JS for production
   try {

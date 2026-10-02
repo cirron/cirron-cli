@@ -1,4 +1,3 @@
-// src/commands/env.ts
 import chalk from "chalk";
 import inquirer from "inquirer";
 import ora from "ora";
@@ -6,6 +5,7 @@ import type { ProjectConfig } from "../types";
 import { CirronApi } from "../utils/api";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 
@@ -13,6 +13,7 @@ interface EnvOptions {
   env?: string;
 }
 
+/** Entry point for `cirron env list`. The platform route does not exist yet, so this currently 404s. */
 export async function envListCommand(options: EnvOptions): Promise<void> {
   const spinner = ora("Fetching environment variables...").start();
 
@@ -50,10 +51,12 @@ export async function envListCommand(options: EnvOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Failed to fetch environment variables"));
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
+/** Entry point for `cirron env set`. The platform route does not exist yet, so this currently 404s. */
 export async function envSetCommand(
   key: string,
   value: string,
@@ -76,10 +79,12 @@ export async function envSetCommand(
     );
   } catch (error) {
     spinner.fail(chalk.red("Failed to set environment variable"));
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
+/** Entry point for `cirron env delete`. The platform route does not exist yet, so this currently 404s. */
 export async function envDeleteCommand(
   key: string,
   options: EnvOptions
@@ -113,7 +118,8 @@ export async function envDeleteCommand(
     );
   } catch (error) {
     spinner.fail(chalk.red("Failed to delete environment variable"));
-    logger.error("Error:", error);
+    reportCommandError(error);
+    process.exit(1);
   }
 }
 
@@ -121,7 +127,6 @@ async function setupCommand(): Promise<{
   api: CirronApi;
   projectConfig: ProjectConfig;
 }> {
-  // Load project configuration
   const projectConfigResult = loadProjectConfig();
 
   if (!projectConfigResult) {
@@ -132,7 +137,6 @@ async function setupCommand(): Promise<{
 
   const projectConfig = projectConfigResult.config;
 
-  // Check authentication
   const config = new ConfigManager();
   const currentConfig = config.load();
 

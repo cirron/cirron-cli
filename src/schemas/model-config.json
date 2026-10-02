@@ -127,7 +127,7 @@
       "properties": {
         "device": {
           "type": "string",
-          "enum": ["cpu", "gpu", "cuda"],
+          "enum": ["cpu", "gpu", "cuda", "mps"],
           "default": "cpu",
           "description": "Device for inference"
         },

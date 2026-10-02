@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { handlePlatformError } from "./api-errors";
 import { logger } from "./logger";
 
 /**
@@ -75,8 +76,8 @@ export interface CLIErrorDetails {
   code: CLIErrorCode;
   details?: Record<string, any>;
   message: string;
+  /** The user can fix the cause and retry. Informational only; never changes the exit code. */
   recoverable?: boolean;
-  strictModeOnly?: boolean;
   suggestions?: string[];
 }
 
@@ -85,14 +86,12 @@ export class CLIError extends Error {
   readonly details?: Record<string, any>;
   readonly suggestions?: string[];
   readonly recoverable: boolean;
-  readonly strictModeOnly: boolean;
 
   constructor(errorDetails: CLIErrorDetails) {
     super(errorDetails.message);
     this.name = "CLIError";
     this.code = errorDetails.code;
     this.recoverable = errorDetails.recoverable ?? false;
-    this.strictModeOnly = errorDetails.strictModeOnly ?? false;
 
     if (errorDetails.details) {
       this.details = errorDetails.details;
@@ -130,7 +129,7 @@ export class CLIError extends Error {
 
     // Determine specific error code based on parsed errors
     if (result.parsedErrors && result.parsedErrors.length > 0) {
-      const firstError = result.parsedErrors[0];
+      const [firstError] = result.parsedErrors;
 
       switch (firstError.type) {
         case "syntax":
@@ -214,7 +213,8 @@ export class CLIError extends Error {
   format(verbose = false): string {
     const parts: string[] = [];
 
-    parts.push(chalk.red(`Error ${this.code}: ${this.message}`));
+    // The logger already prefixes "Error:" or "Warning:", so lead with the message.
+    parts.push(chalk.red(`${this.message} (code ${this.code})`));
 
     if (this.suggestions && this.suggestions.length > 0) {
       parts.push("");
@@ -254,21 +254,18 @@ export class CLIError extends Error {
 }
 
 /**
- * Handle CLI error and exit with appropriate code
+ * Print a fatal command error and exit non-zero.
+ *
+ * A CLIError exits with its own code, whether or not it is `recoverable`;
+ * callers that want to warn and keep going must do so before reaching here.
+ * A plain Error exits INTERNAL_ERROR, and anything else UNKNOWN_ERROR.
+ *
+ * @param error - The caught value.
+ * @param verbose - Include error details and the stack trace.
+ * @returns Never; the process exits.
  */
-export function handleCLIError(
-  error: unknown,
-  strictMode = false,
-  verbose = false
-): never {
+export function handleCLIError(error: unknown, verbose = false): never {
   if (error instanceof CLIError) {
-    // In non-strict mode, some errors can be treated as warnings
-    if (!strictMode && error.recoverable && !error.strictModeOnly) {
-      logger.warn(error.format(verbose));
-      logger.warn("Continuing in non-strict mode...");
-      process.exit(CLIErrorCode.SUCCESS);
-    }
-
     logger.error(error.format(verbose));
     process.exit(error.code);
   } else if (error instanceof Error) {
@@ -286,6 +283,36 @@ export function handleCLIError(
   } else {
     logger.error("Unknown error:", String(error));
     process.exit(CLIErrorCode.UNKNOWN_ERROR);
+  }
+}
+
+/**
+ * The printable text of a thrown value: an Error's `message`, or `String()` of
+ * anything else. Never includes a stack, so it is safe for end-user output.
+ *
+ * @param error - The caught value.
+ */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Print a command failure as one clean line.
+ *
+ * A PlatformError goes through `handlePlatformError`, which prints its user
+ * message and exits with its own code. Anything else prints as
+ * `context: message` and control returns, so the caller still decides the
+ * exit code. The stack is shown only in verbose mode.
+ *
+ * @param error - The caught value.
+ * @param context - Optional lead-in naming what failed, without a trailing colon.
+ */
+export function reportCommandError(error: unknown, context?: string): void {
+  handlePlatformError(error);
+  const message = errorMessage(error);
+  logger.error(context ? `${context}: ${message}` : message);
+  if (error instanceof Error && error.stack) {
+    logger.debug(error.stack);
   }
 }
 
@@ -329,8 +356,7 @@ export const ErrorFactories = {
 
   validationError: (
     message: string,
-    details?: Record<string, any>,
-    strict = false
+    details?: Record<string, any>
   ): CLIError => {
     const errorDetails: CLIErrorDetails = {
       code: CLIErrorCode.VALIDATION_FAILED,
@@ -340,7 +366,6 @@ export const ErrorFactories = {
         "Run with --validate flag for detailed checks",
       ],
       recoverable: true,
-      strictModeOnly: strict,
     };
     if (details) {
       errorDetails.details = details;
@@ -375,7 +400,6 @@ export const ErrorFactories = {
         "Review test configuration",
       ],
       recoverable: true,
-      strictModeOnly: true,
     };
     if (details) {
       errorDetails.details = details;

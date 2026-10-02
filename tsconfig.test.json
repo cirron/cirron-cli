@@ -1,0 +1,15 @@
+{
+  // Typechecks src and tests together without emitting. Kept separate from
+  // tsconfig.json so test files never reach the published build.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "lib": ["ES2022"],
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "binaries"]
+}

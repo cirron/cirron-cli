@@ -260,6 +260,19 @@ describe("settingsCommand", () => {
       );
     });
 
+    it("resolves real keys but not prototype-chain paths", () => {
+      expect(
+        settingsManager.resolveSettings("general.theme" as never).value
+      ).toBe("dark");
+      // Inherited properties such as Object.prototype.toString are not
+      // settings, so they must not surface as a resolved default.
+      for (const key of ["__proto__.toString", "general.constructor"]) {
+        expect(
+          settingsManager.resolveSettings(key as never).value
+        ).toBeUndefined();
+      }
+    });
+
     it("--json dumps the resolution object", async () => {
       vi.spyOn(settingsManager, "resolveSettings").mockReturnValue({
         value: "dark",

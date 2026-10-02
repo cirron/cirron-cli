@@ -188,6 +188,21 @@ Run `cirron <command> --help` for full flags, or browse [docs.cirron.com/cli](ht
 | `cirron auth status` | Show authentication status |
 | `cirron auth refresh` | Refresh the auth token |
 
+### Deployment access (platform)
+
+Managed deployment URLs require an inference key by default. Keys are shown
+once at issue time and never retrievable again; listings only ever show the
+key prefix and metadata.
+
+| Command | Description |
+| --- | --- |
+| `cirron keys issue <deploymentId>` | Issue an inference key (`--name`, `--expires-at`) |
+| `cirron keys list <deploymentId>` | List keys: prefix, status, and usage metadata |
+| `cirron keys rotate <deploymentId> <keyId>` | Issue a replacement, then revoke the old key |
+| `cirron keys revoke <deploymentId> <keyId>` | Revoke a key (`-y` to skip the confirmation) |
+| `cirron access get <deploymentId>` | Show whether the deployment URL requires a key |
+| `cirron access set <deploymentId>` | `--public` for keyless access, `--private` to require a key |
+
 ## Use cases
 
 ### Scaffold and iterate on a model locally
@@ -263,7 +278,7 @@ Inheritance rules: `env` is shallow-merged and the model's value wins on conflic
 
 ### Connect to the Cirron platform
 
-Platform access is rolling out to users. These commands target `app.cirron.com` and need an account; the local workflow above does not.
+Platform access is rolling out to users. These commands target the platform API (`api.cirron.com`, or `--url` for a dedicated install) and need an account at `app.cirron.com`; the local workflow above does not.
 
 ```bash
 cirron auth login
@@ -281,7 +296,7 @@ cirron logs -f
 npm install            # install dependencies
 npm run build          # compile TypeScript to dist/
 npm run build:watch    # watch mode compilation
-npm run dev            # run with ts-node
+npm run dev            # run with tsx
 
 npm test               # run the test suite (Vitest)
 npm run test:watch     # watch mode

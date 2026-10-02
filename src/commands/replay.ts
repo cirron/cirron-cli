@@ -3,11 +3,16 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import ora from "ora";
 import type { ProjectConfig, ReplayOptions } from "../types";
+import {
+  isGpuArchitecture,
+  pytorchDevicePlacement,
+} from "../utils/architecture";
 import { executePythonScript } from "../utils/execution";
 import { logger } from "../utils/logger";
 import { PlanStorage } from "../utils/plan-storage";
 import { loadProjectConfig } from "../utils/project-config";
 
+/** Entry point for `cirron replay`: re-execute a previously saved plan. */
 export async function replayCommand(options: ReplayOptions): Promise<void> {
   const spinner = ora("Loading plan for replay...").start();
 
@@ -25,7 +30,7 @@ export async function replayCommand(options: ReplayOptions): Promise<void> {
       process.exit(1);
     }
 
-    const plan = savedPlan.plan;
+    const { plan } = savedPlan;
 
     spinner.text = `Replaying ${plan.command} plan from ${new Date(plan.timestamp).toLocaleString()}`;
 
@@ -136,23 +141,31 @@ async function validateEnvironmentCompatibility(
   }
 
   // Check GPU requirements for GPU architectures
-  if (plan.architecture === "cuda" || plan.architecture === "gpu") {
+  if (isGpuArchitecture(plan.architecture)) {
     if (plan.framework === "pytorch") {
+      const isMps = plan.architecture === "mps";
+      const device = isMps ? "MPS" : "CUDA";
       try {
-        const testScript = "import torch; assert torch.cuda.is_available()";
+        const testScript = isMps
+          ? "import torch; assert torch.backends.mps.is_available()"
+          : "import torch; assert torch.cuda.is_available()";
         const result = await executePythonScript(testScript);
         if (!result.success) {
           if (options.force) {
-            logger.warn("CUDA not available - replay may fail");
+            logger.warn(`${device} not available - replay may fail`);
           } else {
-            issues.push("CUDA not available for PyTorch (plan requires GPU)");
+            issues.push(
+              `${device} not available for PyTorch (plan requires GPU)`
+            );
           }
         }
       } catch {
         if (options.force) {
-          logger.warn("Could not verify CUDA availability");
+          logger.warn(`Could not verify ${device} availability`);
         } else {
-          issues.push("Could not verify CUDA availability (plan requires GPU)");
+          issues.push(
+            `Could not verify ${device} availability (plan requires GPU)`
+          );
         }
       }
     }
@@ -282,8 +295,8 @@ function generateReplayCompilationScript(
   plan: any,
   _currentConfig: ProjectConfig
 ): string {
-  const framework = plan.framework;
-  const architecture = plan.architecture;
+  const { framework } = plan;
+  const { architecture } = plan;
 
   let script = `
 import sys
@@ -305,12 +318,7 @@ print("Model created successfully")
 import torch
 
 # Architecture optimization
-if "${architecture}" == "cuda":
-    if torch.cuda.is_available():
-        model = model.cuda()
-        print("Model moved to CUDA")
-    else:
-        print("Warning: CUDA not available, using CPU")
+${pytorchDevicePlacement(architecture)}
 
 # Save model
 os.makedirs('models', exist_ok=True)
@@ -367,8 +375,8 @@ function generateReplayBuildScript(
   plan: any,
   _currentConfig: ProjectConfig
 ): string {
-  const framework = plan.framework;
-  const architecture = plan.architecture;
+  const { framework } = plan;
+  const { architecture } = plan;
 
   let script = `
 import sys
@@ -390,12 +398,7 @@ print("Model created successfully")
 import torch
 
 # Architecture optimization
-if "${architecture}" == "cuda":
-    if torch.cuda.is_available():
-        model = model.cuda()
-        print("Model optimized for CUDA")
-    else:
-        print("Warning: CUDA not available, using CPU")
+${pytorchDevicePlacement(architecture)}
 
 # Save model with build optimizations
 os.makedirs('models', exist_ok=True)
@@ -481,7 +484,7 @@ function displayReplayPlan(
 
   console.log("");
   console.log(colorize(" Build Steps:", chalk.bold.green));
-  for (let i = 0; i < plan.buildSteps.length; i++) {
+  for (let i = 0; i < plan.buildSteps.length; i += 1) {
     console.log(colorize(`  ${i + 1}. ${plan.buildSteps[i]}`, chalk.gray));
   }
 

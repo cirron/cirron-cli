@@ -1,5 +1,3 @@
-// src/commands/status.ts
-
 import { execSync } from "node:child_process";
 import path from "node:path";
 import chalk from "chalk";
@@ -9,6 +7,7 @@ import type { ProjectConfig, ProjectStatus } from "../types";
 import { CirronApi } from "../utils/api";
 import { isAuthenticated } from "../utils/auth-guard";
 import { ConfigManager } from "../utils/config";
+import { reportCommandError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { loadProjectConfig } from "../utils/project-config";
 
@@ -16,11 +15,11 @@ interface StatusOptions {
   remote?: boolean;
 }
 
+/** Entry point for `cirron status`: local project status, plus deployments with `--remote`. */
 export async function statusCommand(options: StatusOptions): Promise<void> {
   const spinner = ora("Checking project status...").start();
 
   try {
-    // Load project configuration
     const projectConfigResult = loadProjectConfig();
 
     if (!projectConfigResult) {
@@ -111,7 +110,7 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
     }
   } catch (error) {
     spinner.fail(chalk.red("Status check failed"));
-    logger.error("Error:", error);
+    reportCommandError(error);
   }
 }
 

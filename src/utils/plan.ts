@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import type { ProjectConfig } from "../types";
+import { isGpuArchitecture } from "./architecture";
 
 export interface ArtifactPlan {
   description: string;
@@ -310,6 +311,16 @@ export class PlanGenerator {
     return conflicts;
   }
 
+  /**
+   * Describe the model in `src/model.py` for the generated plan.
+   *
+   * Everything here is inferred by pattern-matching the source text — no AST
+   * parsing, no import of the model. Shapes, architecture and parameter counts
+   * are best-effort guesses, and `trainableParameters` simply repeats the
+   * total rather than distinguishing frozen weights.
+   *
+   * @returns The inferred shape info, or undefined when there is no model file.
+   */
   private async analyzeModelShape(): Promise<ModelShapeInfo | undefined> {
     const modelPath = path.join(this.projectPath, "src", "model.py");
 
@@ -319,8 +330,6 @@ export class PlanGenerator {
 
     const framework = this.projectConfig.framework || "custom";
 
-    // Basic model analysis - this is a simplified version
-    // In a real implementation, we might use AST parsing or dynamic analysis
     const modelContent = await fs.readFile(modelPath, "utf8");
 
     const inputShape = this.detectInputShape(modelContent, framework);
@@ -448,7 +457,7 @@ export class PlanGenerator {
     architecture: string
   ): Promise<ResourceEstimate> {
     const framework = this.projectConfig.framework || "custom";
-    const isGPU = architecture === "cuda" || architecture === "gpu";
+    const isGPU = isGpuArchitecture(architecture);
 
     // Base resource estimates
     let diskSpace = 100 * 1024 * 1024; // 100MB base

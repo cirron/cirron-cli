@@ -1,11 +1,9 @@
-import crypto from "node:crypto";
 import path from "node:path";
 import chalk from "chalk";
 import fs from "fs-extra";
 import inquirer from "inquirer";
 import ora from "ora";
 import type {
-  ProjectConfig,
   PullArtifactInfo,
   PullOptions,
   PullResourceType,
@@ -13,21 +11,20 @@ import type {
 } from "../types";
 import { CirronApi } from "../utils/api";
 import { handlePlatformError } from "../utils/api-errors";
+import {
+  isResourceTyped,
+  KNOWN_RESOURCE_TYPES,
+  parseNameTag,
+} from "../utils/artifacts";
+import { computeFileChecksum } from "../utils/checksum";
 import { ConfigManager } from "../utils/config";
+import { formatSize } from "../utils/format";
 import { CirronIgnore } from "../utils/ignore";
 import { logger } from "../utils/logger";
-import { loadProjectConfig as loadProjectConfigUtil } from "../utils/project-config";
+import { loadProjectConfigOrNull as loadProjectConfig } from "../utils/project-config";
+import { resolveWithin } from "../utils/safe-path";
 
-// --- Constants ---
-
-const KNOWN_RESOURCE_TYPES: PullResourceType[] = [
-  "model",
-  "image",
-  "build",
-  "runtime",
-];
-
-// --- Helpers ---
+// Helpers
 
 function checkAuth(): { api: CirronApi } | null {
   const configManager = new ConfigManager();
@@ -42,59 +39,22 @@ function checkAuth(): { api: CirronApi } | null {
   return { api: new CirronApi(currentConfig) };
 }
 
-function isResourceTyped(resource: string): boolean {
-  return KNOWN_RESOURCE_TYPES.includes(resource as PullResourceType);
-}
-
-function parseNameTag(nameArg: string): { name: string; tag?: string } {
-  const colonIndex = nameArg.lastIndexOf(":");
-  if (colonIndex > 0) {
-    return {
-      name: nameArg.slice(0, colonIndex),
-      tag: nameArg.slice(colonIndex + 1),
-    };
-  }
-  return { name: nameArg };
-}
-
-function loadProjectConfig(): ProjectConfig | null {
-  const result = loadProjectConfigUtil();
-  if (!result) {
-    return null;
-  }
-  return result.config;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-async function computeFileChecksum(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256");
-    const stream = fs.createReadStream(filePath);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
-    stream.on("error", reject);
-  });
-}
-
 async function resolveOutputPath(
   artifact: PullArtifactInfo,
   outputOption: string | undefined
 ): Promise<string> {
   const outputDir = outputOption || process.cwd();
   await fs.ensureDir(outputDir);
-  return path.join(outputDir, artifact.filename);
+
+  // `filename` is server-supplied: contain it inside the chosen output
+  // directory. The user's own --output stays unconstrained.
+  const dest = resolveWithin(outputDir, artifact.filename);
+  if (!dest) {
+    throw new Error(
+      `Refusing to write artifact with unsafe filename: ${artifact.filename}`
+    );
+  }
+  return dest;
 }
 
 async function checkConflict(
@@ -123,6 +83,17 @@ async function checkConflict(
   return overwrite;
 }
 
+/**
+ * Download one artifact to an already-resolved destination path.
+ *
+ * The caller is responsible for containing `destPath` within the project;
+ * this does not re-check it.
+ *
+ * @param api - Authenticated platform client.
+ * @param artifact - The artifact to fetch.
+ * @param destPath - Absolute path to write to.
+ * @param spinner - Progress spinner, updated in place.
+ */
 export async function downloadArtifact(
   api: CirronApi,
   artifact: PullArtifactInfo,
@@ -164,7 +135,52 @@ export async function downloadArtifact(
   }
 }
 
-// --- Dry Run ---
+/**
+ * The shared tail of a single-artifact pull: dry-run, destination, conflict
+ * prompt, download, and the optional JSON result.
+ *
+ * `successSubject` is the only thing the resource-typed and path-based callers
+ * disagree on, so it is a parameter rather than two copies of the sequence.
+ */
+async function completePull(
+  api: CirronApi,
+  artifact: PullArtifactInfo,
+  options: PullOptions,
+  spinner: ReturnType<typeof ora>,
+  successSubject: string
+): Promise<void> {
+  const outputDir = options.output || process.cwd();
+
+  if (options.dryRun) {
+    spinner.stop();
+    printDryRun([artifact], outputDir, options.json ?? false);
+    return;
+  }
+
+  const destPath = await resolveOutputPath(artifact, options.output);
+
+  const shouldProceed = await checkConflict(destPath, options.force ?? false);
+  if (!shouldProceed) {
+    spinner.info(`Skipped ${artifact.name} (file exists)`);
+    return;
+  }
+
+  await downloadArtifact(api, artifact, destPath, spinner);
+
+  spinner.succeed(`Pulled ${successSubject} -> ${destPath}`);
+
+  if (options.json) {
+    const result: PullResult = {
+      artifact,
+      outputPath: destPath,
+      verified: true,
+      skipped: false,
+    };
+    console.log(JSON.stringify(result, null, 2));
+  }
+}
+
+// Dry Run
 
 function printDryRun(
   artifacts: PullArtifactInfo[],
@@ -208,8 +224,9 @@ function printDryRun(
   );
 }
 
-// --- Main Command ---
+// Main Command
 
+/** Entry point for `cirron pull`: download registry artifacts into the project. */
 export async function pullCommand(
   resource: string | undefined,
   name: string | undefined,
@@ -268,7 +285,7 @@ export async function pullCommand(
   }
 }
 
-// --- Resource-typed pull ---
+// Resource-typed pull
 
 async function pullResourceTyped(
   api: CirronApi,
@@ -314,37 +331,13 @@ async function pullResourceTyped(
     }
 
     const artifact = artifacts[0]!;
-    const outputDir = options.output || process.cwd();
-
-    if (options.dryRun) {
-      spinner.stop();
-      printDryRun([artifact], outputDir, options.json ?? false);
-      return;
-    }
-
-    const destPath = await resolveOutputPath(artifact, options.output);
-
-    const shouldProceed = await checkConflict(destPath, options.force ?? false);
-    if (!shouldProceed) {
-      spinner.info(`Skipped ${artifact.name} (file exists)`);
-      return;
-    }
-
-    await downloadArtifact(api, artifact, destPath, spinner);
-
-    spinner.succeed(
-      `Pulled ${chalk.cyan(artifact.name)}:${resolvedTag} -> ${destPath}`
+    await completePull(
+      api,
+      artifact,
+      options,
+      spinner,
+      `${chalk.cyan(artifact.name)}:${resolvedTag}`
     );
-
-    if (options.json) {
-      const result: PullResult = {
-        artifact,
-        outputPath: destPath,
-        verified: true,
-        skipped: false,
-      };
-      console.log(JSON.stringify(result, null, 2));
-    }
   } catch (error) {
     spinner.fail(`Failed to pull ${resource} ${resolvedName}`);
     if (error instanceof Error) {
@@ -356,7 +349,7 @@ async function pullResourceTyped(
   }
 }
 
-// --- Path-based pull ---
+// Path-based pull
 
 async function pullPathBased(
   api: CirronApi,
@@ -382,35 +375,13 @@ async function pullPathBased(
     }
 
     const artifact = artifacts[0]!;
-    const outputDir = options.output || process.cwd();
-
-    if (options.dryRun) {
-      spinner.stop();
-      printDryRun([artifact], outputDir, options.json ?? false);
-      return;
-    }
-
-    const destPath = await resolveOutputPath(artifact, options.output);
-
-    const shouldProceed = await checkConflict(destPath, options.force ?? false);
-    if (!shouldProceed) {
-      spinner.info(`Skipped ${artifact.name} (file exists)`);
-      return;
-    }
-
-    await downloadArtifact(api, artifact, destPath, spinner);
-
-    spinner.succeed(`Pulled ${chalk.cyan(resourcePath)} -> ${destPath}`);
-
-    if (options.json) {
-      const result: PullResult = {
-        artifact,
-        outputPath: destPath,
-        verified: true,
-        skipped: false,
-      };
-      console.log(JSON.stringify(result, null, 2));
-    }
+    await completePull(
+      api,
+      artifact,
+      options,
+      spinner,
+      chalk.cyan(resourcePath)
+    );
   } catch (error) {
     spinner.fail(`Failed to pull ${resourcePath}`);
     if (error instanceof Error) {
@@ -422,7 +393,7 @@ async function pullPathBased(
   }
 }
 
-// --- Pull all ---
+// Pull all
 
 async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
   const projectConfig = loadProjectConfig();
@@ -498,7 +469,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
         );
         if (!shouldProceed) {
           itemSpinner.info(`Skipped ${artifact.name} (file exists)`);
-          skipCount++;
+          skipCount += 1;
           results.push({
             artifact,
             outputPath: destPath,
@@ -513,7 +484,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
         itemSpinner.succeed(
           `Pulled ${chalk.cyan(artifact.name)} -> ${destPath}`
         );
-        successCount++;
+        successCount += 1;
         results.push({
           artifact,
           outputPath: destPath,
@@ -523,7 +494,7 @@ async function pullAll(api: CirronApi, options: PullOptions): Promise<void> {
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         itemSpinner.fail(`Failed to pull ${artifact.name}: ${msg}`);
-        failCount++;
+        failCount += 1;
         results.push({
           artifact,
           outputPath: path.join(outputDir, artifact.filename),

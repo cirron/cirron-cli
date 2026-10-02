@@ -1,7 +1,7 @@
 import type { CirronConfig } from "../types";
 
 /**
- * True when either the device-flow JWT or a legacy sk-* token is present.
+ * True when either the device-flow JWT or `config.token` is present.
  *
  * This mirrors the credential precedence in `CirronApi.getAuthHeader()`
  * (src/utils/api.ts) exactly, and the two must stay in agreement: a command

@@ -52,10 +52,18 @@ function parseConfigFile(configPath: string, filename: string): unknown {
     return isYaml ? loadYaml(raw) : JSON.parse(raw);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Failed to parse ${filename}: ${msg}`);
+    throw new Error(`Failed to parse ${filename}: ${msg}`, { cause: err });
   }
 }
 
+/**
+ * Whether a parsed config carries a top-level `workspace` key.
+ *
+ * This is the test that puts the CLI in monorepo mode.
+ *
+ * @param value - A parsed config object.
+ * @returns True when the shape is a workspace config.
+ */
 export function isWorkspaceConfig(value: unknown): value is WorkspaceConfig {
   return (
     typeof value === "object" &&
@@ -79,6 +87,8 @@ function findCirronConfigInDir(dir: string): string | null {
 /**
  * Load the root workspace config from `dir` (defaults to cwd). Returns null if
  * there is no cirron config there, or if the config has no `workspace` key.
+ * @returns The path and parsed workspace config, or null when the directory
+ * holds none.
  */
 export function loadWorkspaceConfig(
   dir?: string
@@ -219,7 +229,7 @@ export function discoverModels(
   workspace: WorkspaceConfig,
   rootDir: string
 ): { resolved: DiscoveredModel[]; missing: string[] } {
-  const defaults = workspace.workspace.defaults;
+  const { defaults } = workspace.workspace;
   const resolved: DiscoveredModel[] = [];
   const missing: string[] = [];
   const seen = new Set<string>();

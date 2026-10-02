@@ -13,6 +13,8 @@ vi.mock("node:child_process", async () => {
 const execSyncMock = vi.mocked(execSync);
 
 import { replayCommand } from "../../src/commands/replay";
+// biome-ignore lint/performance/noNamespaceImport: needed for vi.spyOn
+import * as executionMod from "../../src/utils/execution";
 import { PlanStorage } from "../../src/utils/plan-storage";
 import { exitCodeFromError, stubProcessExit } from "../helpers/mock-api";
 import { writeFileAt, writeProjectConfig } from "../helpers/project-fixture";
@@ -181,6 +183,55 @@ describe("replayCommand", () => {
     expect(fs.existsSync(path.join(tmp.dir, "temp_replay_compile.py"))).toBe(
       false
     );
+  });
+
+  it("probes MPS, not CUDA, for a pytorch mps plan", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    writeFileAt(tmp.dir, "src/model.py", "");
+    writeFileAt(tmp.dir, "requirements.txt", "");
+    vi.spyOn(PlanStorage, "loadPlan").mockResolvedValue(
+      plan({ framework: "pytorch", architecture: "mps" }) as never
+    );
+    const probe = vi
+      .spyOn(executionMod, "executePythonScript")
+      .mockResolvedValue({ success: false } as never);
+
+    let caught: unknown;
+    try {
+      await replayCommand({ plan: "/p.json" });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(exitCodeFromError(caught)).toBe(1);
+    expect(probe).toHaveBeenCalledWith(
+      expect.stringContaining("torch.backends.mps.is_available()")
+    );
+    expect(errorSpy.mock.calls.flat().join(" ")).toContain(
+      "MPS not available for PyTorch (plan requires GPU)"
+    );
+  });
+
+  it("writes the MPS device placement into a pytorch mps compile replay", async () => {
+    writeProjectConfig(tmp.dir, { framework: "pytorch" });
+    writeFileAt(tmp.dir, "src/model.py", "");
+    writeFileAt(tmp.dir, "requirements.txt", "");
+    vi.spyOn(PlanStorage, "loadPlan").mockResolvedValue(
+      plan({ framework: "pytorch", architecture: "mps" }) as never
+    );
+    // Keep the generated script; the replay deletes it afterwards.
+    let script = "";
+    execSyncMock.mockImplementation(((cmd: string) => {
+      if (cmd.includes("temp_replay_compile.py")) {
+        script = fs.readFileSync("temp_replay_compile.py", "utf8");
+      }
+      return "ok";
+    }) as never);
+
+    await replayCommand({ plan: "/p.json", validate: false });
+
+    expect(script).toContain('model = model.to("mps")');
+    expect(script).toContain("models/model_mps.pth");
   });
 
   it("executes build replay", async () => {

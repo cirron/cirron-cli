@@ -1,3 +1,11 @@
+/**
+ * On-disk storage for saved plans.
+ *
+ * Plans live under `~/.cirron/plans/` as JSON, one file per plan, with the
+ * directory created on demand. Names come from the caller or are generated
+ * from the plan type and a timestamp.
+ */
+
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -76,7 +84,8 @@ export class PlanStorage {
       return savedPlan;
     } catch (error) {
       throw new Error(
-        `Failed to load plan file: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to load plan file: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       );
     }
   }
@@ -141,7 +150,7 @@ export class PlanStorage {
       if (planDate < cutoffDate) {
         try {
           await PlanStorage.deletePlan(savedPlan.filePath);
-          deletedCount++;
+          deletedCount += 1;
         } catch (error) {
           logger.debug(
             `Failed to delete old plan ${savedPlan.filePath}:`,
@@ -263,8 +272,7 @@ export class PlanStorage {
     const allPlans = await PlanStorage.listPlans();
 
     return allPlans.filter((savedPlan) => {
-      const plan = savedPlan.plan;
-      const metadata = savedPlan.metadata;
+      const { plan, metadata } = savedPlan;
 
       // Filter by command
       if (pattern.command && plan.command !== pattern.command) {
@@ -352,11 +360,11 @@ export class PlanStorage {
       }
 
       // Count by command
-      const command = savedPlan.plan.command;
+      const { command } = savedPlan.plan;
       stats.plansByCommand[command] = (stats.plansByCommand[command] || 0) + 1;
 
       // Count by framework
-      const framework = savedPlan.plan.framework;
+      const { framework } = savedPlan.plan;
       stats.plansByFramework[framework] =
         (stats.plansByFramework[framework] || 0) + 1;
     }
@@ -364,6 +372,18 @@ export class PlanStorage {
     return stats;
   }
 
+  /**
+   * Write every matching saved plan to a single JSON file at `outputPath`.
+   *
+   * Despite the name and the `format` option, this produces neither a zip nor
+   * a tar — `format` is accepted and ignored, and the output is always one
+   * JSON document holding each plan alongside its metadata.
+   *
+   * @param outputPath - Destination file for the JSON export.
+   * @param options - `includePattern` narrows which plans are exported;
+   * `format` has no effect.
+   * @throws If no plans match.
+   */
   static async exportPlansArchive(
     outputPath: string,
     options: {
@@ -383,8 +403,6 @@ export class PlanStorage {
       throw new Error("No plans found to export");
     }
 
-    // For now, just create a JSON export with all plans
-    // In a real implementation, you might use archiver or similar
     const exportData = {
       exportedAt: new Date().toISOString(),
       totalPlans: plans.length,
@@ -394,7 +412,7 @@ export class PlanStorage {
       })),
     };
 
-    const fs = await import("fs-extra");
-    await fs.writeJson(outputPath, exportData, { spaces: 2 });
+    const fsExtra = await import("fs-extra");
+    await fsExtra.writeJson(outputPath, exportData, { spaces: 2 });
   }
 }
