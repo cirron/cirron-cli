@@ -123,6 +123,25 @@ describe("mapWithConcurrency", () => {
     expect(started.sort((a, b) => a - b)).toEqual([1, 2, 3, 4]);
   });
 
+  it("waits for in-flight work to settle before rejecting", async () => {
+    const settled: number[] = [];
+
+    await expect(
+      mapWithConcurrency([1, 2, 3, 4], 4, async (n) => {
+        await tick(n === 1 ? 1 : 20);
+        if (n === 1 || n === 3) {
+          throw new Error(`part ${n} failed`);
+        }
+        settled.push(n);
+        return n;
+      })
+    ).rejects.toThrow("part 1 failed");
+
+    // push aborts the multipart session as soon as this rejects, so a part
+    // still uploading at that point would race the abort.
+    expect(settled.sort((a, b) => a - b)).toEqual([2, 4]);
+  });
+
   it("handles empty input", async () => {
     const results = await mapWithConcurrency([], 4, () =>
       Promise.reject(new Error("should never run"))
