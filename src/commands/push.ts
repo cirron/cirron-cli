@@ -231,7 +231,10 @@ async function resolveResourceFile(
  * asking for a single-PUT upload URL first would orphan a second one. Both
  * paths yield the session id that `confirmUpload` resolves.
  *
- * A dedupe hit short-circuits the upload entirely unless `force` is set.
+ * A dedupe hit short-circuits the upload entirely unless `force` is set. A
+ * `platform` hint also skips dedupe: the check matches content only, not the
+ * Platform it lives on, so a hit would leave the artifact on another
+ * Platform and the slug would never reach the server to be validated.
  *
  * @param api - Authenticated platform client.
  * @param fileInfo - Path, size and checksum of the artifact.
@@ -258,7 +261,7 @@ export async function uploadSingleFile(
   const displayName = options.name || fileInfo.relativePath;
 
   // Step 1: Deduplication check
-  if (!options.force) {
+  if (!(options.force || options.platform)) {
     spinner.text = `Checking for duplicates for ${displayName}...`;
 
     const dedupeOpts: { resource?: string; name?: string } = {};

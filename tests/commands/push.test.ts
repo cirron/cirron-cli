@@ -463,6 +463,24 @@ describe("pushCommand", () => {
       expect(Object.hasOwn(opts, "platform")).toBe(false);
     });
 
+    it("skips dedupe so the hint reaches the server", async () => {
+      createAuthenticatedSession(tmp.dir);
+      writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
+      stubUploadChain();
+      const dedupeSpy = vi
+        .spyOn(CirronApi.prototype, "checkDedupe")
+        .mockResolvedValue(pushDedupe({ exists: true }));
+
+      await pushCommand("model", "demo.pth", { platform: "prod-ml" });
+
+      // Dedupe matches content, not Platform: a hit would report success with
+      // the bytes on another Platform and the slug never validated.
+      expect(dedupeSpy).not.toHaveBeenCalled();
+      expect(CirronApi.prototype.getUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "prod-ml" })
+      );
+    });
+
     it("points at the slug, not at register, when the platform is rejected", async () => {
       createAuthenticatedSession(tmp.dir);
       writeFileAt(tmp.dir, "models/demo.pth", "model bytes");
