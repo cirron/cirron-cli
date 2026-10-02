@@ -1,3 +1,39 @@
+# v0.2.0 (Fri Oct 02 2026)
+
+#### 🚀 Enhancement
+
+- Release v0.2.0: inference keys and access commands, Apple Silicon builds, registry push fixes, and dependency updates [#153](https://github.com/cirron/cirron-cli/pull/153) ([@dependabot[bot]](https://github.com/dependabot[bot]) [@dlynch42](https://github.com/dlynch42))
+
+#### 🔩 Dependency Updates
+
+- Update all dependencies to latest [#152](https://github.com/cirron/cirron-cli/pull/152) ([@dlynch42](https://github.com/dlynch42))
+- Bump vitest from 4.1.10 to 4.1.11 [#136](https://github.com/cirron/cirron-cli/pull/136) ([@dlynch42](https://github.com/dlynch42) [@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump minimatch from 10.2.5 to 10.2.6 [#131](https://github.com/cirron/cirron-cli/pull/131) ([@dlynch42](https://github.com/dlynch42) [@dependabot[bot]](https://github.com/dependabot[bot]))
+- Exit non-zero when compile and plan fail [#151](https://github.com/cirron/cirron-cli/pull/151) ([@dlynch42](https://github.com/dlynch42))
+- Fix the interactive architecture prompt, plan save --all, and the comment convention [#126](https://github.com/cirron/cirron-cli/pull/126) ([@dlynch42](https://github.com/dlynch42))
+- Write down the comment convention, then apply it [#125](https://github.com/cirron/cirron-cli/pull/125) ([@dlynch42](https://github.com/dlynch42))
+- Bump @dsnp/parquetjs from 1.8.7 to 1.8.9 [#86](https://github.com/cirron/cirron-cli/pull/86) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump semver from 7.8.1 to 7.8.5 [#88](https://github.com/cirron/cirron-cli/pull/88) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump @types/node from 25.9.1 to 26.1.2 [#89](https://github.com/cirron/cirron-cli/pull/89) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump ora from 9.4.0 to 9.4.1 [#90](https://github.com/cirron/cirron-cli/pull/90) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump fs-extra from 11.3.5 to 11.4.0 [#91](https://github.com/cirron/cirron-cli/pull/91) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the npm_and_yarn group across 1 directory with 3 updates [#108](https://github.com/cirron/cirron-cli/pull/108) ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Fix the registry data path: unbreak large pushes and contain server-supplied paths [#120](https://github.com/cirron/cirron-cli/pull/120) ([@dlynch42](https://github.com/dlynch42))
+- Add --platform to push so CI can name a target Platform [#117](https://github.com/cirron/cirron-cli/pull/117) ([@dlynch42](https://github.com/dlynch42))
+
+#### 🛠️ Command Changes
+
+- Add an mps target so PyTorch builds on Apple Silicon [#150](https://github.com/cirron/cirron-cli/pull/150) ([@dlynch42](https://github.com/dlynch42))
+- Remove the --registry flag from push and pull [#148](https://github.com/cirron/cirron-cli/pull/148) ([@dlynch42](https://github.com/dlynch42))
+- CIRRON-920: Add CLI commands for deployment access management [#129](https://github.com/cirron/cirron-cli/pull/129) ([@dlynch42](https://github.com/dlynch42))
+
+#### Authors: 2
+
+- [@dependabot[bot]](https://github.com/dependabot[bot])
+- Devin Lynch ([@dlynch42](https://github.com/dlynch42))
+
+---
+
 # v0.1.2 (Fri Aug 07 2026)
 
 #### 🔩 Dependency Updates
