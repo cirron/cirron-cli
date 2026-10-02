@@ -1,6 +1,6 @@
 {
   "name": "@cirron/cli",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Official CLI for Cirron, providing streamlined commands for building, deploying, and managing ML models on and off the platform.",
   "keywords": [
     "cirron",
